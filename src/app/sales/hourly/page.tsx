@@ -99,25 +99,49 @@ export default function HourlyPage() {
             className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold" style={{ color: '#14252A' }}>{avgHourlyRate.toLocaleString()}<span className="text-sm">円/h</span></p>
-            <p className="text-xs text-gray-500">平均時間単価</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{avgHourlyRate.toLocaleString()}<span className="text-xs sm:text-sm">円/h</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">平均時間単価</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{totalRevenue.toLocaleString()}<span className="text-sm">円</span></p>
-            <p className="text-xs text-gray-500">月間売上</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-blue-600">{totalRevenue.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">月間売上</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">{data.reduce((s, d) => s + d.visitCount, 0)}<span className="text-sm">件</span></p>
-            <p className="text-xs text-gray-500">月間施術数</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-green-600">{data.reduce((s, d) => s + d.visitCount, 0)}<span className="text-xs sm:text-sm">件</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">月間施術数</p>
           </div>
         </div>
 
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <>
+          {/* モバイル: カード表示 */}
+          <div className="sm:hidden space-y-2">
+            {data.length === 0 ? (
+              <p className="text-center py-8 text-gray-400">データがありません</p>
+            ) : data.map(d => (
+              <div key={d.date} className="bg-white rounded-xl shadow-sm p-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">
+                    {new Date(d.date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
+                  </span>
+                  <span className="font-bold text-sm" style={{ color: '#14252A' }}>{d.hourlyRate.toLocaleString()}円/h</span>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                  <span>{d.visitCount}件</span>
+                  <span>{d.totalRevenue.toLocaleString()}円</span>
+                  <span>{Math.round(d.totalMinutes / 60 * 10) / 10}h</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* PC: テーブル表示 */}
+          <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -144,7 +168,9 @@ export default function HourlyPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+          </>
         )}
       </div>
     </AppShell>

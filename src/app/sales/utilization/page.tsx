@@ -95,9 +95,9 @@ export default function UtilizationPage() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <h2 className="font-bold text-gray-800 text-lg">稼働率分析</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-xs text-gray-500">1日最大枠:</label>
             <input type="number" value={maxSlotsPerDay} onChange={e => setMaxSlotsPerDay(parseInt(e.target.value) || 1)}
               className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center" min={1} max={20} />
@@ -106,25 +106,55 @@ export default function UtilizationPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-3xl font-bold" style={{ color: '#14252A' }}>{avgRate}<span className="text-sm">%</span></p>
-            <p className="text-xs text-gray-500">平均稼働率</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold" style={{ color: '#14252A' }}>{avgRate}<span className="text-xs sm:text-sm">%</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">平均稼働率</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-3xl font-bold text-blue-600">{totalVisits}<span className="text-sm">件</span></p>
-            <p className="text-xs text-gray-500">月間施術数</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold text-blue-600">{totalVisits}<span className="text-xs sm:text-sm">件</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">月間施術数</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-3xl font-bold text-green-600">{workDays}<span className="text-sm">日</span></p>
-            <p className="text-xs text-gray-500">稼働日数</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold text-green-600">{workDays}<span className="text-xs sm:text-sm">日</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">稼働日数</p>
           </div>
         </div>
 
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <>
+          {/* モバイル: カード表示 */}
+          <div className="sm:hidden space-y-2">
+            {data.length === 0 ? (
+              <p className="text-center py-8 text-gray-400">データがありません</p>
+            ) : data.map(d => (
+              <div key={d.date} className="bg-white rounded-xl shadow-sm p-3">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm">
+                    {new Date(d.date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
+                  </span>
+                  <span className={`font-bold text-sm ${d.utilizationRate >= 80 ? 'text-green-600' : d.utilizationRate >= 50 ? '' : 'text-red-500'}`}>
+                    {d.utilizationRate}%
+                  </span>
+                </div>
+                <div className="flex gap-2 text-xs text-gray-500 mb-1">
+                  <span>{d.visitCount}件 / {d.maxSlots}枠</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="h-2 rounded-full" style={{
+                    width: `${d.utilizationRate}%`,
+                    background: d.utilizationRate >= 80 ? '#16a34a' : d.utilizationRate >= 50 ? '#14252A' : '#ef4444'
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* PC: テーブル表示 */}
+          <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -147,13 +177,10 @@ export default function UtilizationPage() {
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-20 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="h-2 rounded-full"
-                            style={{
-                              width: `${d.utilizationRate}%`,
-                              background: d.utilizationRate >= 80 ? '#16a34a' : d.utilizationRate >= 50 ? '#14252A' : '#ef4444'
-                            }}
-                          />
+                          <div className="h-2 rounded-full" style={{
+                            width: `${d.utilizationRate}%`,
+                            background: d.utilizationRate >= 80 ? '#16a34a' : d.utilizationRate >= 50 ? '#14252A' : '#ef4444'
+                          }} />
                         </div>
                         <span className={`font-medium ${d.utilizationRate >= 80 ? 'text-green-600' : d.utilizationRate >= 50 ? '' : 'text-red-500'}`}>
                           {d.utilizationRate}%
@@ -164,7 +191,9 @@ export default function UtilizationPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+          </>
         )}
       </div>
     </AppShell>

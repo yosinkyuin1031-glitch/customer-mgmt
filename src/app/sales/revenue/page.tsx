@@ -126,18 +126,18 @@ export default function RevenuePage() {
         ) : (
           <>
             {/* サマリー */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold" style={{ color: '#14252A' }}>{totalRevenue.toLocaleString()}<span className="text-sm">円</span></p>
-                <p className="text-xs text-gray-500">売上合計</p>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+              <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+                <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{totalRevenue.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
+                <p className="text-[10px] sm:text-xs text-gray-500">売上合計</p>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">{visits.length}<span className="text-sm">件</span></p>
-                <p className="text-xs text-gray-500">施術数</p>
+              <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+                <p className="text-lg sm:text-2xl font-bold text-blue-600">{visits.length}<span className="text-xs sm:text-sm">件</span></p>
+                <p className="text-[10px] sm:text-xs text-gray-500">施術数</p>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold text-green-600">{avgPerVisit.toLocaleString()}<span className="text-sm">円</span></p>
-                <p className="text-xs text-gray-500">平均単価</p>
+              <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+                <p className="text-lg sm:text-2xl font-bold text-green-600">{avgPerVisit.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
+                <p className="text-[10px] sm:text-xs text-gray-500">平均単価</p>
               </div>
             </div>
 
@@ -149,26 +149,28 @@ export default function RevenuePage() {
               {Object.keys(dailyRevenue).length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-4">データがありません</p>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b">
-                      <th className="text-left px-4 py-2 text-xs text-gray-500">日付</th>
-                      <th className="text-right px-4 py-2 text-xs text-gray-500">施術数</th>
-                      <th className="text-right px-4 py-2 text-xs text-gray-500">売上</th>
+                      <th className="text-left px-3 sm:px-4 py-2 text-xs text-gray-500">日付</th>
+                      <th className="text-right px-3 sm:px-4 py-2 text-xs text-gray-500">施術数</th>
+                      <th className="text-right px-3 sm:px-4 py-2 text-xs text-gray-500">売上</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.entries(dailyRevenue).sort(([a], [b]) => b.localeCompare(a)).map(([date, data]) => (
                       <tr key={date} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-2">
+                        <td className="px-3 sm:px-4 py-2">
                           {new Date(date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
                         </td>
-                        <td className="px-4 py-2 text-right">{data.count}件</td>
-                        <td className="px-4 py-2 text-right font-medium">{data.amount.toLocaleString()}円</td>
+                        <td className="px-3 sm:px-4 py-2 text-right">{data.count}件</td>
+                        <td className="px-3 sm:px-4 py-2 text-right font-medium">{data.amount.toLocaleString()}円</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
 

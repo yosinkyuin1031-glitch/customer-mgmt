@@ -48,18 +48,18 @@ export default function HomePage() {
       <div className="px-4 py-4 max-w-lg mx-auto">
 
         {/* 統計カード */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-2xl font-bold" style={{ color: '#14252A' }}>{stats.totalPatients}</p>
-            <p className="text-xs text-gray-500">総患者数</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-3 text-center">
+            <p className="text-xl sm:text-2xl font-bold" style={{ color: '#14252A' }}>{stats.totalPatients}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">総患者数</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-2xl font-bold text-blue-600">{stats.monthVisits}</p>
-            <p className="text-xs text-gray-500">今月の施術</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-3 text-center">
+            <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats.monthVisits}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">今月の施術</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-2xl font-bold text-green-600">{stats.todayVisits}</p>
-            <p className="text-xs text-gray-500">本日の施術</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-3 text-center">
+            <p className="text-xl sm:text-2xl font-bold text-green-600">{stats.todayVisits}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">本日の施術</p>
           </div>
         </div>
 

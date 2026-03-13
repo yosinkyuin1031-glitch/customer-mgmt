@@ -95,18 +95,18 @@ export default function LtvPage() {
         <h2 className="font-bold text-gray-800 text-lg mb-4">LTV（顧客生涯価値）分析</h2>
 
         {/* サマリー */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold" style={{ color: '#14252A' }}>{avgLTV.toLocaleString()}<span className="text-sm">円</span></p>
-            <p className="text-xs text-gray-500">平均LTV</p>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{avgLTV.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">平均LTV</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{ltvData.length}<span className="text-sm">人</span></p>
-            <p className="text-xs text-gray-500">対象患者数</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-blue-600">{ltvData.length}<span className="text-xs sm:text-sm">人</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">対象患者数</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">{totalLTV.toLocaleString()}<span className="text-sm">円</span></p>
-            <p className="text-xs text-gray-500">総LTV</p>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-lg sm:text-2xl font-bold text-green-600">{totalLTV.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">総LTV</p>
           </div>
         </div>
 
@@ -126,7 +126,30 @@ export default function LtvPage() {
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <>
+          {/* モバイル: カード表示 */}
+          <div className="sm:hidden space-y-2">
+            {sorted.map((p, i) => (
+              <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
+                    <span className="font-medium text-sm text-blue-600">{p.name}</span>
+                  </div>
+                  <p className="font-bold text-sm" style={{ color: '#14252A' }}>{p.total_revenue.toLocaleString()}円</p>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                  <span>{p.visit_count}回</span>
+                  <span>平均{p.avg_per_visit.toLocaleString()}円</span>
+                  <span>{p.months_active}ヶ月</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {/* PC: テーブル表示 */}
+          <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -157,7 +180,9 @@ export default function LtvPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+          </>
         )}
       </div>
     </AppShell>

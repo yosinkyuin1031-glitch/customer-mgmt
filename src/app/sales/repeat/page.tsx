@@ -117,7 +117,32 @@ export default function RepeatPage() {
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <>
+          {/* モバイル: カード表示 */}
+          <div className="sm:hidden space-y-2">
+            {data.length === 0 ? (
+              <p className="text-center py-8 text-gray-400">データがありません</p>
+            ) : data.map(d => (
+              <div key={d.month} className="bg-white rounded-xl shadow-sm p-3">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium text-sm">{d.month}</span>
+                  <span className="font-bold text-sm" style={{ color: '#14252A' }}>{d.repeatRate}%</span>
+                </div>
+                <div className="flex gap-3 text-xs text-gray-500">
+                  <span>来院{d.totalVisits}件</span>
+                  <span className="text-blue-600">新規{d.newPatients}人</span>
+                  <span className="text-green-600">リピート{d.repeatPatients}人</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="h-2 rounded-full" style={{ width: `${d.repeatRate}%`, background: '#14252A' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* PC: テーブル表示 */}
+          <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -149,7 +174,9 @@ export default function RepeatPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+          </>
         )}
       </div>
     </AppShell>

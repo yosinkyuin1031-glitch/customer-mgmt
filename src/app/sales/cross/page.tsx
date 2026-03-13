@@ -142,7 +142,38 @@ export default function CrossPage() {
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <>
+          {/* モバイル: カード表示 */}
+          <div className="sm:hidden space-y-2">
+            {results.length === 0 ? (
+              <p className="text-center py-8 text-gray-400">データがありません</p>
+            ) : results.map(r => (
+              <div key={r.label} className="bg-white rounded-xl shadow-sm p-3">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-medium text-sm">{r.label}</span>
+                  <span className="font-bold text-sm">{r.revenue.toLocaleString()}円</span>
+                </div>
+                <div className="flex gap-3 text-xs text-gray-500 mb-1">
+                  <span>{r.count}件</span>
+                  <span>{totalCount > 0 ? Math.round(r.count / totalCount * 100) : 0}%</span>
+                  <span>平均{r.avgRevenue.toLocaleString()}円</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="h-2 rounded-full" style={{ width: `${totalCount > 0 ? (r.count / totalCount * 100) : 0}%`, background: '#14252A' }} />
+                </div>
+              </div>
+            ))}
+            {results.length > 0 && (
+              <div className="bg-gray-50 rounded-xl p-3 font-bold text-sm flex justify-between">
+                <span>合計 {totalCount}件</span>
+                <span>{totalRevenue.toLocaleString()}円</span>
+              </div>
+            )}
+          </div>
+
+          {/* PC: テーブル表示 */}
+          <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -184,7 +215,9 @@ export default function CrossPage() {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
+          </>
         )}
       </div>
     </AppShell>

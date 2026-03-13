@@ -205,46 +205,108 @@ export default function ReservationPage() {
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : viewMode === 'list' ? (
-          /* リスト表示 */
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-2 text-xs text-gray-500">日付</th>
-                  <th className="text-left px-4 py-2 text-xs text-gray-500">時間</th>
-                  <th className="text-left px-4 py-2 text-xs text-gray-500">患者名</th>
-                  <th className="text-left px-4 py-2 text-xs text-gray-500">メニュー</th>
-                  <th className="text-left px-4 py-2 text-xs text-gray-500">ステータス</th>
-                </tr>
-              </thead>
-              <tbody>
+          <>
+            {/* モバイル: カード表示 */}
+            <div className="sm:hidden space-y-2">
+              {reservations.length === 0 ? (
+                <p className="text-center py-8 text-gray-400">予約がありません</p>
+              ) : reservations.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => openEditReservation(r)}
+                  className="bg-white rounded-xl shadow-sm p-3 cursor-pointer active:bg-gray-50"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium text-sm">{r.patient_name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{r.menu_name}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(r.status)}`}>
+                      {RESERVATION_STATUSES[r.status]}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 mt-1 text-xs text-gray-400">
+                    <span>{new Date(r.reservation_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}</span>
+                    <span>{r.start_time.slice(0, 5)} ~ {r.end_time.slice(0, 5)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* PC: テーブル表示 */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-4 py-2 text-xs text-gray-500">日付</th>
+                    <th className="text-left px-4 py-2 text-xs text-gray-500">時間</th>
+                    <th className="text-left px-4 py-2 text-xs text-gray-500">患者名</th>
+                    <th className="text-left px-4 py-2 text-xs text-gray-500">メニュー</th>
+                    <th className="text-left px-4 py-2 text-xs text-gray-500">ステータス</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservations.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center py-8 text-gray-400">予約がありません</td></tr>
+                  ) : reservations.map(r => (
+                    <tr
+                      key={r.id}
+                      onClick={() => openEditReservation(r)}
+                      className="border-b hover:bg-gray-50 cursor-pointer"
+                    >
+                      <td className="px-4 py-2">
+                        {new Date(r.reservation_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
+                      </td>
+                      <td className="px-4 py-2">{r.start_time.slice(0, 5)} ~ {r.end_time.slice(0, 5)}</td>
+                      <td className="px-4 py-2 font-medium">{r.patient_name}</td>
+                      <td className="px-4 py-2">{r.menu_name}</td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(r.status)}`}>
+                          {RESERVATION_STATUSES[r.status]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* モバイル: カレンダーの代わりにその日の予約リスト */}
+            <div className="sm:hidden">
+              <p className="text-xs text-gray-500 mb-2 text-center">カレンダー表示はPC画面でご利用ください。モバイルでは一覧表示がおすすめです。</p>
+              <div className="space-y-2">
                 {reservations.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">予約がありません</td></tr>
+                  <p className="text-center py-8 text-gray-400">予約がありません</p>
                 ) : reservations.map(r => (
-                  <tr
+                  <div
                     key={r.id}
                     onClick={() => openEditReservation(r)}
-                    className="border-b hover:bg-gray-50 cursor-pointer"
+                    className="bg-white rounded-xl shadow-sm p-3 cursor-pointer active:bg-gray-50"
                   >
-                    <td className="px-4 py-2">
-                      {new Date(r.reservation_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
-                    </td>
-                    <td className="px-4 py-2">{r.start_time.slice(0, 5)} ~ {r.end_time.slice(0, 5)}</td>
-                    <td className="px-4 py-2 font-medium">{r.patient_name}</td>
-                    <td className="px-4 py-2">{r.menu_name}</td>
-                    <td className="px-4 py-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-sm">{r.patient_name}</p>
+                        <p className="text-xs text-gray-500">{r.menu_name}</p>
+                      </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(r.status)}`}>
                         {RESERVATION_STATUSES[r.status]}
                       </span>
-                    </td>
-                  </tr>
+                    </div>
+                    <div className="flex gap-3 mt-1 text-xs text-gray-400">
+                      <span>{new Date(r.reservation_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}</span>
+                      <span>{r.start_time.slice(0, 5)} ~ {r.end_time.slice(0, 5)}</span>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          /* カレンダー表示（週/日） */
-          <div className="bg-white rounded-xl shadow-sm overflow-auto">
+              </div>
+            </div>
+
+            {/* PC: カレンダー表示（週/日） */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-auto">
             <div className="min-w-[700px]">
               {/* 日付ヘッダー */}
               <div className="flex border-b sticky top-0 bg-white z-10">
@@ -300,7 +362,8 @@ export default function ReservationPage() {
                 </div>
               ))}
             </div>
-          </div>
+            </div>
+          </>
         )}
 
         {/* 予約モーダル */}
