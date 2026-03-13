@@ -73,6 +73,9 @@ export default function PatientsPage() {
           <Link href="/patients/new" className="text-white rounded-lg px-4 py-2 text-center font-bold text-sm" style={{ background: '#14252A' }}>
             + 新規患者登録
           </Link>
+          <Link href="/patients/import" className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            CSVインポート
+          </Link>
           <button onClick={() => setShowCsvModal(true)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
             CSV出力
           </button>
