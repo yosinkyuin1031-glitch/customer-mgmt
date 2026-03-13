@@ -17,6 +17,7 @@ export default function PatientsPage() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showCsvModal, setShowCsvModal] = useState(false)
+  const [dmOnly, setDmOnly] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -41,6 +42,21 @@ export default function PatientsPage() {
       )
     : patients
 
+  const downloadFile = (csvContent: string, filename: string) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const buildCsv = (headers: string[], rows: string[][]) => {
+    const bom = '\uFEFF'
+    return bom + [headers.join(','), ...rows.map(r => r.map(v => `"${(v || '').replace(/"/g, '""')}"`).join(','))].join('\n')
+  }
+
   const downloadCsv = () => {
     const headers = ['氏名', 'ふりがな', '性別', '生年月日', '電話番号', 'メール', '住所', '職業', '来院経路', '主訴', 'ステータス']
     const rows = filtered.map(p => [
@@ -49,16 +65,30 @@ export default function PatientsPage() {
       p.occupation, p.referral_source, p.chief_complaint,
       p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'
     ])
+    downloadFile(buildCsv(headers, rows), `患者一覧_${new Date().toISOString().split('T')[0]}.csv`)
+    setShowCsvModal(false)
+  }
 
-    const bom = '\uFEFF'
-    const csv = bom + [headers.join(','), ...rows.map(r => r.map(v => `"${(v || '').replace(/"/g, '""')}"`).join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `患者一覧_${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  const downloadDmCsv = () => {
+    // DM送付可＋住所ありの患者のみ
+    const dmPatients = filtered.filter(p =>
+      p.is_direct_mail !== false &&
+      (p.prefecture || p.city || p.address)
+    )
+    // はがき印刷ソフト対応フォーマット（筆まめ・筆ぐるめ・はがきデザインキット共通）
+    const headers = ['氏名', 'フリガナ', '敬称', '郵便番号', '都道府県', '市区町村', '番地', '建物名', '電話番号']
+    const rows = dmPatients.map(p => [
+      p.name,
+      p.furigana || '',
+      '様',
+      (p.zipcode || '').replace(/[^\d-]/g, ''),
+      p.prefecture || '',
+      p.city || '',
+      p.address || '',
+      p.building || '',
+      p.phone || '',
+    ])
+    downloadFile(buildCsv(headers, rows), `DM宛名_${new Date().toISOString().split('T')[0]}.csv`)
     setShowCsvModal(false)
   }
 
@@ -216,18 +246,37 @@ export default function PatientsPage() {
         {showCsvModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCsvModal(false)}>
             <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-              <h3 className="font-bold text-gray-800 mb-3">CSV出力</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                現在のフィルタ条件で{filtered.length}件の患者データをCSV形式でダウンロードします。
-              </p>
-              <div className="flex gap-2">
-                <button onClick={downloadCsv} className="flex-1 text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>
+              <h3 className="font-bold text-gray-800 mb-4">データ出力</h3>
+
+              {/* 通常CSV */}
+              <div className="border border-gray-200 rounded-xl p-4 mb-3">
+                <p className="font-bold text-sm text-gray-800 mb-1">患者データCSV</p>
+                <p className="text-xs text-gray-500 mb-3">
+                  全項目を含む一覧データ（{filtered.length}件）
+                </p>
+                <button onClick={downloadCsv} className="w-full text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>
                   ダウンロード
                 </button>
-                <button onClick={() => setShowCsvModal(false)} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">
-                  キャンセル
+              </div>
+
+              {/* はがき印刷用CSV */}
+              <div className="border border-orange-200 rounded-xl p-4 mb-3 bg-orange-50">
+                <p className="font-bold text-sm text-gray-800 mb-1">はがき・DM印刷用CSV</p>
+                <p className="text-xs text-gray-500 mb-1">
+                  宛名印刷に必要な項目のみ（氏名・郵便番号・住所）
+                </p>
+                <p className="text-xs text-gray-400 mb-3">
+                  筆まめ・筆ぐるめ・はがきデザインキット等に対応<br />
+                  DM送付可＋住所ありの患者のみ抽出（{filtered.filter(p => p.is_direct_mail !== false && (p.prefecture || p.city || p.address)).length}件）
+                </p>
+                <button onClick={downloadDmCsv} className="w-full py-2 rounded-lg text-sm font-bold text-white bg-orange-500 hover:bg-orange-600">
+                  はがき用CSVをダウンロード
                 </button>
               </div>
+
+              <button onClick={() => setShowCsvModal(false)} className="w-full py-2 border border-gray-300 rounded-lg text-sm text-gray-600">
+                閉じる
+              </button>
             </div>
           </div>
         )}
