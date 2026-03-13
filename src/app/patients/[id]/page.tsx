@@ -1,0 +1,208 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import Header from '@/components/Header'
+import AppShell from '@/components/AppShell'
+import { createClient } from '@/lib/supabase/client'
+import type { Patient, VisitRecord } from '@/lib/types'
+
+export default function PatientDetailPage() {
+  const supabase = createClient()
+  const params = useParams()
+  const router = useRouter()
+  const id = params.id as string
+  const [patient, setPatient] = useState<Patient | null>(null)
+  const [visits, setVisits] = useState<VisitRecord[]>([])
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState<Partial<Patient>>({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: p } = await supabase.from('cm_patients').select('*').eq('id', id).single()
+      if (p) {
+        setPatient(p)
+        setForm(p)
+      }
+      const { data: v } = await supabase.from('cm_visit_records').select('*').eq('patient_id', id).order('visit_date', { ascending: false })
+      setVisits(v || [])
+      setLoading(false)
+    }
+    load()
+  }, [id])
+
+  const handleUpdate = async () => {
+    await supabase.from('cm_patients').update(form).eq('id', id)
+    setPatient({ ...patient!, ...form })
+    setEditing(false)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('この患者を削除しますか？')) return
+    await supabase.from('cm_patients').delete().eq('id', id)
+    router.push('/patients')
+  }
+
+  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
+
+  if (loading) return <AppShell><Header title="患者詳細" /><p className="text-center py-8 text-gray-400">読み込み中...</p></AppShell>
+  if (!patient) return <AppShell><Header title="患者詳細" /><p className="text-center py-8 text-gray-400">患者が見つかりません</p></AppShell>
+
+  const age = patient.birth_date
+    ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : null
+
+  const totalPayment = visits.reduce((sum, v) => sum + (v.payment_amount || 0), 0)
+
+  return (
+    <AppShell>
+      <Header title="患者詳細" />
+      <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+
+        {/* 患者基本情報 */}
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">{patient.name}</h2>
+              {patient.furigana && <p className="text-xs text-gray-400">{patient.furigana}</p>}
+            </div>
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              patient.status === 'active' ? 'bg-green-100 text-green-700' :
+              patient.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+              'bg-gray-100 text-gray-500'
+            }`}>
+              {patient.status === 'active' ? '通院中' : patient.status === 'completed' ? '卒業' : '休止'}
+            </span>
+          </div>
+
+          {!editing ? (
+            <div className="space-y-2 text-sm">
+              {age !== null && <p><span className="text-gray-500">年齢:</span> {age}歳（{patient.gender}）</p>}
+              {patient.phone && <p><span className="text-gray-500">TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600">{patient.phone}</a></p>}
+              {patient.email && <p><span className="text-gray-500">Email:</span> {patient.email}</p>}
+              {patient.address && <p><span className="text-gray-500">住所:</span> {patient.address}</p>}
+              {patient.occupation && <p><span className="text-gray-500">職業:</span> {patient.occupation}</p>}
+              {patient.referral_source && <p><span className="text-gray-500">来院経路:</span> {patient.referral_source}</p>}
+              {patient.chief_complaint && (
+                <div className="mt-2 bg-yellow-50 rounded-lg p-3">
+                  <p className="text-xs font-bold text-yellow-700 mb-1">主訴</p>
+                  <p className="text-sm text-gray-700">{patient.chief_complaint}</p>
+                </div>
+              )}
+              {patient.medical_history && (
+                <div className="mt-2 bg-red-50 rounded-lg p-3">
+                  <p className="text-xs font-bold text-red-700 mb-1">既往歴</p>
+                  <p className="text-sm text-gray-700">{patient.medical_history}</p>
+                </div>
+              )}
+              {patient.notes && <p className="text-xs text-gray-500 mt-2">メモ: {patient.notes}</p>}
+
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => setEditing(true)} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600">編集</button>
+                <button onClick={handleDelete} className="text-sm py-2 px-4 text-red-500 border border-red-200 rounded-lg">削除</button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">氏名</label>
+                  <input value={form.name || ''} onChange={e => setForm({...form, name: e.target.value})} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">ふりがな</label>
+                  <input value={form.furigana || ''} onChange={e => setForm({...form, furigana: e.target.value})} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">電話番号</label>
+                <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">主訴</label>
+                <textarea value={form.chief_complaint || ''} onChange={e => setForm({...form, chief_complaint: e.target.value})} className={inputClass} rows={2} />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">ステータス</label>
+                <select value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value as Patient['status']})} className={inputClass}>
+                  <option value="active">通院中</option>
+                  <option value="inactive">休止</option>
+                  <option value="completed">卒業</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleUpdate} className="flex-1 text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>保存</button>
+                <button onClick={() => { setEditing(false); setForm(patient) }} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">キャンセル</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 施術サマリー */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
+            <p className="text-xl font-bold" style={{ color: '#14252A' }}>{visits.length}</p>
+            <p className="text-xs text-gray-500">来院回数</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
+            <p className="text-xl font-bold text-blue-600">{totalPayment.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">総売上(円)</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
+            <p className="text-xl font-bold text-green-600">{visits.length > 0 ? Math.round(totalPayment / visits.length).toLocaleString() : 0}</p>
+            <p className="text-xs text-gray-500">平均単価(円)</p>
+          </div>
+        </div>
+
+        {/* 施術記録ボタン */}
+        <Link
+          href={`/visits/new?patient_id=${id}`}
+          className="block w-full bg-blue-600 text-white text-center py-3 rounded-xl font-bold text-sm"
+        >
+          + この患者の施術記録を追加
+        </Link>
+
+        {/* 来院履歴 */}
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <h3 className="font-bold text-gray-800 mb-3">来院履歴</h3>
+          {visits.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-2">施術記録がありません</p>
+          ) : (
+            <div className="space-y-3">
+              {visits.map((v, i) => (
+                <div key={v.id} className="border border-gray-100 rounded-lg p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold" style={{ background: '#14252A' }}>
+                        {visits.length - i}
+                      </span>
+                      <span className="text-sm font-bold">
+                        {new Date(v.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {v.atmosphere && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          v.atmosphere === '良好' ? 'bg-green-100 text-green-700' :
+                          v.atmosphere === '普通' ? 'bg-gray-100 text-gray-600' :
+                          'bg-red-100 text-red-700'
+                        }`}>{v.atmosphere}</span>
+                      )}
+                      <span className="text-xs text-green-700 font-medium">{v.payment_amount?.toLocaleString()}円</span>
+                    </div>
+                  </div>
+                  {v.symptoms && <p className="text-xs text-gray-600"><span className="font-medium">症状:</span> {v.symptoms}</p>}
+                  {v.treatment_content && <p className="text-xs text-gray-600"><span className="font-medium">施術:</span> {v.treatment_content}</p>}
+                  {v.improvement && <p className="text-xs text-blue-600"><span className="font-medium">改善:</span> {v.improvement}</p>}
+                  {v.next_plan && <p className="text-xs text-gray-500 mt-1">次回: {v.next_plan}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </AppShell>
+  )
+}
