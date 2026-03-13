@@ -59,17 +59,16 @@ export default function PatientDetailPage() {
     ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null
 
-  // LTV・来院回数はDB上の集計値 or cm_slipsから計算
-  const ltvFromSlips = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
-  const visitCount = patient.visit_count || slips.length
-  const ltvValue = patient.ltv || ltvFromSlips
+  // cm_slipsから一貫して計算（重複なし）
+  const visitCount = slips.length
+  const ltvValue = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
   const avgPrice = visitCount > 0 ? Math.round(ltvValue / visitCount) : 0
 
-  const firstVisit = patient.first_visit_date || (slips.length > 0 ? slips[slips.length - 1].visit_date : null)
-  const lastVisit = patient.last_visit_date || (slips.length > 0 ? slips[0].visit_date : null)
+  const firstVisit = slips.length > 0 ? slips[slips.length - 1].visit_date : patient.first_visit_date
+  const lastVisit = slips.length > 0 ? slips[0].visit_date : patient.last_visit_date
   const daysSince = lastVisit
     ? Math.floor((Date.now() - new Date(lastVisit).getTime()) / (24 * 60 * 60 * 1000))
-    : patient.days_since_last_visit
+    : null
 
   const fullAddress = [patient.prefecture, patient.city, patient.address, patient.building].filter(Boolean).join('')
 
@@ -362,7 +361,7 @@ export default function PatientDetailPage() {
         {/* 来院履歴（cm_slips - CSSからの伝票データ） */}
         {slips.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4">
-            <h3 className="font-bold text-gray-800 mb-3">来院・売上履歴 <span className="text-xs text-gray-400 font-normal">（全{slips.length}件）</span></h3>
+            <h3 className="font-bold text-gray-800 mb-3">来院・売上履歴 <span className="text-xs text-gray-400 font-normal">（全{visitCount}件）</span></h3>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -377,7 +376,7 @@ export default function PatientDetailPage() {
                 <tbody>
                   {displaySlips.map((s, i) => (
                     <tr key={s.id} className="border-b border-gray-50">
-                      <td className="py-1.5 pr-2 text-gray-400">{slips.length - (showAllSlips ? i : i)}</td>
+                      <td className="py-1.5 pr-2 text-gray-400">{slips.length - slips.indexOf(s)}</td>
                       <td className="py-1.5 pr-2">
                         {new Date(s.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>

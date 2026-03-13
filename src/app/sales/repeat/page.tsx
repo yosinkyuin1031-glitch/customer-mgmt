@@ -36,8 +36,8 @@ export default function RepeatPage() {
     const load = async () => {
       setLoading(true)
       const { data: visits } = await supabase
-        .from('cm_visit_records')
-        .select('patient_id, visit_date, visit_number, payment_amount')
+        .from('cm_slips')
+        .select('patient_id, visit_date, total_price')
         .order('visit_date')
 
       const { data: patients } = await supabase
@@ -97,7 +97,7 @@ export default function RepeatPage() {
       visits.forEach(v => {
         if (!patMap[v.patient_id]) patMap[v.patient_id] = { count: 0, revenue: 0, first: v.visit_date, last: v.visit_date }
         patMap[v.patient_id].count++
-        patMap[v.patient_id].revenue += v.payment_amount || 0
+        patMap[v.patient_id].revenue += v.total_price || 0
         if (v.visit_date < patMap[v.patient_id].first) patMap[v.patient_id].first = v.visit_date
         if (v.visit_date > patMap[v.patient_id].last) patMap[v.patient_id].last = v.visit_date
       })

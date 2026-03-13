@@ -6,13 +6,12 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
 
-type CrossAxis = 'referral_source' | 'gender' | 'occupation' | 'payment_method' | 'atmosphere'
+type CrossAxis = 'referral_source' | 'gender' | 'occupation' | 'staff_name'
 const axisOptions: { key: CrossAxis, label: string }[] = [
   { key: 'referral_source', label: '来院経路' },
   { key: 'gender', label: '性別' },
   { key: 'occupation', label: '職業' },
-  { key: 'payment_method', label: '支払方法' },
-  { key: 'atmosphere', label: '反応' },
+  { key: 'staff_name', label: '担当者' },
 ]
 
 interface CrossResult {
@@ -42,21 +41,31 @@ export default function CrossPage() {
       const patientFields: CrossAxis[] = ['referral_source', 'gender', 'occupation']
 
       if (patientFields.includes(rowAxis)) {
-        const { data: visits } = await supabase
-          .from('cm_visit_records')
-          .select('patient_id, payment_amount, patient:cm_patients(referral_source, gender, occupation)')
+        const { data: slips } = await supabase
+          .from('cm_slips')
+          .select('patient_id, total_price')
           .gte('visit_date', startDate)
           .lte('visit_date', endDate)
 
-        if (!visits) { setLoading(false); return }
+        if (!slips) { setLoading(false); return }
+
+        // 患者情報を取得
+        const patientIds = [...new Set(slips.map(s => s.patient_id).filter(Boolean))]
+        const { data: patientsData } = await supabase
+          .from('cm_patients')
+          .select('id, referral_source, gender, occupation')
+          .in('id', patientIds)
+
+        const patientMap: Record<string, Record<string, string>> = {}
+        patientsData?.forEach(p => { patientMap[p.id] = p })
 
         const map: Record<string, { count: number, revenue: number }> = {}
-        visits.forEach((v: Record<string, unknown>) => {
-          const patient = v.patient as Record<string, string> | null
+        slips.forEach(s => {
+          const patient = s.patient_id ? patientMap[s.patient_id] : null
           const key = (patient?.[rowAxis] as string) || '不明'
           if (!map[key]) map[key] = { count: 0, revenue: 0 }
           map[key].count++
-          map[key].revenue += (v.payment_amount as number) || 0
+          map[key].revenue += s.total_price || 0
         })
 
         setResults(Object.entries(map).map(([label, d]) => ({
@@ -66,20 +75,21 @@ export default function CrossPage() {
           avgRevenue: d.count > 0 ? Math.round(d.revenue / d.count) : 0,
         })).sort((a, b) => b.revenue - a.revenue))
       } else {
-        const { data: visits } = await supabase
-          .from('cm_visit_records')
-          .select(`${rowAxis}, payment_amount`)
+        // staff_name で集計
+        const { data: slips } = await supabase
+          .from('cm_slips')
+          .select('staff_name, total_price')
           .gte('visit_date', startDate)
           .lte('visit_date', endDate)
 
-        if (!visits) { setLoading(false); return }
+        if (!slips) { setLoading(false); return }
 
         const map: Record<string, { count: number, revenue: number }> = {}
-        visits.forEach((v: Record<string, unknown>) => {
-          const key = (v[rowAxis] as string) || '不明'
+        slips.forEach(s => {
+          const key = s.staff_name || '不明'
           if (!map[key]) map[key] = { count: 0, revenue: 0 }
           map[key].count++
-          map[key].revenue += (v.payment_amount as number) || 0
+          map[key].revenue += s.total_price || 0
         })
 
         setResults(Object.entries(map).map(([label, d]) => ({

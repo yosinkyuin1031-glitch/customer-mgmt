@@ -29,33 +29,30 @@ export default function HourlyPage() {
       d.setDate(0)
       const endDate = d.toISOString().split('T')[0]
 
-      const { data: visits } = await supabase
-        .from('cm_visit_records')
-        .select('visit_date, payment_amount')
+      const { data: slips } = await supabase
+        .from('cm_slips')
+        .select('visit_date, total_price, duration_minutes')
         .gte('visit_date', startDate)
         .lte('visit_date', endDate)
 
-      if (!visits) { setLoading(false); return }
+      if (!slips) { setLoading(false); return }
 
-      // 日別に集計（施術時間は1件あたり60分として計算）
-      const dayMap: Record<string, { revenue: number, count: number }> = {}
-      visits.forEach(v => {
-        if (!dayMap[v.visit_date]) dayMap[v.visit_date] = { revenue: 0, count: 0 }
-        dayMap[v.visit_date].revenue += v.payment_amount || 0
-        dayMap[v.visit_date].count++
+      const dayMap: Record<string, { revenue: number, count: number, minutes: number }> = {}
+      slips.forEach(s => {
+        if (!dayMap[s.visit_date]) dayMap[s.visit_date] = { revenue: 0, count: 0, minutes: 0 }
+        dayMap[s.visit_date].revenue += s.total_price || 0
+        dayMap[s.visit_date].count++
+        dayMap[s.visit_date].minutes += s.duration_minutes || 30
       })
 
       const result: HourlyData[] = Object.entries(dayMap)
-        .map(([date, d]) => {
-          const totalMinutes = d.count * 60 // 1施術60分想定
-          return {
+        .map(([date, d]) => ({
             date,
             totalRevenue: d.revenue,
-            totalMinutes,
-            hourlyRate: totalMinutes > 0 ? Math.round((d.revenue / totalMinutes) * 60) : 0,
+            totalMinutes: d.minutes,
+            hourlyRate: d.minutes > 0 ? Math.round((d.revenue / d.minutes) * 60) : 0,
             visitCount: d.count,
-          }
-        })
+        }))
         .sort((a, b) => b.date.localeCompare(a.date))
 
       setData(result)

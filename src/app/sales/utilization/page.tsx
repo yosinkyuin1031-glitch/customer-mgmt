@@ -29,17 +29,17 @@ export default function UtilizationPage() {
       d.setDate(0)
       const endDate = d.toISOString().split('T')[0]
 
-      const { data: visits } = await supabase
-        .from('cm_visit_records')
+      const { data: slips } = await supabase
+        .from('cm_slips')
         .select('visit_date')
         .gte('visit_date', startDate)
         .lte('visit_date', endDate)
 
-      if (!visits) { setLoading(false); return }
+      if (!slips) { setLoading(false); return }
 
       const dayMap: Record<string, number> = {}
-      visits.forEach(v => {
-        dayMap[v.visit_date] = (dayMap[v.visit_date] || 0) + 1
+      slips.forEach(s => {
+        dayMap[s.visit_date] = (dayMap[s.visit_date] || 0) + 1
       })
 
       // 月の全日を生成（営業日のみ = 日曜除外）

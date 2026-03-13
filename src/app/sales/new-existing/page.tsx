@@ -24,21 +24,31 @@ export default function NewExistingPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const { data: visits } = await supabase
-        .from('cm_visit_records')
-        .select('visit_date, payment_amount, visit_number')
+      const { data: slips } = await supabase
+        .from('cm_slips')
+        .select('patient_id, visit_date, total_price')
         .order('visit_date')
 
-      if (!visits) { setLoading(false); return }
+      if (!slips) { setLoading(false); return }
+
+      // 各患者の初回来院月を特定
+      const firstVisitMonth: Record<string, string> = {}
+      slips.forEach(s => {
+        if (!s.patient_id) return
+        const month = s.visit_date.slice(0, 7)
+        if (!firstVisitMonth[s.patient_id] || month < firstVisitMonth[s.patient_id]) {
+          firstVisitMonth[s.patient_id] = month
+        }
+      })
 
       const monthMap: Record<string, { newRev: number, existRev: number, newCount: number, existCount: number }> = {}
 
-      visits.forEach(v => {
-        const month = v.visit_date.slice(0, 7)
+      slips.forEach(s => {
+        const month = s.visit_date.slice(0, 7)
         if (!monthMap[month]) monthMap[month] = { newRev: 0, existRev: 0, newCount: 0, existCount: 0 }
-        const amount = v.payment_amount || 0
+        const amount = s.total_price || 0
 
-        if (v.visit_number <= 1) {
+        if (s.patient_id && firstVisitMonth[s.patient_id] === month) {
           monthMap[month].newRev += amount
           monthMap[month].newCount++
         } else {
