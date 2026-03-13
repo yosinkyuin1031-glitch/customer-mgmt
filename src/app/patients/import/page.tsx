@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 
 // CSVヘッダー → DBカラムのマッピング辞書
 const HEADER_MAP: Record<string, string> = {
+  // 日本語ヘッダー
   '氏名': 'name', '名前': 'name', '患者名': 'name', 'お名前': 'name', '姓名': 'name',
   'ふりがな': 'furigana', 'フリガナ': 'furigana', 'カナ': 'furigana', 'よみがな': 'furigana',
   '生年月日': 'birth_date', '誕生日': 'birth_date', '生年': 'birth_date',
@@ -26,8 +27,29 @@ const HEADER_MAP: Record<string, string> = {
   '顧客区分': 'customer_category', '区分': 'customer_category',
   '主訴': 'chief_complaint', '症状': 'chief_complaint', 'お悩み': 'chief_complaint',
   '既往歴': 'medical_history', '病歴': 'medical_history',
-  '備考': 'notes', 'メモ': 'notes', 'ノート': 'notes',
+  '備考': 'notes', 'メモ': 'notes', 'ノート': 'notes', 'Comment': 'notes',
   'ステータス': 'status', '状態': 'status',
+  // CSS（顧客管理ソフト）英語ヘッダー対応
+  'Name': 'name',
+  'NameReading': 'furigana',
+  'PhoneNumber': 'phone', 'SparePhoneNumber': 'phone2',
+  'Zipcode': 'zipcode',
+  'Prefecture': 'prefecture',
+  'City': 'city',
+  'Building': 'building',
+  'MobileEmail': 'email',
+  'IsDirectMail': 'is_direct_mail_text',
+  'Sex': 'gender',
+  'Birthday': 'birth_date',
+  'PatientCategory': 'customer_category',
+  'Job': 'occupation',
+  'Motive': 'referral_source',
+  'Symptom': 'chief_complaint',
+  'FirstDay': 'first_visit',
+  'LastDay': 'last_visit',
+  'OperationNum': 'visit_count_text',
+  'Ltv': 'ltv_text',
+  'RegistrationDate': 'registration_date',
 }
 
 const DB_COLUMNS = [
@@ -51,6 +73,13 @@ const DB_COLUMNS = [
   { key: 'medical_history', label: '既往歴' },
   { key: 'notes', label: '備考' },
   { key: 'status', label: 'ステータス' },
+  { key: 'phone2', label: '予備電話番号' },
+  { key: 'is_direct_mail_text', label: 'DM送付可否' },
+  { key: 'first_visit', label: '初回来院日（参考）' },
+  { key: 'last_visit', label: '最終来院日（参考）' },
+  { key: 'visit_count_text', label: '来院回数（参考）' },
+  { key: 'ltv_text', label: 'LTV（参考）' },
+  { key: 'registration_date', label: '登録日（参考）' },
 ]
 
 type Step = 'upload' | 'mapping' | 'preview' | 'done'
@@ -201,10 +230,29 @@ export default function ImportPage() {
         record[col] = normalizeStatus(val)
       } else if (col === 'birth_date') {
         record[col] = normalizeBirthDate(val)
+      } else if (col === 'is_direct_mail_text') {
+        // CSS: "有効" → true, それ以外 → false
+        record['is_direct_mail'] = val === '有効'
+        record['is_enabled'] = val === '有効'
+      } else if (col === 'phone2') {
+        // 予備電話: メインが空なら使用
+        if (!record['phone']) record['phone'] = val
+      } else if (col === 'first_visit' || col === 'last_visit' || col === 'visit_count_text' || col === 'ltv_text' || col === 'registration_date') {
+        // これらはcm_patientsテーブルのカラムではないのでスキップ（参考情報）
+        record['notes'] = ((record['notes'] || '') as string +
+          (col === 'first_visit' ? `\n初回来院: ${val}` :
+           col === 'last_visit' ? `\n最終来院: ${val}` :
+           col === 'visit_count_text' ? `\n来院回数: ${val}` :
+           col === 'ltv_text' ? `\nLTV: ${val}` : '')).trim()
       } else {
         record[col] = val
       }
     })
+    // EmailがMobileEmailから来た場合の処理
+    if (!record['email']) {
+      const mobileIdx = mapping.indexOf('email')
+      if (mobileIdx >= 0 && row[mobileIdx]) record['email'] = row[mobileIdx].trim()
+    }
     return record
   }
 
