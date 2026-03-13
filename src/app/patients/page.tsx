@@ -177,37 +177,46 @@ export default function PatientsPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b">
                     <th className="text-left px-3 py-2 text-xs text-gray-500">氏名</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">市区町村</th>
                     <th className="text-left px-3 py-2 text-xs text-gray-500">性別</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">電話番号</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">主訴</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">症状</th>
                     <th className="text-left px-3 py-2 text-xs text-gray-500">来院経路</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">ステータス</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">来院</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">LTV</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">最終来院</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">経過</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(p => (
+                  {filtered.map(p => {
+                    const daysAgo = p.days_since_last_visit
+                    return (
                     <tr key={p.id} className="border-b hover:bg-gray-50">
                       <td className="px-3 py-2">
                         <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline font-medium">
                           {p.name}
                         </Link>
-                        {p.furigana && <span className="text-xs text-gray-400 ml-1">{p.furigana}</span>}
+                        {p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
                       </td>
-                      <td className="px-3 py-2">{p.gender}</td>
-                      <td className="px-3 py-2">{p.phone}</td>
-                      <td className="px-3 py-2 text-gray-600 truncate max-w-[150px]">{p.chief_complaint}</td>
-                      <td className="px-3 py-2 text-xs">{p.referral_source}</td>
-                      <td className="px-3 py-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          p.status === 'active' ? 'bg-green-100 text-green-700' :
-                          p.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>
-                          {p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'}
-                        </span>
+                      <td className="px-3 py-2 text-xs text-gray-600">{p.city || '-'}</td>
+                      <td className="px-3 py-2 text-xs">{p.gender}</td>
+                      <td className="px-3 py-2 text-xs text-gray-600 truncate max-w-[120px]">{p.chief_complaint || '-'}</td>
+                      <td className="px-3 py-2 text-xs">{p.referral_source || '-'}</td>
+                      <td className="px-3 py-2 text-right text-xs font-medium">{p.visit_count || 0}</td>
+                      <td className="px-3 py-2 text-right text-xs font-medium text-blue-600">
+                        {p.ltv ? `￥${p.ltv.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-xs">{p.last_visit_date || '-'}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {daysAgo !== null && daysAgo !== undefined ? (
+                          <span className={daysAgo > 90 ? 'text-red-500' : daysAgo > 30 ? 'text-orange-500' : 'text-green-600'}>
+                            {daysAgo}日
+                          </span>
+                        ) : '-'}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -215,26 +224,38 @@ export default function PatientsPage() {
             {/* モバイル: カード */}
             <div className="md:hidden space-y-2">
               {filtered.map(p => (
-                <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition-shadow">
+                <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-gray-800">{p.name}</p>
-                      {p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
-                      <p className="text-xs text-gray-500 mt-1">{p.chief_complaint}</p>
-                      {p.phone && <p className="text-xs text-gray-400 mt-0.5">TEL: {p.phone}</p>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-gray-800">{p.name}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          p.status === 'active' ? 'bg-green-100 text-green-700' :
+                          p.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'}
+                        </span>
+                      </div>
+                      <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                        {p.city && <span>{p.city}</span>}
+                        <span>{p.gender}</span>
+                        {p.chief_complaint && <span className="truncate">{p.chief_complaint}</span>}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        p.status === 'active' ? 'bg-green-100 text-green-700' :
-                        p.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-500'
-                      }`}>
-                        {p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'}
-                      </span>
-                      {p.referral_source && (
-                        <span className="text-xs text-gray-400">{p.referral_source}</span>
+                    <div className="text-right ml-2 shrink-0">
+                      <p className="text-xs font-bold text-blue-600">{p.ltv ? `￥${p.ltv.toLocaleString()}` : '-'}</p>
+                      <p className="text-xs text-gray-400">{p.visit_count || 0}回</p>
+                      {p.days_since_last_visit !== null && p.days_since_last_visit !== undefined && (
+                        <p className={`text-xs ${p.days_since_last_visit > 90 ? 'text-red-500' : p.days_since_last_visit > 30 ? 'text-orange-500' : 'text-green-600'}`}>
+                          {p.days_since_last_visit}日前
+                        </p>
                       )}
                     </div>
+                  </div>
+                  <div className="flex gap-2 mt-1.5 text-xs text-gray-400">
+                    {p.referral_source && <span>{p.referral_source}</span>}
+                    {p.phone && <span>TEL:{p.phone}</span>}
                   </div>
                 </Link>
               ))}

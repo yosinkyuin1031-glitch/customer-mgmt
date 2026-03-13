@@ -21,6 +21,13 @@ export interface Patient {
   status: 'active' | 'inactive' | 'completed'
   is_enabled: boolean
   is_direct_mail: boolean
+  first_visit_date: string | null
+  last_visit_date: string | null
+  visit_count: number
+  ltv: number
+  days_since_last_visit: number | null
+  line_date: string | null
+  line_count: number
   created_at: string
   updated_at: string
 }

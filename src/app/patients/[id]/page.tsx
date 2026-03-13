@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import type { Patient, VisitRecord } from '@/lib/types'
+import type { Patient, VisitRecord, Slip } from '@/lib/types'
 import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 export default function PatientDetailPage() {
@@ -16,9 +16,11 @@ export default function PatientDetailPage() {
   const id = params.id as string
   const [patient, setPatient] = useState<Patient | null>(null)
   const [visits, setVisits] = useState<VisitRecord[]>([])
+  const [slips, setSlips] = useState<Slip[]>([])
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Partial<Patient>>({})
   const [loading, setLoading] = useState(true)
+  const [showAllSlips, setShowAllSlips] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -29,6 +31,8 @@ export default function PatientDetailPage() {
       }
       const { data: v } = await supabase.from('cm_visit_records').select('*').eq('patient_id', id).order('visit_date', { ascending: false })
       setVisits(v || [])
+      const { data: s } = await supabase.from('cm_slips').select('*').eq('patient_id', id).order('visit_date', { ascending: false })
+      setSlips(s || [])
       setLoading(false)
     }
     load()
@@ -55,15 +59,21 @@ export default function PatientDetailPage() {
     ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null
 
-  const totalPayment = visits.reduce((sum, v) => sum + (v.payment_amount || 0), 0)
+  // LTV・来院回数はDB上の集計値 or cm_slipsから計算
+  const ltvFromSlips = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
+  const visitCount = patient.visit_count || slips.length
+  const ltvValue = patient.ltv || ltvFromSlips
+  const avgPrice = visitCount > 0 ? Math.round(ltvValue / visitCount) : 0
+
+  const firstVisit = patient.first_visit_date || (slips.length > 0 ? slips[slips.length - 1].visit_date : null)
+  const lastVisit = patient.last_visit_date || (slips.length > 0 ? slips[0].visit_date : null)
+  const daysSince = lastVisit
+    ? Math.floor((Date.now() - new Date(lastVisit).getTime()) / (24 * 60 * 60 * 1000))
+    : patient.days_since_last_visit
+
   const fullAddress = [patient.prefecture, patient.city, patient.address, patient.building].filter(Boolean).join('')
 
-  // LTV関連
-  const firstVisit = visits.length > 0 ? visits[visits.length - 1].visit_date : null
-  const lastVisit = visits.length > 0 ? visits[0].visit_date : null
-  const daysSinceLastVisit = lastVisit
-    ? Math.floor((Date.now() - new Date(lastVisit).getTime()) / (24 * 60 * 60 * 1000))
-    : null
+  const displaySlips = showAllSlips ? slips : slips.slice(0, 10)
 
   return (
     <AppShell>
@@ -93,16 +103,27 @@ export default function PatientDetailPage() {
 
           {!editing ? (
             <div className="space-y-2 text-sm">
-              {age !== null && <p><span className="text-gray-500">年齢:</span> {age}歳（{patient.gender}）</p>}
-              {patient.birth_date && <p><span className="text-gray-500">生年月日:</span> {patient.birth_date}</p>}
-              {patient.phone && <p><span className="text-gray-500">TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600">{patient.phone}</a></p>}
-              {patient.email && <p><span className="text-gray-500">Email:</span> {patient.email}</p>}
-              {patient.zipcode && <p><span className="text-gray-500">〒:</span> {patient.zipcode}</p>}
-              {fullAddress && <p><span className="text-gray-500">住所:</span> {fullAddress}</p>}
-              {patient.occupation && <p><span className="text-gray-500">職業:</span> {patient.occupation}</p>}
-              {patient.referral_source && <p><span className="text-gray-500">来院経路:</span> {patient.referral_source}</p>}
-              {patient.visit_motive && <p><span className="text-gray-500">来店動機:</span> {patient.visit_motive}</p>}
-              {patient.customer_category && <p><span className="text-gray-500">顧客区分:</span> {patient.customer_category}</p>}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {age !== null && <p><span className="text-gray-500">年齢:</span> {age}歳</p>}
+                {patient.gender && <p><span className="text-gray-500">性別:</span> {patient.gender}</p>}
+                {patient.birth_date && <p><span className="text-gray-500">生年月日:</span> {patient.birth_date}</p>}
+                {patient.phone && <p><span className="text-gray-500">TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600">{patient.phone}</a></p>}
+                {patient.email && <p className="col-span-2"><span className="text-gray-500">Email:</span> {patient.email}</p>}
+              </div>
+
+              {(patient.zipcode || fullAddress) && (
+                <div className="border-t pt-2 mt-2">
+                  {patient.zipcode && <p><span className="text-gray-500">〒</span> {patient.zipcode}</p>}
+                  {fullAddress && <p><span className="text-gray-500">住所:</span> {fullAddress}</p>}
+                </div>
+              )}
+
+              <div className="border-t pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                {patient.occupation && <p><span className="text-gray-500">職業:</span> {patient.occupation}</p>}
+                {patient.referral_source && <p><span className="text-gray-500">来院経路:</span> {patient.referral_source}</p>}
+                {patient.visit_motive && <p><span className="text-gray-500">来店動機:</span> {patient.visit_motive}</p>}
+                {patient.customer_category && <p><span className="text-gray-500">顧客区分:</span> {patient.customer_category}</p>}
+              </div>
 
               {patient.chief_complaint && (
                 <div className="mt-2 bg-yellow-50 rounded-lg p-3">
@@ -116,7 +137,24 @@ export default function PatientDetailPage() {
                   <p className="text-sm text-gray-700">{patient.medical_history}</p>
                 </div>
               )}
-              {patient.notes && <p className="text-xs text-gray-500 mt-2">メモ: {patient.notes}</p>}
+
+              {/* LINE情報 */}
+              {(patient.line_date || patient.line_count > 0) && (
+                <div className="mt-2 bg-green-50 rounded-lg p-3">
+                  <p className="text-xs font-bold text-green-700 mb-1">LINE</p>
+                  <div className="flex gap-4 text-sm">
+                    {patient.line_date && <p><span className="text-gray-500">連携日:</span> {patient.line_date}</p>}
+                    {patient.line_count > 0 && <p><span className="text-gray-500">配信回数:</span> {patient.line_count}回</p>}
+                  </div>
+                </div>
+              )}
+
+              {patient.notes && (
+                <div className="mt-2 bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs font-bold text-gray-500 mb-1">メモ</p>
+                  <p className="text-xs text-gray-600 whitespace-pre-wrap">{patient.notes}</p>
+                </div>
+              )}
 
               <div className="flex gap-2 mt-3">
                 <button onClick={() => setEditing(true)} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600">編集</button>
@@ -160,7 +198,6 @@ export default function PatientDetailPage() {
                 </div>
               </div>
 
-              {/* 住所 */}
               <div className="border-t pt-2">
                 <p className="text-xs font-bold text-gray-500 mb-2">住所</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -190,12 +227,18 @@ export default function PatientDetailPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">来院経路</label>
-                <select value={form.referral_source || ''} onChange={e => setForm({...form, referral_source: e.target.value})} className={inputClass}>
-                  <option value="">選択</option>
-                  {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">職業</label>
+                  <input value={form.occupation || ''} onChange={e => setForm({...form, occupation: e.target.value})} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">来院経路</label>
+                  <select value={form.referral_source || ''} onChange={e => setForm({...form, referral_source: e.target.value})} className={inputClass}>
+                    <option value="">選択</option>
+                    {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -241,22 +284,22 @@ export default function PatientDetailPage() {
           )}
         </div>
 
-        {/* 施術サマリー */}
+        {/* 施術サマリー（CSSと同等） */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold" style={{ color: '#14252A' }}>{visits.length}</p>
+            <p className="text-xl font-bold" style={{ color: '#14252A' }}>{visitCount}</p>
             <p className="text-xs text-gray-500">来院回数</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-blue-600">{totalPayment.toLocaleString()}</p>
+            <p className="text-xl font-bold text-blue-600">{ltvValue.toLocaleString()}</p>
             <p className="text-xs text-gray-500">LTV(円)</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-green-600">{visits.length > 0 ? Math.round(totalPayment / visits.length).toLocaleString() : 0}</p>
+            <p className="text-xl font-bold text-green-600">{avgPrice.toLocaleString()}</p>
             <p className="text-xs text-gray-500">平均単価(円)</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-orange-600">{daysSinceLastVisit !== null ? daysSinceLastVisit : '-'}</p>
+            <p className="text-xl font-bold text-orange-600">{daysSince !== null && daysSince !== undefined ? daysSince : '-'}</p>
             <p className="text-xs text-gray-500">最終来院(日前)</p>
           </div>
         </div>
@@ -265,8 +308,8 @@ export default function PatientDetailPage() {
         {firstVisit && (
           <div className="bg-white rounded-xl shadow-sm p-3">
             <div className="flex justify-between text-xs text-gray-500">
-              <span>初回: {firstVisit}</span>
-              <span>最終: {lastVisit}</span>
+              <span>初回来院: {firstVisit}</span>
+              <span>最終来院: {lastVisit}</span>
             </div>
           </div>
         )}
@@ -279,12 +322,10 @@ export default function PatientDetailPage() {
           + この患者の施術記録を追加
         </Link>
 
-        {/* 来院履歴 */}
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <h3 className="font-bold text-gray-800 mb-3">来院履歴</h3>
-          {visits.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-2">施術記録がありません</p>
-          ) : (
+        {/* 施術記録（cm_visit_records） */}
+        {visits.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <h3 className="font-bold text-gray-800 mb-3">施術記録</h3>
             <div className="space-y-3">
               {visits.map((v, i) => (
                 <div key={v.id} className="border border-gray-100 rounded-lg p-3">
@@ -315,8 +356,63 @@ export default function PatientDetailPage() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* 来院履歴（cm_slips - CSSからの伝票データ） */}
+        {slips.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <h3 className="font-bold text-gray-800 mb-3">来院・売上履歴 <span className="text-xs text-gray-400 font-normal">（全{slips.length}件）</span></h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-gray-500">
+                    <th className="text-left py-1 pr-2">#</th>
+                    <th className="text-left py-1 pr-2">日付</th>
+                    <th className="text-right py-1 pr-2">基本</th>
+                    <th className="text-right py-1 pr-2">OP</th>
+                    <th className="text-right py-1 font-bold">合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displaySlips.map((s, i) => (
+                    <tr key={s.id} className="border-b border-gray-50">
+                      <td className="py-1.5 pr-2 text-gray-400">{slips.length - (showAllSlips ? i : i)}</td>
+                      <td className="py-1.5 pr-2">
+                        {new Date(s.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      </td>
+                      <td className="py-1.5 pr-2 text-right">{s.base_price > 0 ? `￥${s.base_price.toLocaleString()}` : '-'}</td>
+                      <td className="py-1.5 pr-2 text-right">{s.option_price > 0 ? `￥${s.option_price.toLocaleString()}` : '-'}</td>
+                      <td className="py-1.5 text-right font-bold">{s.total_price > 0 ? `￥${s.total_price.toLocaleString()}` : '￥0'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {slips.length > 10 && !showAllSlips && (
+              <button
+                onClick={() => setShowAllSlips(true)}
+                className="w-full mt-2 text-xs text-blue-600 py-2 border border-blue-200 rounded-lg"
+              >
+                すべて表示（残り{slips.length - 10}件）
+              </button>
+            )}
+            {showAllSlips && slips.length > 10 && (
+              <button
+                onClick={() => setShowAllSlips(false)}
+                className="w-full mt-2 text-xs text-gray-500 py-2 border border-gray-200 rounded-lg"
+              >
+                折りたたむ
+              </button>
+            )}
+          </div>
+        )}
+
+        {slips.length === 0 && visits.length === 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <p className="text-gray-400 text-sm text-center py-2">来院履歴がありません</p>
+          </div>
+        )}
       </div>
     </AppShell>
   )
