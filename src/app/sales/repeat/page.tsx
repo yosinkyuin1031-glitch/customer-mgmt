@@ -4,18 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-
-const saleTabs = [
-  { href: '/sales', label: '概要' },
-  { href: '/patients', label: '顧客管理' },
-  { href: '/sales/revenue', label: '売上集計' },
-  { href: '/sales/slips', label: '伝票一覧' },
-  { href: '/sales/ltv', label: 'LTV' },
-  { href: '/sales/repeat', label: 'リピート' },
-  { href: '/sales/hourly', label: '時間単価' },
-  { href: '/sales/utilization', label: '稼働率' },
-  { href: '/sales/cross', label: 'クロス集計' },
-]
+import { saleTabs } from '@/lib/saleTabs'
 
 interface RepeatData {
   month: string
@@ -23,11 +12,24 @@ interface RepeatData {
   repeatPatients: number
   repeatRate: number
   totalVisits: number
+  newVisits: number
+  repeatVisits: number
+}
+
+interface PatientRepeat {
+  id: string
+  name: string
+  visitCount: number
+  totalRevenue: number
+  firstVisit: string
+  lastVisit: string
 }
 
 export default function RepeatPage() {
   const supabase = createClient()
   const [data, setData] = useState<RepeatData[]>([])
+  const [patientRepeats, setPatientRepeats] = useState<PatientRepeat[]>([])
+  const [viewMode, setViewMode] = useState<'monthly' | 'patient'>('monthly')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,16 +37,22 @@ export default function RepeatPage() {
       setLoading(true)
       const { data: visits } = await supabase
         .from('cm_visit_records')
-        .select('patient_id, visit_date, visit_number')
+        .select('patient_id, visit_date, visit_number, payment_amount')
         .order('visit_date')
 
-      if (!visits) { setLoading(false); return }
+      const { data: patients } = await supabase
+        .from('cm_patients')
+        .select('id, name')
 
-      // 月別にグループ化
-      const monthMap: Record<string, { patients: Set<string>, newPatients: Set<string>, totalVisits: number }> = {}
+      if (!visits || !patients) { setLoading(false); return }
+
+      const patientNameMap: Record<string, string> = {}
+      patients.forEach(p => { patientNameMap[p.id] = p.name })
+
+      // 月別集計
+      const monthMap: Record<string, { patients: Set<string>, newPatients: Set<string>, totalVisits: number, newVisits: number, repeatVisits: number }> = {}
       const firstVisitMonth: Record<string, string> = {}
 
-      // まず各患者の初回来院月を特定
       visits.forEach(v => {
         const month = v.visit_date.slice(0, 7)
         if (!firstVisitMonth[v.patient_id] || month < firstVisitMonth[v.patient_id]) {
@@ -54,11 +62,14 @@ export default function RepeatPage() {
 
       visits.forEach(v => {
         const month = v.visit_date.slice(0, 7)
-        if (!monthMap[month]) monthMap[month] = { patients: new Set(), newPatients: new Set(), totalVisits: 0 }
+        if (!monthMap[month]) monthMap[month] = { patients: new Set(), newPatients: new Set(), totalVisits: 0, newVisits: 0, repeatVisits: 0 }
         monthMap[month].patients.add(v.patient_id)
         monthMap[month].totalVisits++
         if (firstVisitMonth[v.patient_id] === month) {
           monthMap[month].newPatients.add(v.patient_id)
+          monthMap[month].newVisits++
+        } else {
+          monthMap[month].repeatVisits++
         }
       })
 
@@ -74,10 +85,35 @@ export default function RepeatPage() {
             repeatPatients: repeatP,
             repeatRate: total > 0 ? Math.round((repeatP / total) * 100) : 0,
             totalVisits: d.totalVisits,
+            newVisits: d.newVisits,
+            repeatVisits: d.repeatVisits,
           }
         })
 
       setData(result)
+
+      // 患者別リピート回数集計
+      const patMap: Record<string, { count: number, revenue: number, first: string, last: string }> = {}
+      visits.forEach(v => {
+        if (!patMap[v.patient_id]) patMap[v.patient_id] = { count: 0, revenue: 0, first: v.visit_date, last: v.visit_date }
+        patMap[v.patient_id].count++
+        patMap[v.patient_id].revenue += v.payment_amount || 0
+        if (v.visit_date < patMap[v.patient_id].first) patMap[v.patient_id].first = v.visit_date
+        if (v.visit_date > patMap[v.patient_id].last) patMap[v.patient_id].last = v.visit_date
+      })
+
+      const patRepeats: PatientRepeat[] = Object.entries(patMap)
+        .map(([id, d]) => ({
+          id,
+          name: patientNameMap[id] || '不明',
+          visitCount: d.count,
+          totalRevenue: d.revenue,
+          firstVisit: d.first,
+          lastVisit: d.last,
+        }))
+        .sort((a, b) => b.visitCount - a.visitCount)
+
+      setPatientRepeats(patRepeats)
       setLoading(false)
     }
     load()
@@ -86,6 +122,13 @@ export default function RepeatPage() {
   const avgRepeatRate = data.length > 0
     ? Math.round(data.reduce((sum, d) => sum + d.repeatRate, 0) / data.length)
     : 0
+
+  // 来院回数分布
+  const countDist: Record<number, number> = {}
+  patientRepeats.forEach(p => {
+    const bucket = p.visitCount >= 10 ? 10 : p.visitCount
+    countDist[bucket] = (countDist[bucket] || 0) + 1
+  })
 
   return (
     <AppShell>
@@ -100,25 +143,125 @@ export default function RepeatPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-4">リピート分析</h2>
-
-        {/* サマリー */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-3xl font-bold" style={{ color: '#14252A' }}>{avgRepeatRate}<span className="text-sm">%</span></p>
-            <p className="text-xs text-gray-500">平均リピート率</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-            <p className="text-3xl font-bold text-blue-600">{data.length}<span className="text-sm">ヶ月</span></p>
-            <p className="text-xs text-gray-500">集計期間</p>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-800 text-lg">リピート分析</h2>
+          <div className="flex gap-1">
+            <button onClick={() => setViewMode('monthly')}
+              className={`px-3 py-1 rounded text-xs font-medium ${viewMode === 'monthly' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+              月別推移
+            </button>
+            <button onClick={() => setViewMode('patient')}
+              className={`px-3 py-1 rounded text-xs font-medium ${viewMode === 'patient' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+              回数別
+            </button>
           </div>
         </div>
 
+        {/* サマリー */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold" style={{ color: '#14252A' }}>{avgRepeatRate}<span className="text-xs sm:text-sm">%</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">平均リピート率</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold text-blue-600">{patientRepeats.length}<span className="text-xs sm:text-sm">人</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">総患者数</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold text-green-600">{patientRepeats.filter(p => p.visitCount >= 2).length}<span className="text-xs sm:text-sm">人</span></p>
+            <p className="text-[10px] sm:text-xs text-gray-500">リピーター(2回+)</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-xl sm:text-3xl font-bold text-orange-600">
+              {patientRepeats.length > 0 ? (patientRepeats.reduce((s, p) => s + p.visitCount, 0) / patientRepeats.length).toFixed(1) : 0}
+              <span className="text-xs sm:text-sm">回</span>
+            </p>
+            <p className="text-[10px] sm:text-xs text-gray-500">平均来院回数</p>
+          </div>
+        </div>
+
+        {/* 来院回数分布 */}
+        {viewMode === 'patient' && Object.keys(countDist).length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+            <h3 className="font-bold text-gray-800 text-sm mb-3">来院回数分布</h3>
+            <div className="space-y-2">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
+                const count = countDist[n] || 0
+                const label = n === 10 ? '10回以上' : `${n}回`
+                const maxCount = Math.max(...Object.values(countDist))
+                return (
+                  <div key={n} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-16 text-right">{label}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
+                      <div className="h-5 rounded-full flex items-center px-2"
+                        style={{ width: `${maxCount > 0 ? (count / maxCount * 100) : 0}%`, background: '#14252A', minWidth: count > 0 ? '24px' : '0' }}>
+                        {count > 0 && <span className="text-white text-[10px] font-bold">{count}</span>}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 w-8">{count}人</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
+        ) : viewMode === 'patient' ? (
+          <>
+          {/* 患者別リピート一覧 */}
+          <div className="sm:hidden space-y-2">
+            {patientRepeats.map((p, i) => (
+              <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
+                    <span className="font-medium text-sm text-blue-600">{p.name}</span>
+                  </div>
+                  <span className="font-bold text-sm" style={{ color: '#14252A' }}>{p.visitCount}回</span>
+                </div>
+                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                  <span>{p.totalRevenue.toLocaleString()}円</span>
+                  <span>初回{p.firstVisit}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="text-left px-3 py-2 text-xs text-gray-500">#</th>
+                  <th className="text-left px-3 py-2 text-xs text-gray-500">患者名</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">来院回数</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">総売上</th>
+                  <th className="text-left px-3 py-2 text-xs text-gray-500">初回</th>
+                  <th className="text-left px-3 py-2 text-xs text-gray-500">最終</th>
+                </tr>
+              </thead>
+              <tbody>
+                {patientRepeats.map((p, i) => (
+                  <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                    <td className="px-3 py-2">
+                      <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline font-medium">{p.name}</Link>
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold">{p.visitCount}回</td>
+                    <td className="px-3 py-2 text-right">{p.totalRevenue.toLocaleString()}円</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{p.firstVisit}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{p.lastVisit}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </div>
+          </>
         ) : (
           <>
-          {/* モバイル: カード表示 */}
+          {/* 月別推移 */}
           <div className="sm:hidden space-y-2">
             {data.length === 0 ? (
               <p className="text-center py-8 text-gray-400">データがありません</p>
@@ -130,8 +273,8 @@ export default function RepeatPage() {
                 </div>
                 <div className="flex gap-3 text-xs text-gray-500">
                   <span>来院{d.totalVisits}件</span>
-                  <span className="text-blue-600">新規{d.newPatients}人</span>
-                  <span className="text-green-600">リピート{d.repeatPatients}人</span>
+                  <span className="text-blue-600">新規{d.newPatients}人({d.newVisits}件)</span>
+                  <span className="text-green-600">既存{d.repeatPatients}人({d.repeatVisits}件)</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                   <div className="h-2 rounded-full" style={{ width: `${d.repeatRate}%`, background: '#14252A' }} />
@@ -139,8 +282,6 @@ export default function RepeatPage() {
               </div>
             ))}
           </div>
-
-          {/* PC: テーブル表示 */}
           <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -148,20 +289,24 @@ export default function RepeatPage() {
                 <tr className="bg-gray-50 border-b">
                   <th className="text-left px-3 py-2 text-xs text-gray-500">月</th>
                   <th className="text-right px-3 py-2 text-xs text-gray-500">総来院数</th>
-                  <th className="text-right px-3 py-2 text-xs text-gray-500">新規</th>
-                  <th className="text-right px-3 py-2 text-xs text-gray-500">リピート</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">新規人数</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">新規回数</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">既存人数</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">既存回数</th>
                   <th className="text-right px-3 py-2 text-xs text-gray-500">リピート率</th>
                 </tr>
               </thead>
               <tbody>
                 {data.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">データがありません</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-gray-400">データがありません</td></tr>
                 ) : data.map(d => (
                   <tr key={d.month} className="border-b hover:bg-gray-50">
                     <td className="px-3 py-2 font-medium">{d.month}</td>
                     <td className="px-3 py-2 text-right">{d.totalVisits}件</td>
                     <td className="px-3 py-2 text-right text-blue-600">{d.newPatients}人</td>
+                    <td className="px-3 py-2 text-right text-blue-400">{d.newVisits}件</td>
                     <td className="px-3 py-2 text-right text-green-600">{d.repeatPatients}人</td>
+                    <td className="px-3 py-2 text-right text-green-400">{d.repeatVisits}件</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-16 bg-gray-200 rounded-full h-2">

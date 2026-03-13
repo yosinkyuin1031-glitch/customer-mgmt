@@ -5,18 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import type { VisitRecord } from '@/lib/types'
-
-const salesTabs = [
-  { href: '/sales', label: '概要' },
-  { href: '/patients', label: '顧客管理' },
-  { href: '/sales/revenue', label: '売上集計' },
-  { href: '/sales/slips', label: '伝票一覧' },
-  { href: '/sales/ltv', label: 'LTV' },
-  { href: '/sales/repeat', label: 'リピート' },
-  { href: '/sales/hourly', label: '時間単価' },
-  { href: '/sales/utilization', label: '稼働率' },
-  { href: '/sales/cross', label: 'クロス集計' },
-]
+import { saleTabs } from '@/lib/saleTabs'
 
 export default function RevenuePage() {
   const supabase = createClient()
@@ -81,7 +70,7 @@ export default function RevenuePage() {
       <div className="max-w-5xl mx-auto px-4 py-4">
         {/* サブタブ */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-2 border-b">
-          {salesTabs.map(tab => (
+          {saleTabs.map(tab => (
             <Link
               key={tab.href}
               href={tab.href}

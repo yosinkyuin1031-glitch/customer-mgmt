@@ -4,18 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-
-const saleTabs = [
-  { href: '/sales', label: '概要' },
-  { href: '/patients', label: '顧客管理' },
-  { href: '/sales/revenue', label: '売上集計' },
-  { href: '/sales/slips', label: '伝票一覧' },
-  { href: '/sales/ltv', label: 'LTV' },
-  { href: '/sales/repeat', label: 'リピート' },
-  { href: '/sales/hourly', label: '時間単価' },
-  { href: '/sales/utilization', label: '稼働率' },
-  { href: '/sales/cross', label: 'クロス集計' },
-]
+import { saleTabs } from '@/lib/saleTabs'
 
 type CrossAxis = 'referral_source' | 'gender' | 'occupation' | 'payment_method' | 'atmosphere'
 const axisOptions: { key: CrossAxis, label: string }[] = [
