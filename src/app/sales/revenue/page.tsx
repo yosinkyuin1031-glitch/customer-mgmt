@@ -10,6 +10,12 @@ const salesTabs = [
   { href: '/sales', label: '概要' },
   { href: '/patients', label: '顧客管理' },
   { href: '/sales/revenue', label: '売上集計' },
+  { href: '/sales/slips', label: '伝票一覧' },
+  { href: '/sales/ltv', label: 'LTV' },
+  { href: '/sales/repeat', label: 'リピート' },
+  { href: '/sales/hourly', label: '時間単価' },
+  { href: '/sales/utilization', label: '稼働率' },
+  { href: '/sales/cross', label: 'クロス集計' },
 ]
 
 export default function RevenuePage() {
@@ -74,12 +80,12 @@ export default function RevenuePage() {
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 py-4">
         {/* サブタブ */}
-        <div className="flex gap-2 mb-4 border-b pb-2">
+        <div className="flex gap-1 mb-4 overflow-x-auto pb-2 border-b">
           {salesTabs.map(tab => (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                 tab.href === '/sales/revenue' ? 'bg-[#14252A] text-white' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >

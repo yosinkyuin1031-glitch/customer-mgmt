@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import { REFERRAL_SOURCES } from '@/lib/types'
+import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 export default function NewPatientPage() {
   const supabase = createClient()
@@ -13,11 +13,15 @@ export default function NewPatientPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '', furigana: '', birth_date: '', gender: '男性',
-    phone: '', email: '', address: '', occupation: '',
-    referral_source: '', chief_complaint: '', medical_history: '', notes: '',
+    phone: '', email: '',
+    zipcode: '', prefecture: '', city: '', address: '', building: '',
+    occupation: '',
+    referral_source: '', visit_motive: '', customer_category: '',
+    chief_complaint: '', medical_history: '', notes: '',
+    is_direct_mail: true, is_enabled: true,
   })
 
-  const update = (key: string, value: string) => setForm({ ...form, [key]: value })
+  const update = (key: string, value: string | boolean) => setForm({ ...form, [key]: value })
 
   const handleSave = async () => {
     if (!form.name) return
@@ -67,29 +71,58 @@ export default function NewPatientPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">電話番号</label>
-            <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} className={inputClass} placeholder="090-1234-5678" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">電話番号</label>
+              <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} className={inputClass} placeholder="090-1234-5678" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">メールアドレス</label>
+              <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className={inputClass} placeholder="example@email.com" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+          <h3 className="font-bold text-gray-800 text-sm border-b pb-2">住所</h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">郵便番号</label>
+              <input type="text" value={form.zipcode} onChange={(e) => update('zipcode', e.target.value)} className={inputClass} placeholder="000-0000" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">都道府県</label>
+              <select value={form.prefecture} onChange={(e) => update('prefecture', e.target.value)} className={inputClass}>
+                <option value="">選択</option>
+                {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs text-gray-600 mb-1">メールアドレス</label>
-            <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className={inputClass} placeholder="example@email.com" />
+            <label className="block text-xs text-gray-600 mb-1">市区町村</label>
+            <input type="text" value={form.city} onChange={(e) => update('city', e.target.value)} className={inputClass} placeholder="住吉区長居" />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-600 mb-1">住所</label>
-            <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)} className={inputClass} placeholder="大阪市住吉区..." />
+            <label className="block text-xs text-gray-600 mb-1">番地</label>
+            <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)} className={inputClass} placeholder="1-2-3" />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-600 mb-1">職業</label>
-            <input type="text" value={form.occupation} onChange={(e) => update('occupation', e.target.value)} className={inputClass} placeholder="会社員" />
+            <label className="block text-xs text-gray-600 mb-1">建物名・部屋番号</label>
+            <input type="text" value={form.building} onChange={(e) => update('building', e.target.value)} className={inputClass} placeholder="○○マンション101" />
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
           <h3 className="font-bold text-gray-800 text-sm border-b pb-2">来院情報</h3>
+
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">職業</label>
+            <input type="text" value={form.occupation} onChange={(e) => update('occupation', e.target.value)} className={inputClass} placeholder="会社員" />
+          </div>
 
           <div>
             <label className="block text-xs text-gray-600 mb-1">来院経路</label>
@@ -112,6 +145,17 @@ export default function NewPatientPage() {
           <div>
             <label className="block text-xs text-gray-600 mb-1">メモ</label>
             <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} className={inputClass} rows={2} placeholder="注意点など" />
+          </div>
+
+          <div className="flex gap-4 pt-1">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.is_direct_mail} onChange={e => update('is_direct_mail', e.target.checked)} className="rounded" />
+              DM送付可
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.is_enabled} onChange={e => update('is_enabled', e.target.checked)} className="rounded" />
+              有効
+            </label>
           </div>
         </div>
 

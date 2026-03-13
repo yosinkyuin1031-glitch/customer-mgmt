@@ -7,6 +7,7 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import type { Patient, VisitRecord } from '@/lib/types'
+import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 export default function PatientDetailPage() {
   const supabase = createClient()
@@ -55,6 +56,14 @@ export default function PatientDetailPage() {
     : null
 
   const totalPayment = visits.reduce((sum, v) => sum + (v.payment_amount || 0), 0)
+  const fullAddress = [patient.prefecture, patient.city, patient.address, patient.building].filter(Boolean).join('')
+
+  // LTV関連
+  const firstVisit = visits.length > 0 ? visits[visits.length - 1].visit_date : null
+  const lastVisit = visits.length > 0 ? visits[0].visit_date : null
+  const daysSinceLastVisit = lastVisit
+    ? Math.floor((Date.now() - new Date(lastVisit).getTime()) / (24 * 60 * 60 * 1000))
+    : null
 
   return (
     <AppShell>
@@ -68,23 +77,33 @@ export default function PatientDetailPage() {
               <h2 className="text-xl font-bold text-gray-800">{patient.name}</h2>
               {patient.furigana && <p className="text-xs text-gray-400">{patient.furigana}</p>}
             </div>
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              patient.status === 'active' ? 'bg-green-100 text-green-700' :
-              patient.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-              'bg-gray-100 text-gray-500'
-            }`}>
-              {patient.status === 'active' ? '通院中' : patient.status === 'completed' ? '卒業' : '休止'}
-            </span>
+            <div className="flex items-center gap-2">
+              {patient.is_direct_mail && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">DM可</span>
+              )}
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                patient.status === 'active' ? 'bg-green-100 text-green-700' :
+                patient.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                'bg-gray-100 text-gray-500'
+              }`}>
+                {patient.status === 'active' ? '通院中' : patient.status === 'completed' ? '卒業' : '休止'}
+              </span>
+            </div>
           </div>
 
           {!editing ? (
             <div className="space-y-2 text-sm">
               {age !== null && <p><span className="text-gray-500">年齢:</span> {age}歳（{patient.gender}）</p>}
+              {patient.birth_date && <p><span className="text-gray-500">生年月日:</span> {patient.birth_date}</p>}
               {patient.phone && <p><span className="text-gray-500">TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600">{patient.phone}</a></p>}
               {patient.email && <p><span className="text-gray-500">Email:</span> {patient.email}</p>}
-              {patient.address && <p><span className="text-gray-500">住所:</span> {patient.address}</p>}
+              {patient.zipcode && <p><span className="text-gray-500">〒:</span> {patient.zipcode}</p>}
+              {fullAddress && <p><span className="text-gray-500">住所:</span> {fullAddress}</p>}
               {patient.occupation && <p><span className="text-gray-500">職業:</span> {patient.occupation}</p>}
               {patient.referral_source && <p><span className="text-gray-500">来院経路:</span> {patient.referral_source}</p>}
+              {patient.visit_motive && <p><span className="text-gray-500">来店動機:</span> {patient.visit_motive}</p>}
+              {patient.customer_category && <p><span className="text-gray-500">顧客区分:</span> {patient.customer_category}</p>}
+
               {patient.chief_complaint && (
                 <div className="mt-2 bg-yellow-50 rounded-lg p-3">
                   <p className="text-xs font-bold text-yellow-700 mb-1">主訴</p>
@@ -116,22 +135,104 @@ export default function PatientDetailPage() {
                   <input value={form.furigana || ''} onChange={e => setForm({...form, furigana: e.target.value})} className={inputClass} />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">電話番号</label>
-                <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} className={inputClass} />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">生年月日</label>
+                  <input type="date" value={form.birth_date || ''} onChange={e => setForm({...form, birth_date: e.target.value})} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">性別</label>
+                  <select value={form.gender || '男性'} onChange={e => setForm({...form, gender: e.target.value as Patient['gender']})} className={inputClass}>
+                    <option value="男性">男性</option>
+                    <option value="女性">女性</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </div>
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">電話番号</label>
+                  <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">メール</label>
+                  <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} className={inputClass} />
+                </div>
+              </div>
+
+              {/* 住所 */}
+              <div className="border-t pt-2">
+                <p className="text-xs font-bold text-gray-500 mb-2">住所</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">郵便番号</label>
+                    <input value={form.zipcode || ''} onChange={e => setForm({...form, zipcode: e.target.value})} placeholder="000-0000" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">都道府県</label>
+                    <select value={form.prefecture || ''} onChange={e => setForm({...form, prefecture: e.target.value})} className={inputClass}>
+                      <option value="">選択</option>
+                      {PREFECTURES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-500 mb-1">市区町村</label>
+                  <input value={form.city || ''} onChange={e => setForm({...form, city: e.target.value})} className={inputClass} />
+                </div>
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-500 mb-1">番地</label>
+                  <input value={form.address || ''} onChange={e => setForm({...form, address: e.target.value})} className={inputClass} />
+                </div>
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-500 mb-1">建物名・部屋番号</label>
+                  <input value={form.building || ''} onChange={e => setForm({...form, building: e.target.value})} className={inputClass} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">来院経路</label>
+                <select value={form.referral_source || ''} onChange={e => setForm({...form, referral_source: e.target.value})} className={inputClass}>
+                  <option value="">選択</option>
+                  {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs text-gray-500 mb-1">主訴</label>
                 <textarea value={form.chief_complaint || ''} onChange={e => setForm({...form, chief_complaint: e.target.value})} className={inputClass} rows={2} />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">ステータス</label>
-                <select value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value as Patient['status']})} className={inputClass}>
-                  <option value="active">通院中</option>
-                  <option value="inactive">休止</option>
-                  <option value="completed">卒業</option>
-                </select>
+                <label className="block text-xs text-gray-500 mb-1">既往歴</label>
+                <textarea value={form.medical_history || ''} onChange={e => setForm({...form, medical_history: e.target.value})} className={inputClass} rows={2} />
               </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">ステータス</label>
+                  <select value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value as Patient['status']})} className={inputClass}>
+                    <option value="active">通院中</option>
+                    <option value="inactive">休止</option>
+                    <option value="completed">卒業</option>
+                  </select>
+                </div>
+                <div className="flex items-end gap-3 pb-2">
+                  <label className="flex items-center gap-1 text-xs">
+                    <input type="checkbox" checked={form.is_direct_mail ?? true} onChange={e => setForm({...form, is_direct_mail: e.target.checked})} />
+                    DM可
+                  </label>
+                  <label className="flex items-center gap-1 text-xs">
+                    <input type="checkbox" checked={form.is_enabled ?? true} onChange={e => setForm({...form, is_enabled: e.target.checked})} />
+                    有効
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">メモ</label>
+                <textarea value={form.notes || ''} onChange={e => setForm({...form, notes: e.target.value})} className={inputClass} rows={2} />
+              </div>
+
               <div className="flex gap-2">
                 <button onClick={handleUpdate} className="flex-1 text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>保存</button>
                 <button onClick={() => { setEditing(false); setForm(patient) }} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">キャンセル</button>
@@ -141,20 +242,34 @@ export default function PatientDetailPage() {
         </div>
 
         {/* 施術サマリー */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
             <p className="text-xl font-bold" style={{ color: '#14252A' }}>{visits.length}</p>
             <p className="text-xs text-gray-500">来院回数</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
             <p className="text-xl font-bold text-blue-600">{totalPayment.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">総売上(円)</p>
+            <p className="text-xs text-gray-500">LTV(円)</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-3 text-center">
             <p className="text-xl font-bold text-green-600">{visits.length > 0 ? Math.round(totalPayment / visits.length).toLocaleString() : 0}</p>
             <p className="text-xs text-gray-500">平均単価(円)</p>
           </div>
+          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
+            <p className="text-xl font-bold text-orange-600">{daysSinceLastVisit !== null ? daysSinceLastVisit : '-'}</p>
+            <p className="text-xs text-gray-500">最終来院(日前)</p>
+          </div>
         </div>
+
+        {/* 来院期間 */}
+        {firstVisit && (
+          <div className="bg-white rounded-xl shadow-sm p-3">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>初回: {firstVisit}</span>
+              <span>最終: {lastVisit}</span>
+            </div>
+          </div>
+        )}
 
         {/* 施術記録ボタン */}
         <Link

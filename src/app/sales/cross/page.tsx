@@ -1,0 +1,192 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import AppShell from '@/components/AppShell'
+import { createClient } from '@/lib/supabase/client'
+
+const saleTabs = [
+  { href: '/sales', label: '概要' },
+  { href: '/patients', label: '顧客管理' },
+  { href: '/sales/revenue', label: '売上集計' },
+  { href: '/sales/slips', label: '伝票一覧' },
+  { href: '/sales/ltv', label: 'LTV' },
+  { href: '/sales/repeat', label: 'リピート' },
+  { href: '/sales/hourly', label: '時間単価' },
+  { href: '/sales/utilization', label: '稼働率' },
+  { href: '/sales/cross', label: 'クロス集計' },
+]
+
+type CrossAxis = 'referral_source' | 'gender' | 'occupation' | 'payment_method' | 'atmosphere'
+const axisOptions: { key: CrossAxis, label: string }[] = [
+  { key: 'referral_source', label: '来院経路' },
+  { key: 'gender', label: '性別' },
+  { key: 'occupation', label: '職業' },
+  { key: 'payment_method', label: '支払方法' },
+  { key: 'atmosphere', label: '反応' },
+]
+
+interface CrossResult {
+  label: string
+  count: number
+  revenue: number
+  avgRevenue: number
+}
+
+export default function CrossPage() {
+  const supabase = createClient()
+  const [rowAxis, setRowAxis] = useState<CrossAxis>('referral_source')
+  const [results, setResults] = useState<CrossResult[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      const startDate = selectedMonth + '-01'
+      const d = new Date(startDate)
+      d.setMonth(d.getMonth() + 1)
+      d.setDate(0)
+      const endDate = d.toISOString().split('T')[0]
+
+      // 来院経路・性別・職業は患者テーブル、支払方法・反応は施術記録テーブル
+      const patientFields: CrossAxis[] = ['referral_source', 'gender', 'occupation']
+
+      if (patientFields.includes(rowAxis)) {
+        const { data: visits } = await supabase
+          .from('cm_visit_records')
+          .select('patient_id, payment_amount, patient:cm_patients(referral_source, gender, occupation)')
+          .gte('visit_date', startDate)
+          .lte('visit_date', endDate)
+
+        if (!visits) { setLoading(false); return }
+
+        const map: Record<string, { count: number, revenue: number }> = {}
+        visits.forEach((v: Record<string, unknown>) => {
+          const patient = v.patient as Record<string, string> | null
+          const key = (patient?.[rowAxis] as string) || '不明'
+          if (!map[key]) map[key] = { count: 0, revenue: 0 }
+          map[key].count++
+          map[key].revenue += (v.payment_amount as number) || 0
+        })
+
+        setResults(Object.entries(map).map(([label, d]) => ({
+          label,
+          count: d.count,
+          revenue: d.revenue,
+          avgRevenue: d.count > 0 ? Math.round(d.revenue / d.count) : 0,
+        })).sort((a, b) => b.revenue - a.revenue))
+      } else {
+        const { data: visits } = await supabase
+          .from('cm_visit_records')
+          .select(`${rowAxis}, payment_amount`)
+          .gte('visit_date', startDate)
+          .lte('visit_date', endDate)
+
+        if (!visits) { setLoading(false); return }
+
+        const map: Record<string, { count: number, revenue: number }> = {}
+        visits.forEach((v: Record<string, unknown>) => {
+          const key = (v[rowAxis] as string) || '不明'
+          if (!map[key]) map[key] = { count: 0, revenue: 0 }
+          map[key].count++
+          map[key].revenue += (v.payment_amount as number) || 0
+        })
+
+        setResults(Object.entries(map).map(([label, d]) => ({
+          label,
+          count: d.count,
+          revenue: d.revenue,
+          avgRevenue: d.count > 0 ? Math.round(d.revenue / d.count) : 0,
+        })).sort((a, b) => b.revenue - a.revenue))
+      }
+
+      setLoading(false)
+    }
+    load()
+  }, [rowAxis, selectedMonth])
+
+  const totalCount = results.reduce((s, r) => s + r.count, 0)
+  const totalRevenue = results.reduce((s, r) => s + r.revenue, 0)
+
+  return (
+    <AppShell>
+      <div className="max-w-5xl mx-auto px-4 py-4">
+        <div className="flex gap-1 mb-4 overflow-x-auto pb-2 border-b">
+          {saleTabs.map(tab => (
+            <Link key={tab.href} href={tab.href}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${
+                tab.href === '/sales/cross' ? 'bg-[#14252A] text-white' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >{tab.label}</Link>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-800 text-lg">クロス集計</h2>
+          <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+            className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+        </div>
+
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <span className="text-xs text-gray-500 pt-1">集計軸:</span>
+          {axisOptions.map(a => (
+            <button key={a.key} onClick={() => setRowAxis(a.key)}
+              className={`px-3 py-1 rounded text-xs font-medium ${
+                rowAxis === a.key ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'
+              }`}
+            >{a.label}</button>
+          ))}
+        </div>
+
+        {loading ? (
+          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="text-left px-3 py-2 text-xs text-gray-500">
+                    {axisOptions.find(a => a.key === rowAxis)?.label}
+                  </th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">件数</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">構成比</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">売上</th>
+                  <th className="text-right px-3 py-2 text-xs text-gray-500">平均単価</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">データがありません</td></tr>
+                ) : results.map(r => (
+                  <tr key={r.label} className="border-b hover:bg-gray-50">
+                    <td className="px-3 py-2 font-medium">{r.label}</td>
+                    <td className="px-3 py-2 text-right">{r.count}件</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-12 bg-gray-200 rounded-full h-2">
+                          <div className="h-2 rounded-full" style={{ width: `${totalCount > 0 ? (r.count / totalCount * 100) : 0}%`, background: '#14252A' }} />
+                        </div>
+                        <span>{totalCount > 0 ? Math.round(r.count / totalCount * 100) : 0}%</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right font-medium">{r.revenue.toLocaleString()}円</td>
+                    <td className="px-3 py-2 text-right">{r.avgRevenue.toLocaleString()}円</td>
+                  </tr>
+                ))}
+                {/* 合計行 */}
+                <tr className="bg-gray-50 font-bold">
+                  <td className="px-3 py-2">合計</td>
+                  <td className="px-3 py-2 text-right">{totalCount}件</td>
+                  <td className="px-3 py-2 text-right">100%</td>
+                  <td className="px-3 py-2 text-right">{totalRevenue.toLocaleString()}円</td>
+                  <td className="px-3 py-2 text-right">{totalCount > 0 ? Math.round(totalRevenue / totalCount).toLocaleString() : 0}円</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </AppShell>
+  )
+}
