@@ -5,14 +5,17 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import type { Patient, VisitRecord } from '@/lib/types'
+import type { Patient, Slip } from '@/lib/types'
+
+interface TodaySlip extends Slip {
+  patient?: Patient
+}
 
 export default function HomePage() {
   const supabase = createClient()
-  const [todayVisits, setTodayVisits] = useState<(VisitRecord & { patient: Patient })[]>([])
-  const [upcomingAppointments, setUpcomingAppointments] = useState<(VisitRecord & { patient: Patient })[]>([])
+  const [todaySlips, setTodaySlips] = useState<TodaySlip[]>([])
   const [recentPatients, setRecentPatients] = useState<Patient[]>([])
-  const [stats, setStats] = useState({ totalPatients: 0, monthVisits: 0, todayVisits: 0 })
+  const [stats, setStats] = useState({ totalPatients: 0, monthVisits: 0, todayVisits: 0, todayRevenue: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -20,22 +23,22 @@ export default function HomePage() {
       const today = new Date().toISOString().split('T')[0]
       const monthStart = today.slice(0, 7) + '-01'
 
-      const [patientsRes, todayRes, upcomingRes, monthRes] = await Promise.all([
+      const [patientsRes, todayRes, monthRes] = await Promise.all([
         supabase.from('cm_patients').select('*').eq('status', 'active').order('updated_at', { ascending: false }).limit(5),
-        supabase.from('cm_visit_records').select('*, patient:cm_patients(*)').eq('visit_date', today).order('created_at', { ascending: false }),
-        supabase.from('cm_visit_records').select('*, patient:cm_patients(*)').gt('next_appointment', today).order('next_appointment').limit(10),
-        supabase.from('cm_visit_records').select('id', { count: 'exact' }).gte('visit_date', monthStart),
+        supabase.from('cm_slips').select('*').eq('visit_date', today).order('created_at', { ascending: false }),
+        supabase.from('cm_slips').select('id, total_price', { count: 'exact' }).gte('visit_date', monthStart),
       ])
 
       const { count: totalPatients } = await supabase.from('cm_patients').select('id', { count: 'exact' })
 
       setRecentPatients(patientsRes.data || [])
-      setTodayVisits((todayRes.data as (VisitRecord & { patient: Patient })[]) || [])
-      setUpcomingAppointments((upcomingRes.data as (VisitRecord & { patient: Patient })[]) || [])
+      setTodaySlips(todayRes.data || [])
+      const todayRevenue = (todayRes.data || []).reduce((sum: number, s: Slip) => sum + (s.total_price || 0), 0)
       setStats({
         totalPatients: totalPatients || 0,
         monthVisits: monthRes.count || 0,
         todayVisits: todayRes.data?.length || 0,
+        todayRevenue,
       })
       setLoading(false)
     }
@@ -64,12 +67,15 @@ export default function HomePage() {
         </div>
 
         {/* クイックアクション */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <Link href="/patients/new" className="text-white rounded-xl p-4 text-center font-bold shadow-sm text-sm" style={{ background: '#14252A' }}>
-            + 新規患者登録
+        <div className="grid grid-cols-3 gap-2 mb-5">
+          <Link href="/patients/new" className="text-white rounded-xl p-3 text-center font-bold shadow-sm text-xs" style={{ background: '#14252A' }}>
+            + 新規患者
           </Link>
-          <Link href="/visits/new" className="bg-blue-600 text-white rounded-xl p-4 text-center font-bold shadow-sm text-sm">
+          <Link href="/visits/new" className="bg-blue-600 text-white rounded-xl p-3 text-center font-bold shadow-sm text-xs">
             + 施術記録
+          </Link>
+          <Link href="/visits/quick" className="bg-green-600 text-white rounded-xl p-3 text-center font-bold shadow-sm text-xs">
+            一括入力
           </Link>
         </div>
 
@@ -79,20 +85,25 @@ export default function HomePage() {
           <>
             {/* 本日の施術 */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-              <h2 className="font-bold text-gray-800 mb-3">本日の施術</h2>
-              {todayVisits.length === 0 ? (
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="font-bold text-gray-800">本日の施術</h2>
+                {stats.todayRevenue > 0 && (
+                  <span className="text-sm font-bold" style={{ color: '#14252A' }}>{stats.todayRevenue.toLocaleString()}円</span>
+                )}
+              </div>
+              {todaySlips.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-2">本日の施術記録はありません</p>
               ) : (
                 <div className="space-y-2">
-                  {todayVisits.map(v => (
-                    <Link key={v.id} href={`/patients/${v.patient_id}`} className="block border border-gray-100 rounded-lg p-3 hover:bg-gray-50">
+                  {todaySlips.map(s => (
+                    <Link key={s.id} href={`/patients/${s.patient_id}`} className="block border border-gray-100 rounded-lg p-3 hover:bg-gray-50">
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-bold text-sm">{v.patient?.name}</p>
-                          <p className="text-xs text-gray-500">{v.symptoms?.slice(0, 30)}</p>
+                          <p className="font-bold text-sm">{s.patient_name}</p>
+                          <p className="text-xs text-gray-500">{s.menu_name}</p>
                         </div>
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                          {v.payment_amount?.toLocaleString()}円
+                          {(s.total_price || 0).toLocaleString()}円
                         </span>
                       </div>
                     </Link>
@@ -100,25 +111,6 @@ export default function HomePage() {
                 </div>
               )}
             </div>
-
-            {/* 次回予約 */}
-            {upcomingAppointments.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-                <h2 className="font-bold text-gray-800 mb-3">次回予約</h2>
-                <div className="space-y-2">
-                  {upcomingAppointments.map(v => (
-                    <Link key={v.id} href={`/patients/${v.patient_id}`} className="block border border-gray-100 rounded-lg p-3 hover:bg-gray-50">
-                      <div className="flex justify-between items-center">
-                        <p className="font-bold text-sm">{v.patient?.name}</p>
-                        <span className="text-xs text-blue-600 font-medium">
-                          {v.next_appointment && new Date(v.next_appointment + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* 最近の患者 */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4">

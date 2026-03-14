@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import type { VisitRecord, Patient } from '@/lib/types'
+import type { Patient, Slip } from '@/lib/types'
 
 export default function StatsPage() {
   const supabase = createClient()
-  const [visits, setVisits] = useState<VisitRecord[]>([])
+  const [slips, setSlips] = useState<Slip[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [period, setPeriod] = useState('month')
   const [loading, setLoading] = useState(true)
@@ -28,21 +28,24 @@ export default function StatsPage() {
         startDate = now.getFullYear() + '-01-01'
       }
 
-      const [visitsRes, patientsRes] = await Promise.all([
-        supabase.from('cm_visit_records').select('*').gte('visit_date', startDate).order('visit_date'),
+      const [slipsRes, patientsRes] = await Promise.all([
+        supabase.from('cm_slips').select('*').gte('visit_date', startDate).order('visit_date'),
         supabase.from('cm_patients').select('*'),
       ])
 
-      setVisits(visitsRes.data || [])
+      setSlips(slipsRes.data || [])
       setPatients(patientsRes.data || [])
       setLoading(false)
     }
     load()
   }, [period])
 
-  const totalRevenue = visits.reduce((sum, v) => sum + (v.payment_amount || 0), 0)
-  const avgRevenue = visits.length > 0 ? Math.round(totalRevenue / visits.length) : 0
-  const uniquePatients = new Set(visits.map(v => v.patient_id)).size
+  const totalRevenue = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
+  // 通常施術（0円超・50,000円未満）の平均単価
+  const normalTreatments = slips.filter(s => (s.total_price || 0) > 0 && (s.total_price || 0) < 50000)
+  const normalRevTotal = normalTreatments.reduce((sum, s) => sum + (s.total_price || 0), 0)
+  const avgRevenue = normalTreatments.length > 0 ? Math.round(normalRevTotal / normalTreatments.length) : 0
+  const uniquePatients = new Set(slips.map(s => s.patient_id)).size
 
   // 来院経路別
   const referralCounts: Record<string, number> = {}
@@ -55,17 +58,9 @@ export default function StatsPage() {
 
   // 支払方法別
   const paymentCounts: Record<string, number> = {}
-  visits.forEach(v => {
-    if (v.payment_method) {
-      paymentCounts[v.payment_method] = (paymentCounts[v.payment_method] || 0) + 1
-    }
-  })
-
-  // 雰囲気別
-  const atmosphereCounts: Record<string, number> = {}
-  visits.forEach(v => {
-    if (v.atmosphere) {
-      atmosphereCounts[v.atmosphere] = (atmosphereCounts[v.atmosphere] || 0) + 1
+  slips.forEach(s => {
+    if (s.payment_method) {
+      paymentCounts[s.payment_method] = (paymentCounts[s.payment_method] || 0) + 1
     }
   })
 
@@ -108,12 +103,12 @@ export default function StatsPage() {
                 <p className="text-xs text-gray-500">売上合計</p>
               </div>
               <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">{visits.length}<span className="text-sm">回</span></p>
-                <p className="text-xs text-gray-500">施術回数</p>
+                <p className="text-2xl font-bold text-blue-600">{slips.length}<span className="text-sm">件</span></p>
+                <p className="text-xs text-gray-500">施術件数</p>
               </div>
               <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                 <p className="text-2xl font-bold text-green-600">{avgRevenue.toLocaleString()}<span className="text-sm">円</span></p>
-                <p className="text-xs text-gray-500">平均単価</p>
+                <p className="text-xs text-gray-500">施術単価</p>
               </div>
               <div className="bg-white rounded-xl shadow-sm p-4 text-center">
                 <p className="text-2xl font-bold text-orange-600">{uniquePatients}<span className="text-sm">人</span></p>
@@ -160,17 +155,15 @@ export default function StatsPage() {
               </div>
             )}
 
-            {/* 反応・雰囲気 */}
-            {Object.keys(atmosphereCounts).length > 0 && (
+            {/* 支払方法別 */}
+            {Object.keys(paymentCounts).length > 0 && (
               <div className="bg-white rounded-xl shadow-sm p-4">
-                <h3 className="font-bold text-gray-800 text-sm mb-3">施術後の反応</h3>
-                <div className="flex gap-2">
-                  {Object.entries(atmosphereCounts).map(([atm, count]) => (
-                    <div key={atm} className={`flex-1 rounded-lg p-2 text-center ${
-                      atm === '良好' ? 'bg-green-50' : atm === '普通' ? 'bg-gray-50' : 'bg-red-50'
-                    }`}>
+                <h3 className="font-bold text-gray-800 text-sm mb-3">支払方法</h3>
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(paymentCounts).sort((a, b) => b[1] - a[1]).map(([method, count]) => (
+                    <div key={method} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
                       <p className="text-lg font-bold">{count}</p>
-                      <p className="text-xs">{atm}</p>
+                      <p className="text-xs text-gray-500">{method}</p>
                     </div>
                   ))}
                 </div>

@@ -40,27 +40,50 @@ export default function RoasPage() {
         .select('*')
         .eq('month', selectedMonth)
 
-      // 施術記録から売上取得（新規/既存を判別）
-      const { data: visits } = await supabase
-        .from('cm_visit_records')
-        .select('patient_id, payment_amount, visit_number, patient:cm_patients(referral_source)')
+      // cm_slipsから売上取得
+      const { data: slips } = await supabase
+        .from('cm_slips')
+        .select('patient_id, total_price')
         .gte('visit_date', startDate)
         .lte('visit_date', endDate)
 
-      if (!visits) { setLoading(false); return }
+      if (!slips) { setLoading(false); return }
 
-      // 新規売上（visit_number = 1）と既存売上を計算
+      // 患者の初回来院月を取得して新規/既存を判別
+      const patientIds = [...new Set(slips.map(s => s.patient_id).filter(Boolean))]
+      const { data: allSlips } = await supabase
+        .from('cm_slips')
+        .select('patient_id, visit_date')
+        .in('patient_id', patientIds.length > 0 ? patientIds : ['__none__'])
+        .order('visit_date')
+
+      const firstVisitDate: Record<string, string> = {}
+      allSlips?.forEach(s => {
+        if (s.patient_id && (!firstVisitDate[s.patient_id] || s.visit_date < firstVisitDate[s.patient_id])) {
+          firstVisitDate[s.patient_id] = s.visit_date
+        }
+      })
+
+      // 患者の来院経路を取得
+      const { data: patientsData } = await supabase
+        .from('cm_patients')
+        .select('id, referral_source')
+        .in('id', patientIds.length > 0 ? patientIds : ['__none__'])
+
+      const patientSourceMap: Record<string, string> = {}
+      patientsData?.forEach(p => { patientSourceMap[p.id] = p.referral_source || 'その他' })
+
       let newRev = 0
       let existRev = 0
       const channelRevenue: Record<string, number> = {}
 
-      visits.forEach((v: Record<string, unknown>) => {
-        const amount = (v.payment_amount as number) || 0
-        const visitNum = v.visit_number as number
-        const patient = v.patient as { referral_source: string } | null
-        const source = patient?.referral_source || 'その他'
+      slips.forEach(s => {
+        const amount = s.total_price || 0
+        const pid = s.patient_id
+        const isNew = pid && firstVisitDate[pid] && firstVisitDate[pid] >= startDate && firstVisitDate[pid] <= endDate
+        const source = pid ? (patientSourceMap[pid] || 'その他') : 'その他'
 
-        if (visitNum <= 1) {
+        if (isNew) {
           newRev += amount
           channelRevenue[source] = (channelRevenue[source] || 0) + amount
         } else {

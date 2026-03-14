@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import type { Patient, VisitRecord, Slip } from '@/lib/types'
+import type { Patient, Slip } from '@/lib/types'
 import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 export default function PatientDetailPage() {
@@ -15,7 +15,6 @@ export default function PatientDetailPage() {
   const router = useRouter()
   const id = params.id as string
   const [patient, setPatient] = useState<Patient | null>(null)
-  const [visits, setVisits] = useState<VisitRecord[]>([])
   const [slips, setSlips] = useState<Slip[]>([])
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Partial<Patient>>({})
@@ -29,8 +28,6 @@ export default function PatientDetailPage() {
         setPatient(p)
         setForm(p)
       }
-      const { data: v } = await supabase.from('cm_visit_records').select('*').eq('patient_id', id).order('visit_date', { ascending: false })
-      setVisits(v || [])
       const { data: s } = await supabase.from('cm_slips').select('*').eq('patient_id', id).order('visit_date', { ascending: false })
       setSlips(s || [])
       setLoading(false)
@@ -321,44 +318,7 @@ export default function PatientDetailPage() {
           + この患者の施術記録を追加
         </Link>
 
-        {/* 施術記録（cm_visit_records） */}
-        {visits.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <h3 className="font-bold text-gray-800 mb-3">施術記録</h3>
-            <div className="space-y-3">
-              {visits.map((v, i) => (
-                <div key={v.id} className="border border-gray-100 rounded-lg p-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-white text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold" style={{ background: '#14252A' }}>
-                        {visits.length - i}
-                      </span>
-                      <span className="text-sm font-bold">
-                        {new Date(v.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {v.atmosphere && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          v.atmosphere === '良好' ? 'bg-green-100 text-green-700' :
-                          v.atmosphere === '普通' ? 'bg-gray-100 text-gray-600' :
-                          'bg-red-100 text-red-700'
-                        }`}>{v.atmosphere}</span>
-                      )}
-                      <span className="text-xs text-green-700 font-medium">{v.payment_amount?.toLocaleString()}円</span>
-                    </div>
-                  </div>
-                  {v.symptoms && <p className="text-xs text-gray-600"><span className="font-medium">症状:</span> {v.symptoms}</p>}
-                  {v.treatment_content && <p className="text-xs text-gray-600"><span className="font-medium">施術:</span> {v.treatment_content}</p>}
-                  {v.improvement && <p className="text-xs text-blue-600"><span className="font-medium">改善:</span> {v.improvement}</p>}
-                  {v.next_plan && <p className="text-xs text-gray-500 mt-1">次回: {v.next_plan}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 来院履歴（cm_slips - CSSからの伝票データ） */}
+        {/* 来院・売上履歴（cm_slips） */}
         {slips.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4">
             <h3 className="font-bold text-gray-800 mb-3">来院・売上履歴 <span className="text-xs text-gray-400 font-normal">（全{visitCount}件）</span></h3>
@@ -407,7 +367,7 @@ export default function PatientDetailPage() {
           </div>
         )}
 
-        {slips.length === 0 && visits.length === 0 && (
+        {slips.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4">
             <p className="text-gray-400 text-sm text-center py-2">来院履歴がありません</p>
           </div>

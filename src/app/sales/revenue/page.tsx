@@ -13,43 +13,61 @@ export default function RevenuePage() {
   const [period, setPeriod] = useState('month')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      let startDate: string
-      let endDate: string
+      let queryStart: string
+      let queryEnd: string
 
       if (period === 'day') {
-        startDate = new Date().toISOString().split('T')[0]
-        endDate = startDate
+        queryStart = new Date().toISOString().split('T')[0]
+        queryEnd = queryStart
       } else if (period === 'month') {
-        startDate = selectedMonth + '-01'
-        const d = new Date(startDate)
+        queryStart = selectedMonth + '-01'
+        const d = new Date(queryStart)
         d.setMonth(d.getMonth() + 1)
         d.setDate(0)
-        endDate = d.toISOString().split('T')[0]
+        queryEnd = d.toISOString().split('T')[0]
+      } else if (period === 'year') {
+        queryStart = selectedYear + '-01-01'
+        queryEnd = selectedYear + '-12-31'
       } else {
-        startDate = selectedYear + '-01-01'
-        endDate = selectedYear + '-12-31'
+        // カスタム期間
+        queryStart = startDate
+        queryEnd = endDate
       }
 
       const { data } = await supabase
         .from('cm_slips')
         .select('*')
-        .gte('visit_date', startDate)
-        .lte('visit_date', endDate)
+        .gte('visit_date', queryStart)
+        .lte('visit_date', queryEnd)
         .order('visit_date')
 
       setSlips(data || [])
       setLoading(false)
     }
     load()
-  }, [period, selectedMonth, selectedYear])
+  }, [period, selectedMonth, selectedYear, startDate, endDate])
 
   const totalRevenue = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
-  const avgPerVisit = slips.length > 0 ? Math.round(totalRevenue / slips.length) : 0
+  const visitCount = slips.length
+
+  // 通常施術（0円超・50,000円未満）の平均単価
+  const normalTreatments = slips.filter(s => (s.total_price || 0) > 0 && (s.total_price || 0) < 50000)
+  const normalRevenue = normalTreatments.reduce((sum, s) => sum + (s.total_price || 0), 0)
+  const avgTreatmentPrice = normalTreatments.length > 0 ? Math.round(normalRevenue / normalTreatments.length) : 0
+
+  // 回数券購入（50,000円以上）
+  const ticketPurchases = slips.filter(s => (s.total_price || 0) >= 50000)
+  const ticketRevenue = ticketPurchases.reduce((sum, s) => sum + (s.total_price || 0), 0)
+
+  // 0円の来院（回数券利用）
+  const freeVisits = slips.filter(s => (s.total_price || 0) === 0)
 
   const dailyRevenue: Record<string, { count: number; amount: number }> = {}
   slips.forEach(s => {
@@ -79,12 +97,17 @@ export default function RevenuePage() {
             { key: 'day', label: '本日' },
             { key: 'month', label: '月別' },
             { key: 'year', label: '年間' },
+            { key: 'custom', label: '期間指定' },
           ].map(p => (
             <button key={p.key} onClick={() => setPeriod(p.key)}
               className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
                 period === p.key ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500'
               }`}>{p.label}</button>
           ))}
+        </div>
+
+        {/* 期間選択UI */}
+        <div className="mb-4">
           {period === 'month' && (
             <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
@@ -95,24 +118,56 @@ export default function RevenuePage() {
               {years.map(y => <option key={y} value={y}>{y}年</option>)}
             </select>
           )}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+              <span className="text-gray-400 text-sm">〜</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          )}
         </div>
 
         {loading ? (
           <p className="text-gray-400 text-center py-8">読み込み中...</p>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+            {/* メイン指標 */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3">
               <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
                 <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{totalRevenue.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
                 <p className="text-[10px] sm:text-xs text-gray-500">売上合計</p>
               </div>
               <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-                <p className="text-lg sm:text-2xl font-bold text-blue-600">{slips.length}<span className="text-xs sm:text-sm">件</span></p>
-                <p className="text-[10px] sm:text-xs text-gray-500">施術数</p>
+                <p className="text-lg sm:text-2xl font-bold text-blue-600">{visitCount}<span className="text-xs sm:text-sm">件</span></p>
+                <p className="text-[10px] sm:text-xs text-gray-500">来院数</p>
               </div>
               <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-                <p className="text-lg sm:text-2xl font-bold text-green-600">{avgPerVisit.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
-                <p className="text-[10px] sm:text-xs text-gray-500">平均単価</p>
+                <p className="text-lg sm:text-2xl font-bold text-green-600">{avgTreatmentPrice.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
+                <p className="text-[10px] sm:text-xs text-gray-500">施術単価</p>
+              </div>
+            </div>
+
+            {/* 内訳 */}
+            <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 mb-4">
+              <h3 className="font-bold text-gray-800 text-xs mb-2">内訳</h3>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <p className="text-sm sm:text-base font-bold text-blue-700">{normalTreatments.length}<span className="text-[10px] sm:text-xs">件</span></p>
+                  <p className="text-[10px] sm:text-xs text-blue-600">通常施術</p>
+                  <p className="text-[10px] text-blue-500">{normalRevenue.toLocaleString()}円</p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2">
+                  <p className="text-sm sm:text-base font-bold text-purple-700">{ticketPurchases.length}<span className="text-[10px] sm:text-xs">件</span></p>
+                  <p className="text-[10px] sm:text-xs text-purple-600">回数券購入</p>
+                  <p className="text-[10px] text-purple-500">{ticketRevenue.toLocaleString()}円</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <p className="text-sm sm:text-base font-bold text-gray-600">{freeVisits.length}<span className="text-[10px] sm:text-xs">件</span></p>
+                  <p className="text-[10px] sm:text-xs text-gray-500">回数券利用</p>
+                  <p className="text-[10px] text-gray-400">0円</p>
+                </div>
               </div>
             </div>
 

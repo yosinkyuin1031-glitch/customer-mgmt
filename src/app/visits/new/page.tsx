@@ -1,12 +1,31 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
+import VoiceInput from '@/components/VoiceInput'
 import { createClient } from '@/lib/supabase/client'
 import { PAYMENT_METHODS } from '@/lib/types'
 import type { Patient } from '@/lib/types'
+
+interface BaseMenu {
+  id: string
+  name: string
+  price: number
+  duration_minutes: number
+  is_active: boolean
+  sort_order: number
+}
+
+interface OptionMenu {
+  id: string
+  name: string
+  price: number
+  duration_minutes: number
+  is_active: boolean
+  sort_order: number
+}
 
 function VisitForm() {
   const supabase = createClient()
@@ -15,196 +34,458 @@ function VisitForm() {
   const preselectedPatientId = searchParams.get('patient_id') || ''
 
   const [patients, setPatients] = useState<Patient[]>([])
+  const [baseMenus, setBaseMenus] = useState<BaseMenu[]>([])
+  const [optionMenus, setOptionMenus] = useState<OptionMenu[]>([])
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
   const [form, setForm] = useState({
     patient_id: preselectedPatientId,
     visit_date: new Date().toISOString().split('T')[0],
-    symptoms: '',
-    treatment_content: '',
-    body_condition: '',
-    improvement: '',
-    atmosphere: '普通' as string,
-    next_plan: '',
-    next_appointment: '',
-    payment_amount: '',
+    menu_name: '',
+    base_price: 0,
+    option_names: [] as string[],
+    option_price: 0,
+    total_price: 0,
+    duration_minutes: 0,
     payment_method: '現金' as string,
+    staff_name: '',
     notes: '',
   })
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('cm_patients').select('*').eq('status', 'active').order('name')
-      setPatients(data || [])
+      const [patientsRes, baseMenusRes, optionMenusRes] = await Promise.all([
+        supabase.from('cm_patients').select('*').eq('status', 'active').order('name'),
+        supabase.from('cm_base_menus').select('*').eq('is_active', true).order('sort_order'),
+        supabase.from('cm_option_menus').select('*').eq('is_active', true).order('sort_order'),
+      ])
+      setPatients(patientsRes.data || [])
+      setBaseMenus(baseMenusRes.data || [])
+      setOptionMenus(optionMenusRes.data || [])
     }
     load()
   }, [])
 
-  const update = (key: string, value: string) => setForm({ ...form, [key]: value })
+  const update = (key: string, value: string | number | string[]) => setForm(prev => ({ ...prev, [key]: value }))
 
-  const filteredPatients = search
+  const filteredPatients = search.length > 0
     ? patients.filter(p => p.name.includes(search) || p.furigana?.includes(search))
     : []
 
   const selectedPatient = patients.find(p => p.id === form.patient_id)
 
+  // 基本メニュー選択
+  const selectBaseMenu = (menu: BaseMenu) => {
+    const newTotal = menu.price + form.option_price
+    setForm(prev => ({
+      ...prev,
+      menu_name: menu.name,
+      base_price: menu.price,
+      duration_minutes: menu.duration_minutes,
+      total_price: newTotal,
+    }))
+  }
+
+  // オプションメニュー切り替え
+  const toggleOption = (option: OptionMenu) => {
+    setForm(prev => {
+      const exists = prev.option_names.includes(option.name)
+      const newOptions = exists
+        ? prev.option_names.filter(n => n !== option.name)
+        : [...prev.option_names, option.name]
+      const newOptionPrice = optionMenus
+        .filter(o => newOptions.includes(o.name))
+        .reduce((sum, o) => sum + o.price, 0)
+      return {
+        ...prev,
+        option_names: newOptions,
+        option_price: newOptionPrice,
+        total_price: prev.base_price + newOptionPrice,
+      }
+    })
+  }
+
+  // 音声入力で患者名を検索
+  const handleVoicePatientSearch = useCallback((text: string) => {
+    setSearch(text)
+  }, [])
+
+  // 音声入力でメニュー名をマッチング
+  const handleVoiceMenu = useCallback((text: string) => {
+    const normalized = text.replace(/\s/g, '')
+    // 基本メニューからマッチング
+    const match = baseMenus.find(m =>
+      m.name.includes(normalized) || normalized.includes(m.name)
+    )
+    if (match) {
+      selectBaseMenu(match)
+    } else {
+      // マッチしなければ手入力用にメニュー名をセット
+      setForm(prev => ({ ...prev, menu_name: text }))
+    }
+  }, [baseMenus])
+
+  // 音声入力で料金をセット
+  const handleVoicePrice = useCallback((text: string) => {
+    // 数字部分を抽出（「8000円」「はっせんえん」等に対応）
+    const numMap: Record<string, string> = {
+      '〇': '0', '一': '1', '二': '2', '三': '3', '四': '4',
+      '五': '5', '六': '6', '七': '7', '八': '8', '九': '9',
+    }
+    let cleaned = text.replace(/[円えん、,\s]/g, '')
+    // 漢数字を半角数字に
+    Object.entries(numMap).forEach(([k, v]) => { cleaned = cleaned.replace(new RegExp(k, 'g'), v) })
+    // 全角数字を半角に
+    cleaned = cleaned.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    // 日本語数詞のパース
+    const jpNum = parseJapaneseNumber(cleaned)
+    if (jpNum > 0) {
+      setForm(prev => ({ ...prev, total_price: jpNum }))
+    } else {
+      const num = parseInt(cleaned.replace(/[^0-9]/g, ''))
+      if (!isNaN(num) && num > 0) {
+        setForm(prev => ({ ...prev, total_price: num }))
+      }
+    }
+  }, [])
+
+  // 音声入力でメモをセット
+  const handleVoiceNotes = useCallback((text: string) => {
+    setForm(prev => ({ ...prev, notes: prev.notes ? prev.notes + ' ' + text : text }))
+  }, [])
+
   const handleSave = async () => {
     if (!form.patient_id || !form.visit_date) return
     setSaving(true)
 
-    // 来院回数を取得
-    const { count } = await supabase.from('cm_visit_records').select('id', { count: 'exact' }).eq('patient_id', form.patient_id)
+    const patientName = selectedPatient?.name || ''
 
-    const { error } = await supabase.from('cm_visit_records').insert({
-      ...form,
-      visit_number: (count || 0) + 1,
-      payment_amount: parseInt(form.payment_amount) || 0,
-      next_appointment: form.next_appointment || null,
+    // cm_slipsに保存（売上データ）
+    const { error } = await supabase.from('cm_slips').insert({
+      patient_id: form.patient_id,
+      patient_name: patientName,
+      visit_date: form.visit_date,
+      menu_name: form.menu_name,
+      base_price: form.base_price,
+      option_names: form.option_names.join(', '),
+      option_price: form.option_price,
+      total_price: form.total_price,
+      payment_method: form.payment_method,
+      staff_name: form.staff_name,
+      duration_minutes: form.duration_minutes,
+      notes: form.notes,
     })
 
     if (!error) {
       // 患者のupdated_atを更新
       await supabase.from('cm_patients').update({ updated_at: new Date().toISOString() }).eq('id', form.patient_id)
-      router.push(`/patients/${form.patient_id}`)
+
+      setSaved(true)
+      setTimeout(() => {
+        router.push(`/patients/${form.patient_id}`)
+      }, 800)
     }
     setSaving(false)
   }
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
 
+  if (saved) {
+    return (
+      <div className="px-4 py-16 text-center">
+        <div className="text-5xl mb-4">&#10003;</div>
+        <p className="font-bold text-lg text-gray-800">保存しました</p>
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
 
-      {/* 患者選択 */}
+      {/* 1. 患者選択 */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">患者選択</h3>
+        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">1. 患者を選択</h3>
 
         {selectedPatient ? (
           <div className="flex justify-between items-center bg-blue-50 rounded-lg p-3">
             <div>
               <p className="font-bold text-sm">{selectedPatient.name}</p>
-              <p className="text-xs text-gray-500">{selectedPatient.chief_complaint}</p>
+              <p className="text-xs text-gray-500">{selectedPatient.furigana}</p>
             </div>
-            <button onClick={() => { update('patient_id', ''); setSearch('') }} className="text-xs text-red-500">変更</button>
+            <button onClick={() => { update('patient_id', ''); setSearch('') }} className="text-xs text-red-500 font-medium">変更</button>
           </div>
         ) : (
           <div className="relative">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="患者名で検索..."
-              className={inputClass}
-            />
-            {filteredPatients.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 shadow-lg z-10 max-h-40 overflow-y-auto">
-                {filteredPatients.map(p => (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="患者名で検索（音声OK）"
+                className={`${inputClass} flex-1`}
+              />
+              <VoiceInput onResult={handleVoicePatientSearch} size="md" />
+            </div>
+            {search.length > 0 && (
+              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
+                {filteredPatients.length === 0 ? (
+                  <p className="px-3 py-3 text-sm text-gray-400 text-center">該当なし</p>
+                ) : filteredPatients.map(p => (
                   <button
                     key={p.id}
                     onClick={() => { update('patient_id', p.id); setSearch('') }}
-                    className="block w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b border-gray-100"
+                    className="block w-full text-left px-3 py-2.5 hover:bg-gray-50 text-sm border-b border-gray-100"
                   >
                     <span className="font-medium">{p.name}</span>
-                    <span className="text-xs text-gray-400 ml-2">{p.chief_complaint?.slice(0, 15)}</span>
+                    <span className="text-xs text-gray-400 ml-2">{p.furigana}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
         )}
+      </div>
 
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">施術日</label>
-          <input type="date" value={form.visit_date} onChange={(e) => update('visit_date', e.target.value)} className={inputClass} />
+      {/* 2. 来店日 */}
+      <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">2. 来店日</h3>
+        <div className="flex gap-2">
+          <button
+            onClick={() => update('visit_date', new Date().toISOString().split('T')[0])}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
+              form.visit_date === new Date().toISOString().split('T')[0]
+                ? 'border-[#14252A] bg-[#14252A] text-white'
+                : 'border-gray-200 text-gray-600'
+            }`}
+          >
+            今日
+          </button>
+          <input
+            type="date"
+            value={form.visit_date}
+            onChange={(e) => update('visit_date', e.target.value)}
+            className={`${inputClass} flex-1`}
+          />
         </div>
       </div>
 
-      {/* 施術内容 */}
+      {/* 3. 施術メニュー */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">施術内容</h3>
+        <div className="flex items-center justify-between border-b pb-2">
+          <h3 className="font-bold text-gray-800 text-sm">3. 施術メニュー</h3>
+          <VoiceInput onResult={handleVoiceMenu} size="sm" />
+        </div>
 
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">本日の症状</label>
-          <textarea value={form.symptoms} onChange={(e) => update('symptoms', e.target.value)} className={inputClass} rows={2} placeholder="腰の痛み、右肩の張り..." />
+        {/* 基本メニュー */}
+        {baseMenus.length > 0 && (
+          <div>
+            <p className="text-xs text-gray-500 mb-2">基本メニュー</p>
+            <div className="flex flex-wrap gap-2">
+              {baseMenus.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => selectBaseMenu(m)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                    form.menu_name === m.name
+                      ? 'border-[#14252A] bg-[#14252A] text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  {m.name}
+                  <span className="block text-[10px] opacity-75">{m.price.toLocaleString()}円 / {m.duration_minutes}分</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* オプションメニュー */}
+        {optionMenus.length > 0 && (
+          <div>
+            <p className="text-xs text-gray-500 mb-2">オプション</p>
+            <div className="flex flex-wrap gap-2">
+              {optionMenus.map(o => (
+                <button
+                  key={o.id}
+                  onClick={() => toggleOption(o)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                    form.option_names.includes(o.name)
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  {o.name}
+                  <span className="block text-[10px] opacity-75">+{o.price.toLocaleString()}円</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* メニュー名手入力（マスターにない場合） */}
+        {baseMenus.length === 0 && (
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">メニュー名</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={form.menu_name}
+                onChange={(e) => update('menu_name', e.target.value)}
+                placeholder="施術メニュー名"
+                className={`${inputClass} flex-1`}
+              />
+            </div>
+          </div>
+        )}
+
+        {form.menu_name && (
+          <div className="bg-gray-50 rounded-lg p-2 text-xs text-gray-600">
+            選択中: <span className="font-bold text-gray-800">{form.menu_name}</span>
+            {form.option_names.length > 0 && (
+              <span className="ml-1">+ {form.option_names.join(', ')}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 4. 料金 */}
+      <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+        <div className="flex items-center justify-between border-b pb-2">
+          <h3 className="font-bold text-gray-800 text-sm">4. 料金</h3>
+          <VoiceInput onResult={handleVoicePrice} size="sm" />
+        </div>
+
+        <div className="text-center py-2">
+          <p className="text-3xl font-bold" style={{ color: '#14252A' }}>
+            {form.total_price.toLocaleString()}<span className="text-lg">円</span>
+          </p>
+          {form.base_price > 0 && form.option_price > 0 && (
+            <p className="text-xs text-gray-400 mt-1">
+              基本 {form.base_price.toLocaleString()}円 + オプション {form.option_price.toLocaleString()}円
+            </p>
+          )}
         </div>
 
         <div>
-          <label className="block text-xs text-gray-600 mb-1">身体の状態</label>
-          <textarea value={form.body_condition} onChange={(e) => update('body_condition', e.target.value)} className={inputClass} rows={2} placeholder="右骨盤の挙上、頚椎の回旋制限..." />
+          <label className="block text-xs text-gray-600 mb-1">金額を直接入力</label>
+          <input
+            type="number"
+            value={form.total_price || ''}
+            onChange={(e) => update('total_price', parseInt(e.target.value) || 0)}
+            placeholder="8000"
+            className={inputClass}
+          />
         </div>
 
         <div>
-          <label className="block text-xs text-gray-600 mb-1">施術内容</label>
-          <textarea value={form.treatment_content} onChange={(e) => update('treatment_content', e.target.value)} className={inputClass} rows={2} placeholder="骨盤矯正、頚椎アジャスト..." />
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">改善・変化</label>
-          <textarea value={form.improvement} onChange={(e) => update('improvement', e.target.value)} className={inputClass} rows={2} placeholder="可動域改善、痛み軽減..." />
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">反応・雰囲気</label>
-          <div className="flex gap-2">
-            {['良好', '普通', 'やや悪い', '悪い'].map(a => (
+          <label className="block text-xs text-gray-600 mb-1">支払方法</label>
+          <div className="flex flex-wrap gap-2">
+            {PAYMENT_METHODS.map(m => (
               <button
-                key={a}
-                onClick={() => update('atmosphere', a)}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${
-                  form.atmosphere === a
-                    ? a === '良好' ? 'bg-green-100 border-green-500 text-green-700' :
-                      a === '普通' ? 'bg-gray-100 border-gray-500 text-gray-700' :
-                      'bg-red-100 border-red-500 text-red-700'
-                    : 'border-gray-200 text-gray-400'
+                key={m}
+                onClick={() => update('payment_method', m)}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                  form.payment_method === m
+                    ? 'border-[#14252A] bg-[#14252A] text-white'
+                    : 'border-gray-200 text-gray-600'
                 }`}
-              >{a}</button>
+              >
+                {m}
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* 次回・会計 */}
+      {/* メモ（任意） */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">次回予定・会計</h3>
-
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">次回の方針</label>
-          <textarea value={form.next_plan} onChange={(e) => update('next_plan', e.target.value)} className={inputClass} rows={2} placeholder="次回は上半身中心に..." />
+        <div className="flex items-center justify-between border-b pb-2">
+          <h3 className="font-bold text-gray-800 text-sm">メモ（任意）</h3>
+          <VoiceInput onResult={handleVoiceNotes} size="sm" />
         </div>
-
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">次回予約日</label>
-          <input type="date" value={form.next_appointment} onChange={(e) => update('next_appointment', e.target.value)} className={inputClass} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">施術料金（円）</label>
-            <input type="number" value={form.payment_amount} onChange={(e) => update('payment_amount', e.target.value)} className={inputClass} placeholder="8000" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">支払方法</label>
-            <select value={form.payment_method} onChange={(e) => update('payment_method', e.target.value)} className={inputClass}>
-              {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">メモ</label>
-          <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} className={inputClass} rows={2} placeholder="特記事項" />
-        </div>
+        <textarea
+          value={form.notes}
+          onChange={(e) => update('notes', e.target.value)}
+          className={inputClass}
+          rows={2}
+          placeholder="特記事項があれば..."
+        />
       </div>
 
+      {/* 保存ボタン */}
       <button
         onClick={handleSave}
-        disabled={saving || !form.patient_id}
-        className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-50"
+        disabled={saving || !form.patient_id || form.total_price <= 0}
+        className="w-full text-white py-4 rounded-xl font-bold text-base disabled:opacity-50 shadow-lg transition-all active:scale-95"
+        style={{ background: '#14252A' }}
       >
-        {saving ? '保存中...' : '施術記録を保存'}
+        {saving ? '保存中...' : '記録を保存する'}
       </button>
+
+      {/* 入力サマリー */}
+      {form.patient_id && (
+        <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+          <p>患者: <span className="text-gray-800 font-medium">{selectedPatient?.name}</span></p>
+          <p>来店日: <span className="text-gray-800 font-medium">{form.visit_date}</span></p>
+          <p>メニュー: <span className="text-gray-800 font-medium">{form.menu_name || '未選択'}{form.option_names.length > 0 ? ` + ${form.option_names.join(', ')}` : ''}</span></p>
+          <p>料金: <span className="text-gray-800 font-medium">{form.total_price.toLocaleString()}円</span></p>
+        </div>
+      )}
     </div>
   )
+}
+
+/** 日本語の数詞をパース（例: 「はっせん」→8000, 「ろくせんごひゃく」→6500） */
+function parseJapaneseNumber(text: string): number {
+  const units: Record<string, number> = {
+    'まん': 10000, '万': 10000,
+    'せん': 1000, 'ぜん': 1000, '千': 1000,
+    'ひゃく': 100, 'びゃく': 100, 'ぴゃく': 100, '百': 100,
+    'じゅう': 10, 'じゅ': 10, '十': 10,
+  }
+
+  const nums: Record<string, number> = {
+    'いち': 1, 'に': 2, 'さん': 3, 'し': 4, 'よん': 4,
+    'ご': 5, 'ろく': 6, 'なな': 7, 'しち': 7, 'はち': 8, 'はっ': 8,
+    'きゅう': 9, 'く': 9, 'いっ': 1, 'にっ': 2, 'ろっ': 6,
+  }
+
+  // 簡易的なパース
+  let result = 0
+  let current = 0
+  let remaining = text
+
+  // まず直接数字があればそれを返す
+  const directNum = parseInt(text.replace(/[^0-9]/g, ''))
+  if (!isNaN(directNum) && directNum > 0) return directNum
+
+  // 数詞のパース
+  for (const [unitWord, unitValue] of Object.entries(units).sort((a, b) => b[1] - a[1])) {
+    const idx = remaining.indexOf(unitWord)
+    if (idx >= 0) {
+      const before = remaining.slice(0, idx)
+      let multiplier = 1
+      for (const [numWord, numValue] of Object.entries(nums)) {
+        if (before.endsWith(numWord)) {
+          multiplier = numValue
+          break
+        }
+      }
+      result += multiplier * unitValue
+      remaining = remaining.slice(idx + unitWord.length)
+    }
+  }
+
+  // 残りの数字
+  for (const [numWord, numValue] of Object.entries(nums)) {
+    if (remaining.includes(numWord)) {
+      result += numValue
+    }
+  }
+
+  return result
 }
 
 export default function NewVisitPage() {

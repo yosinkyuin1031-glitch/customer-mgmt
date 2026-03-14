@@ -5,41 +5,84 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
-import type { Patient } from '@/lib/types'
+
+interface PatientLTV {
+  id: string
+  name: string
+  visitCount: number
+  ltv: number
+  avgPrice: number
+  firstVisit: string
+  lastVisit: string
+  daysSince: number | null
+}
 
 export default function LtvPage() {
   const supabase = createClient()
-  const [patients, setPatients] = useState<Patient[]>([])
+  const [patients, setPatients] = useState<PatientLTV[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<'ltv' | 'visit_count' | 'days'>('ltv')
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const { data } = await supabase
+
+      // cm_slipsから正確に集計
+      const { data: slips } = await supabase
+        .from('cm_slips')
+        .select('patient_id, patient_name, visit_date, total_price')
+        .order('visit_date')
+
+      const { data: patientList } = await supabase
         .from('cm_patients')
-        .select('*')
-        .gt('visit_count', 0)
-        .order('ltv', { ascending: false })
-      setPatients(data || [])
+        .select('id, name')
+
+      if (!slips) { setLoading(false); return }
+
+      const nameMap: Record<string, string> = {}
+      patientList?.forEach(p => { nameMap[p.id] = p.name })
+
+      // 患者ごとに集計
+      const patMap: Record<string, { count: number, revenue: number, first: string, last: string, name: string }> = {}
+      slips.forEach(s => {
+        const pid = s.patient_id || 'unknown'
+        if (!patMap[pid]) {
+          patMap[pid] = { count: 0, revenue: 0, first: s.visit_date, last: s.visit_date, name: nameMap[pid] || s.patient_name || '不明' }
+        }
+        patMap[pid].count++
+        patMap[pid].revenue += s.total_price || 0
+        if (s.visit_date < patMap[pid].first) patMap[pid].first = s.visit_date
+        if (s.visit_date > patMap[pid].last) patMap[pid].last = s.visit_date
+      })
+
+      const now = Date.now()
+      const result: PatientLTV[] = Object.entries(patMap)
+        .filter(([id]) => id !== 'unknown')
+        .map(([id, d]) => ({
+          id,
+          name: d.name,
+          visitCount: d.count,
+          ltv: d.revenue,
+          avgPrice: d.count > 0 ? Math.round(d.revenue / d.count) : 0,
+          firstVisit: d.first,
+          lastVisit: d.last,
+          daysSince: Math.floor((now - new Date(d.last).getTime()) / (24 * 60 * 60 * 1000)),
+        }))
+        .sort((a, b) => b.ltv - a.ltv)
+
+      setPatients(result)
       setLoading(false)
     }
     load()
   }, [])
 
   const sorted = [...patients].sort((a, b) => {
-    if (sortKey === 'ltv') return (b.ltv || 0) - (a.ltv || 0)
-    if (sortKey === 'visit_count') return (b.visit_count || 0) - (a.visit_count || 0)
-    const aDays = a.first_visit_date && a.last_visit_date
-      ? Math.max(1, Math.round((new Date(a.last_visit_date).getTime() - new Date(a.first_visit_date).getTime()) / (30 * 24 * 60 * 60 * 1000)))
-      : 0
-    const bDays = b.first_visit_date && b.last_visit_date
-      ? Math.max(1, Math.round((new Date(b.last_visit_date).getTime() - new Date(b.first_visit_date).getTime()) / (30 * 24 * 60 * 60 * 1000)))
-      : 0
-    return bDays - aDays
+    if (sortKey === 'ltv') return b.ltv - a.ltv
+    if (sortKey === 'visit_count') return b.visitCount - a.visitCount
+    return (b.daysSince ?? 0) - (a.daysSince ?? 0)
   })
 
-  const totalLTV = patients.reduce((sum, p) => sum + (p.ltv || 0), 0)
+  const totalLTV = patients.reduce((sum, p) => sum + p.ltv, 0)
   const avgLTV = patients.length > 0 ? Math.round(totalLTV / patients.length) : 0
 
   return (
@@ -76,7 +119,7 @@ export default function LtvPage() {
           {[
             { key: 'ltv' as const, label: '総売上' },
             { key: 'visit_count' as const, label: '来院数' },
-            { key: 'days' as const, label: '通院期間' },
+            { key: 'days' as const, label: '最終来院' },
           ].map(s => (
             <button key={s.key} onClick={() => setSortKey(s.key)}
               className={`px-3 py-1 rounded text-xs ${sortKey === s.key ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}
@@ -96,12 +139,12 @@ export default function LtvPage() {
                     <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
                     <span className="font-medium text-sm text-blue-600">{p.name}</span>
                   </div>
-                  <p className="font-bold text-sm" style={{ color: '#14252A' }}>{(p.ltv || 0).toLocaleString()}円</p>
+                  <p className="font-bold text-sm" style={{ color: '#14252A' }}>{p.ltv.toLocaleString()}円</p>
                 </div>
                 <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                  <span>{p.visit_count || 0}回</span>
-                  <span>平均{p.visit_count ? Math.round((p.ltv || 0) / p.visit_count).toLocaleString() : 0}円</span>
-                  {p.first_visit_date && <span>{p.first_visit_date}〜</span>}
+                  <span>{p.visitCount}回</span>
+                  <span>平均{p.avgPrice.toLocaleString()}円</span>
+                  <span>{p.firstVisit}〜</span>
                 </div>
               </Link>
             ))}
@@ -129,13 +172,13 @@ export default function LtvPage() {
                     <td className="px-3 py-2 font-medium">
                       <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline">{p.name}</Link>
                     </td>
-                    <td className="px-3 py-2 text-right">{p.visit_count || 0}回</td>
-                    <td className="px-3 py-2 text-right font-medium">{(p.ltv || 0).toLocaleString()}円</td>
-                    <td className="px-3 py-2 text-right">{p.visit_count ? Math.round((p.ltv || 0) / p.visit_count).toLocaleString() : 0}円</td>
-                    <td className="px-3 py-2 text-xs text-gray-500">{p.first_visit_date || '-'}</td>
-                    <td className="px-3 py-2 text-xs text-gray-500">{p.last_visit_date || '-'}</td>
+                    <td className="px-3 py-2 text-right">{p.visitCount}回</td>
+                    <td className="px-3 py-2 text-right font-medium">{p.ltv.toLocaleString()}円</td>
+                    <td className="px-3 py-2 text-right">{p.avgPrice.toLocaleString()}円</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{p.firstVisit}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{p.lastVisit}</td>
                     <td className="px-3 py-2 text-right text-xs">
-                      {p.days_since_last_visit !== null && p.days_since_last_visit !== undefined ? `${p.days_since_last_visit}日` : '-'}
+                      {p.daysSince !== null ? `${p.daysSince}日` : '-'}
                     </td>
                   </tr>
                 ))}
