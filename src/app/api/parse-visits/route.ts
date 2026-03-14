@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { findBestMatch } from '@/lib/nameMatch'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 
@@ -18,15 +19,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEYが設定されていません' }, { status: 500 })
     }
 
-    // 患者リストを取得してAIに渡す
     const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // 全患者を取得（activeに限定しない - 休止中の患者も来院する可能性あり）
     const { data: patients } = await supabase
       .from('cm_patients')
       .select('id, name, furigana')
-      .eq('status', 'active')
       .order('name')
 
-    // 基本メニューも取得
     const { data: menus } = await supabase
       .from('cm_base_menus')
       .select('name, price, duration_minutes')
@@ -53,7 +53,8 @@ ${patientList}
 ${menuList}
 
 【ルール】
-- 患者名は登録済みリストから最も近い名前をマッチングしてください（ふりがな・部分一致OK）
+- 患者名は登録済みリストから最も近い名前をマッチングし、そのIDをpatient_idにセット
+- スペースの有無、漢字/ひらがなの違いは無視してマッチング
 - 「回数券消費」「回数券の消化」「回数券で」→ total_price: 0, menu_name: "回数券消化"
 - 金額の指定がある場合はtotal_priceにセット
 - メニュー名の指定があればmenu_nameにセット。マスタに一致すれば料金も自動セット
@@ -65,7 +66,7 @@ ${menuList}
 [
   {
     "patient_id": "UUID or null",
-    "patient_name": "患者名",
+    "patient_name": "患者名（リストに一致した正式名称）",
     "visit_date": "YYYY-MM-DD",
     "menu_name": "メニュー名",
     "total_price": 数値,
@@ -80,20 +81,44 @@ ${text}`
       ]
     })
 
-    // レスポンスからJSONを抽出
     const content = response.content[0]
     if (content.type !== 'text') {
       return NextResponse.json({ error: '解析に失敗しました' }, { status: 500 })
     }
 
-    // JSON部分を抽出
     const jsonMatch = content.text.match(/\[[\s\S]*\]/)
     if (!jsonMatch) {
       return NextResponse.json({ error: '解析結果を読み取れませんでした', raw: content.text }, { status: 500 })
     }
 
     const parsed = JSON.parse(jsonMatch[0])
-    return NextResponse.json({ records: parsed })
+
+    // AIの結果をサーバー側で二重チェック・補完
+    const patientCandidates = (patients || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      furigana: p.furigana,
+    }))
+
+    const verified = parsed.map((record: { patient_id: string | null; patient_name: string; [key: string]: unknown }) => {
+      // patient_idがnullの場合、またはIDが患者リストに存在しない場合、名前で再マッチング
+      const idExists = record.patient_id && patientCandidates.some(p => p.id === record.patient_id)
+
+      if (!idExists && record.patient_name) {
+        const match = findBestMatch(record.patient_name, patientCandidates)
+        if (match) {
+          return {
+            ...record,
+            patient_id: match.id,
+            patient_name: match.name, // 正式名称に統一
+          }
+        }
+      }
+
+      return record
+    })
+
+    return NextResponse.json({ records: verified })
   } catch (error) {
     console.error('Parse error:', error)
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })

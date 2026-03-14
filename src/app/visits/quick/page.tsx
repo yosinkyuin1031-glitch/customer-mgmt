@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { findBestMatch } from '@/lib/nameMatch'
 
 interface ParsedRecord {
   patient_id: string | null
@@ -108,9 +109,25 @@ export default function QuickInputPage() {
     if (records.length === 0) return
     setSaving(true)
 
-    const toInsert = records.map(r => ({
-      patient_id: r.patient_id,
-      patient_name: r.patient_name,
+    // patient_idがnullのレコードを保存前に再マッチング
+    const { data: allPatients } = await supabase.from('cm_patients').select('id, name, furigana')
+    const candidates = (allPatients || []).map(p => ({ id: p.id, name: p.name, furigana: p.furigana }))
+
+    const toInsert = records.map(r => {
+      let patientId = r.patient_id
+      let patientName = r.patient_name
+
+      if (!patientId && patientName) {
+        const match = findBestMatch(patientName, candidates)
+        if (match) {
+          patientId = match.id
+          patientName = match.name
+        }
+      }
+
+      return {
+      patient_id: patientId,
+      patient_name: patientName,
       visit_date: r.visit_date,
       menu_name: r.menu_name,
       base_price: r.total_price,
@@ -121,7 +138,8 @@ export default function QuickInputPage() {
       staff_name: '',
       duration_minutes: 0,
       notes: r.notes || '',
-    }))
+    }
+    })
 
     const { error: insertError } = await supabase.from('cm_slips').insert(toInsert)
 
