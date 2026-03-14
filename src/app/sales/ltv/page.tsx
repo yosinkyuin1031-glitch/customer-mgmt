@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllSlips } from '@/lib/fetchAll'
 import { saleTabs } from '@/lib/saleTabs'
 
 interface PatientLTV {
@@ -27,17 +28,14 @@ export default function LtvPage() {
     const load = async () => {
       setLoading(true)
 
-      // cm_slipsから正確に集計
-      const { data: slips } = await supabase
-        .from('cm_slips')
-        .select('patient_id, patient_name, visit_date, total_price')
-        .order('visit_date')
+      // cm_slipsから全件取得（1000件制限回避）
+      const slips = await fetchAllSlips(supabase, 'patient_id, patient_name, visit_date, total_price') as { patient_id: string; patient_name: string; visit_date: string; total_price: number }[]
 
       const { data: patientList } = await supabase
         .from('cm_patients')
         .select('id, name')
 
-      if (!slips) { setLoading(false); return }
+      if (!slips || slips.length === 0) { setLoading(false); return }
 
       const nameMap: Record<string, string> = {}
       patientList?.forEach(p => { nameMap[p.id] = p.name })

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { fetchAllSlips } from '@/lib/fetchAll'
 
 interface DayUtilization {
   date: string
@@ -29,13 +30,12 @@ export default function UtilizationPage() {
       d.setDate(0)
       const endDate = d.toISOString().split('T')[0]
 
-      const { data: slips } = await supabase
-        .from('cm_slips')
-        .select('visit_date')
-        .gte('visit_date', startDate)
-        .lte('visit_date', endDate)
+      const slips = await fetchAllSlips(supabase, 'visit_date', {
+        gte: ['visit_date', startDate],
+        lte: ['visit_date', endDate],
+      }) as { visit_date: string }[]
 
-      if (!slips) { setLoading(false); return }
+      if (!slips || slips.length === 0) { setLoading(false); return }
 
       const dayMap: Record<string, number> = {}
       slips.forEach(s => {

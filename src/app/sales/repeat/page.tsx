@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { fetchAllSlips } from '@/lib/fetchAll'
 
 interface RepeatData {
   month: string
@@ -35,16 +36,13 @@ export default function RepeatPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const { data: visits } = await supabase
-        .from('cm_slips')
-        .select('patient_id, visit_date, total_price')
-        .order('visit_date')
+      const visits = await fetchAllSlips(supabase, 'patient_id, visit_date, total_price') as { patient_id: string; visit_date: string; total_price: number }[]
 
       const { data: patients } = await supabase
         .from('cm_patients')
         .select('id, name')
 
-      if (!visits || !patients) { setLoading(false); return }
+      if (!visits || visits.length === 0 || !patients) { setLoading(false); return }
 
       const patientNameMap: Record<string, string> = {}
       patients.forEach(p => { patientNameMap[p.id] = p.name })

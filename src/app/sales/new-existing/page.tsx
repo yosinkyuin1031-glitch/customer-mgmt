@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { fetchAllSlips } from '@/lib/fetchAll'
 
 interface MonthlyData {
   month: string
@@ -24,12 +25,9 @@ export default function NewExistingPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const { data: slips } = await supabase
-        .from('cm_slips')
-        .select('patient_id, visit_date, total_price')
-        .order('visit_date')
+      const slips = await fetchAllSlips(supabase, 'patient_id, visit_date, total_price') as { patient_id: string; visit_date: string; total_price: number }[]
 
-      if (!slips) { setLoading(false); return }
+      if (!slips || slips.length === 0) { setLoading(false); return }
 
       // 各患者の初回来院月を特定
       const firstVisitMonth: Record<string, string> = {}

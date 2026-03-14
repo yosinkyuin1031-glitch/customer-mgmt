@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import type { Slip } from '@/lib/types'
 import { saleTabs } from '@/lib/saleTabs'
+import { fetchAllSlips } from '@/lib/fetchAll'
 
 export default function SlipsPage() {
   const supabase = createClient()
@@ -22,12 +23,13 @@ export default function SlipsPage() {
       d.setDate(0)
       const endDate = d.toISOString().split('T')[0]
 
-      const { data } = await supabase
-        .from('cm_slips')
-        .select('*')
-        .gte('visit_date', startDate)
-        .lte('visit_date', endDate)
-        .order('visit_date', { ascending: false })
+      const data = await fetchAllSlips(supabase, '*', {
+        gte: ['visit_date', startDate],
+        lte: ['visit_date', endDate],
+      }) as Slip[]
+
+      // fetchAllSlipsはid昇順なので、visit_date降順にソート
+      data.sort((a, b) => b.visit_date.localeCompare(a.visit_date))
 
       setSlips(data || [])
       setLoading(false)

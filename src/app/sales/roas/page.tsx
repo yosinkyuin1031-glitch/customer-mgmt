@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { fetchAllSlips } from '@/lib/fetchAll'
 
 interface AdChannel {
   channel: string
@@ -41,24 +42,20 @@ export default function RoasPage() {
         .eq('month', selectedMonth)
 
       // cm_slipsから売上取得
-      const { data: slips } = await supabase
-        .from('cm_slips')
-        .select('patient_id, total_price')
-        .gte('visit_date', startDate)
-        .lte('visit_date', endDate)
+      const slips = await fetchAllSlips(supabase, 'patient_id, total_price', {
+        gte: ['visit_date', startDate],
+        lte: ['visit_date', endDate],
+      }) as { patient_id: string; total_price: number }[]
 
-      if (!slips) { setLoading(false); return }
+      if (!slips || slips.length === 0) { setLoading(false); return }
 
       // 患者の初回来院月を取得して新規/既存を判別
       const patientIds = [...new Set(slips.map(s => s.patient_id).filter(Boolean))]
-      const { data: allSlips } = await supabase
-        .from('cm_slips')
-        .select('patient_id, visit_date')
-        .in('patient_id', patientIds.length > 0 ? patientIds : ['__none__'])
-        .order('visit_date')
+      const allSlipsRaw = await fetchAllSlips(supabase, 'patient_id, visit_date') as { patient_id: string; visit_date: string }[]
+      const allSlips = allSlipsRaw.filter(s => patientIds.includes(s.patient_id))
 
       const firstVisitDate: Record<string, string> = {}
-      allSlips?.forEach(s => {
+      allSlips.forEach(s => {
         if (s.patient_id && (!firstVisitDate[s.patient_id] || s.visit_date < firstVisitDate[s.patient_id])) {
           firstVisitDate[s.patient_id] = s.visit_date
         }

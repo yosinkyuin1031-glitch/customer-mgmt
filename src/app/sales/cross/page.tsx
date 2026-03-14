@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { fetchAllSlips } from '@/lib/fetchAll'
 
 type CrossAxis = 'referral_source' | 'gender' | 'occupation' | 'staff_name'
 const axisOptions: { key: CrossAxis, label: string }[] = [
@@ -41,13 +42,12 @@ export default function CrossPage() {
       const patientFields: CrossAxis[] = ['referral_source', 'gender', 'occupation']
 
       if (patientFields.includes(rowAxis)) {
-        const { data: slips } = await supabase
-          .from('cm_slips')
-          .select('patient_id, total_price')
-          .gte('visit_date', startDate)
-          .lte('visit_date', endDate)
+        const slips = await fetchAllSlips(supabase, 'patient_id, total_price', {
+          gte: ['visit_date', startDate],
+          lte: ['visit_date', endDate],
+        }) as { patient_id: string; total_price: number }[]
 
-        if (!slips) { setLoading(false); return }
+        if (!slips || slips.length === 0) { setLoading(false); return }
 
         // 患者情報を取得
         const patientIds = [...new Set(slips.map(s => s.patient_id).filter(Boolean))]
@@ -76,13 +76,12 @@ export default function CrossPage() {
         })).sort((a, b) => b.revenue - a.revenue))
       } else {
         // staff_name で集計
-        const { data: slips } = await supabase
-          .from('cm_slips')
-          .select('staff_name, total_price')
-          .gte('visit_date', startDate)
-          .lte('visit_date', endDate)
+        const slips = await fetchAllSlips(supabase, 'staff_name, total_price', {
+          gte: ['visit_date', startDate],
+          lte: ['visit_date', endDate],
+        }) as { staff_name: string; total_price: number }[]
 
-        if (!slips) { setLoading(false); return }
+        if (!slips || slips.length === 0) { setLoading(false); return }
 
         const map: Record<string, { count: number, revenue: number }> = {}
         slips.forEach(s => {

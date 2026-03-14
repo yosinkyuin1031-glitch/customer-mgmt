@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllSlips } from '@/lib/fetchAll'
 import type { Slip } from '@/lib/types'
 import { saleTabs } from '@/lib/saleTabs'
 
@@ -41,12 +42,10 @@ export default function RevenuePage() {
         queryEnd = endDate
       }
 
-      const { data } = await supabase
-        .from('cm_slips')
-        .select('*')
-        .gte('visit_date', queryStart)
-        .lte('visit_date', queryEnd)
-        .order('visit_date')
+      const data = await fetchAllSlips(supabase, '*', {
+        gte: ['visit_date', queryStart],
+        lte: ['visit_date', queryEnd],
+      })
 
       setSlips(data || [])
       setLoading(false)

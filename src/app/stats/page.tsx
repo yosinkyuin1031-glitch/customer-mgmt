@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllSlips } from '@/lib/fetchAll'
 import type { Patient, Slip } from '@/lib/types'
 
 export default function StatsPage() {
@@ -28,12 +29,12 @@ export default function StatsPage() {
         startDate = now.getFullYear() + '-01-01'
       }
 
-      const [slipsRes, patientsRes] = await Promise.all([
-        supabase.from('cm_slips').select('*').gte('visit_date', startDate).order('visit_date'),
+      const [slipsData, patientsRes] = await Promise.all([
+        fetchAllSlips(supabase, '*', { gte: ['visit_date', startDate] }),
         supabase.from('cm_patients').select('*'),
       ])
 
-      setSlips(slipsRes.data || [])
+      setSlips(slipsData || [])
       setPatients(patientsRes.data || [])
       setLoading(false)
     }
