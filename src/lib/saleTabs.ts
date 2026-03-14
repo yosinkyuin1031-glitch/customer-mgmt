@@ -11,4 +11,6 @@ export const saleTabs = [
   { href: '/sales/hourly', label: '時間単価' },
   { href: '/sales/utilization', label: '稼働率' },
   { href: '/sales/cross', label: 'クロス集計' },
+  { href: '/sales/area-ltv', label: 'エリア分析' },
+  { href: '/sales/map', label: '地域分布' },
 ]
