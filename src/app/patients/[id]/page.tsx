@@ -6,11 +6,13 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 import type { Patient, Slip } from '@/lib/types'
 import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 export default function PatientDetailPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
@@ -23,12 +25,12 @@ export default function PatientDetailPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: p } = await supabase.from('cm_patients').select('*').eq('id', id).single()
+      const { data: p } = await supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('id', id).single()
       if (p) {
         setPatient(p)
         setForm(p)
       }
-      const { data: s } = await supabase.from('cm_slips').select('*').eq('patient_id', id).order('visit_date', { ascending: false })
+      const { data: s } = await supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).eq('patient_id', id).order('visit_date', { ascending: false })
       setSlips(s || [])
       setLoading(false)
     }

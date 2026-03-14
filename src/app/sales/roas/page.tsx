@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
 import { fetchAllSlips } from '@/lib/fetchAll'
+import { getClinicId } from '@/lib/clinic'
 
 interface AdChannel {
   channel: string
@@ -20,6 +21,7 @@ interface AdChannel {
 
 export default function RoasPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [channelData, setChannelData] = useState<AdChannel[]>([])
   const [totalNewRevenue, setTotalNewRevenue] = useState(0)
@@ -39,6 +41,7 @@ export default function RoasPage() {
       const { data: adCosts } = await supabase
         .from('cm_ad_costs')
         .select('*')
+        .eq('clinic_id', clinicId)
         .eq('month', selectedMonth)
 
       // cm_slipsから売上取得
@@ -65,6 +68,7 @@ export default function RoasPage() {
       const { data: patientsData } = await supabase
         .from('cm_patients')
         .select('id, referral_source')
+        .eq('clinic_id', clinicId)
         .in('id', patientIds.length > 0 ? patientIds : ['__none__'])
 
       const patientSourceMap: Record<string, string> = {}

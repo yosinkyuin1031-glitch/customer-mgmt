@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { getClinicId } from './clinic'
 
 /**
  * Supabaseの1000件制限を回避して全件取得する
@@ -14,11 +15,13 @@ export async function fetchAllSlips(
   let allData: any[] = []
   let offset = 0
   let hasMore = true
+  const clinicId = getClinicId()
 
   while (hasMore) {
     let query = supabase
       .from('cm_slips')
       .select(selectColumns)
+      .eq('clinic_id', clinicId)
       .order('id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1)
 

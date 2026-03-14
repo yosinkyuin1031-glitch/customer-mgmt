@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 
 const DAYS = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日']
 
 export default function RegularHolidaysPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [holidays, setHolidays] = useState<{ id: string; day_of_week: number; is_holiday: boolean; note: string }[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('cm_regular_holidays').select('*').order('day_of_week')
+      const { data } = await supabase.from('cm_regular_holidays').select('*').eq('clinic_id', clinicId).order('day_of_week')
       if (data && data.length > 0) {
         setHolidays(data)
       } else {
@@ -31,9 +33,9 @@ export default function RegularHolidaysPage() {
 
   const handleSave = async () => {
     setSaving(true)
-    await supabase.from('cm_regular_holidays').delete().gte('day_of_week', 0)
+    await supabase.from('cm_regular_holidays').delete().eq('clinic_id', clinicId).gte('day_of_week', 0)
     await supabase.from('cm_regular_holidays').insert(holidays.map(h => ({
-      day_of_week: h.day_of_week, is_holiday: h.is_holiday, note: h.note
+      clinic_id: clinicId, day_of_week: h.day_of_week, is_holiday: h.is_holiday, note: h.note
     })))
     setSaving(false)
   }

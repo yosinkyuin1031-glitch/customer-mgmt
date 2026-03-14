@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 import type { Patient, Slip } from '@/lib/types'
 
 interface TodaySlip extends Slip {
@@ -13,6 +14,7 @@ interface TodaySlip extends Slip {
 
 export default function HomePage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [todaySlips, setTodaySlips] = useState<TodaySlip[]>([])
   const [recentPatients, setRecentPatients] = useState<Patient[]>([])
   const [stats, setStats] = useState({ totalPatients: 0, monthVisits: 0, todayVisits: 0, todayRevenue: 0 })
@@ -24,12 +26,12 @@ export default function HomePage() {
       const monthStart = today.slice(0, 7) + '-01'
 
       const [patientsRes, todayRes, monthRes] = await Promise.all([
-        supabase.from('cm_patients').select('*').eq('status', 'active').order('updated_at', { ascending: false }).limit(5),
-        supabase.from('cm_slips').select('*').eq('visit_date', today).order('created_at', { ascending: false }),
-        supabase.from('cm_slips').select('id, total_price', { count: 'exact' }).gte('visit_date', monthStart),
+        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('updated_at', { ascending: false }).limit(5),
+        supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).eq('visit_date', today).order('created_at', { ascending: false }),
+        supabase.from('cm_slips').select('id, total_price', { count: 'exact' }).eq('clinic_id', clinicId).gte('visit_date', monthStart),
       ])
 
-      const { count: totalPatients } = await supabase.from('cm_patients').select('id', { count: 'exact' })
+      const { count: totalPatients } = await supabase.from('cm_patients').select('id', { count: 'exact' }).eq('clinic_id', clinicId)
 
       setRecentPatients(patientsRes.data || [])
       setTodaySlips(todayRes.data || [])

@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
 import { fetchAllSlips } from '@/lib/fetchAll'
+import { getClinicId } from '@/lib/clinic'
 
 interface RepeatData {
   month: string
@@ -28,6 +29,7 @@ interface PatientRepeat {
 
 export default function RepeatPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [data, setData] = useState<RepeatData[]>([])
   const [patientRepeats, setPatientRepeats] = useState<PatientRepeat[]>([])
   const [viewMode, setViewMode] = useState<'monthly' | 'patient'>('monthly')
@@ -41,6 +43,7 @@ export default function RepeatPage() {
       const { data: patients } = await supabase
         .from('cm_patients')
         .select('id, name')
+        .eq('clinic_id', clinicId)
 
       if (!visits || visits.length === 0 || !patients) { setLoading(false); return }
 

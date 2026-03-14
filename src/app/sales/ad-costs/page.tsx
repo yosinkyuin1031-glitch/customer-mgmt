@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { getClinicId } from '@/lib/clinic'
 
 interface AdCostRow {
   id?: string
@@ -20,6 +21,7 @@ interface AdCostRow {
 
 export default function AdCostsPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [channels, setChannels] = useState<string[]>([])
   const [rows, setRows] = useState<AdCostRow[]>([])
@@ -28,7 +30,7 @@ export default function AdCostsPage() {
 
   useEffect(() => {
     const loadChannels = async () => {
-      const { data } = await supabase.from('cm_ad_channels').select('name').eq('is_active', true).order('sort_order')
+      const { data } = await supabase.from('cm_ad_channels').select('name').eq('clinic_id', clinicId).eq('is_active', true).order('sort_order')
       setChannels(data?.map(c => c.name) || [])
     }
     loadChannels()
@@ -40,6 +42,7 @@ export default function AdCostsPage() {
       const { data } = await supabase
         .from('cm_ad_costs')
         .select('*')
+        .eq('clinic_id', clinicId)
         .eq('month', selectedMonth)
         .order('channel')
 
@@ -76,11 +79,12 @@ export default function AdCostsPage() {
   const handleSave = async () => {
     setSaving(true)
     // 既存データを削除して再挿入
-    await supabase.from('cm_ad_costs').delete().eq('month', selectedMonth)
+    await supabase.from('cm_ad_costs').delete().eq('clinic_id', clinicId).eq('month', selectedMonth)
 
     const inserts = rows
       .filter(r => r.cost > 0 || r.impressions > 0 || r.clicks > 0 || r.new_patients > 0 || r.conversions > 0)
       .map(r => ({
+        clinic_id: clinicId,
         month: selectedMonth,
         channel: r.channel,
         cost: r.cost,

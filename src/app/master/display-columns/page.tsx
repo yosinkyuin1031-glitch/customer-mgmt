@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 
 export default function DisplayColumnsPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [columns, setColumns] = useState<{ id: string; column_key: string; column_label: string; is_visible: boolean; sort_order: number }[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('cm_display_columns').select('*').order('sort_order')
+      const { data } = await supabase.from('cm_display_columns').select('*').eq('clinic_id', clinicId).order('sort_order')
       setColumns(data || [])
     }
     load()

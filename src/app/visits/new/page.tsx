@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { PAYMENT_METHODS } from '@/lib/types'
 import type { Patient } from '@/lib/types'
 import { normalizeName } from '@/lib/nameMatch'
+import { getClinicId } from '@/lib/clinic'
 
 interface BaseMenu {
   id: string
@@ -30,6 +31,7 @@ interface OptionMenu {
 
 function VisitForm() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedPatientId = searchParams.get('patient_id') || ''
@@ -58,9 +60,9 @@ function VisitForm() {
   useEffect(() => {
     const load = async () => {
       const [patientsRes, baseMenusRes, optionMenusRes] = await Promise.all([
-        supabase.from('cm_patients').select('*').eq('status', 'active').order('name'),
-        supabase.from('cm_base_menus').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('cm_option_menus').select('*').eq('is_active', true).order('sort_order'),
+        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name'),
+        supabase.from('cm_base_menus').select('*').eq('clinic_id', clinicId).eq('is_active', true).order('sort_order'),
+        supabase.from('cm_option_menus').select('*').eq('clinic_id', clinicId).eq('is_active', true).order('sort_order'),
       ])
       setPatients(patientsRes.data || [])
       setBaseMenus(baseMenusRes.data || [])
@@ -170,6 +172,7 @@ function VisitForm() {
 
     // cm_slipsに保存（売上データ）
     const { error } = await supabase.from('cm_slips').insert({
+      clinic_id: clinicId,
       patient_id: form.patient_id,
       patient_name: patientName,
       visit_date: form.visit_date,

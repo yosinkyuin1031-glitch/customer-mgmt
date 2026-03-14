@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 
 export default function FacilityPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [form, setForm] = useState({
     facility_name: '', address: '', phone: '', email: '', owner_name: '', business_hours: ''
   })
@@ -14,7 +16,7 @@ export default function FacilityPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('cm_facility_info').select('*').limit(1).single()
+      const { data } = await supabase.from('cm_facility_info').select('*').eq('clinic_id', clinicId).limit(1).single()
       if (data) { setForm(data); setId(data.id) }
     }
     load()
@@ -25,7 +27,7 @@ export default function FacilityPage() {
     if (id) {
       await supabase.from('cm_facility_info').update(form).eq('id', id)
     } else {
-      const { data } = await supabase.from('cm_facility_info').insert(form).select().single()
+      const { data } = await supabase.from('cm_facility_info').insert({ ...form, clinic_id: clinicId }).select().single()
       if (data) setId(data.id)
     }
     setSaving(false)

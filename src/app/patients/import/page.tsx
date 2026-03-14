@@ -6,6 +6,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import Header from '@/components/Header'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 
 // CSVヘッダー → DBカラムのマッピング辞書
 const HEADER_MAP: Record<string, string> = {
@@ -158,6 +159,7 @@ function normalizeBirthDate(val: string): string | null {
 
 export default function ImportPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -218,6 +220,7 @@ export default function ImportPage() {
       status: 'active',
       is_enabled: true,
       is_direct_mail: true,
+      clinic_id: clinicId,
     }
     mapping.forEach((col, i) => {
       if (!col || !row[i]) return
@@ -282,6 +285,7 @@ export default function ImportPage() {
           const { data: existing } = await supabase
             .from('cm_patients')
             .select('id')
+            .eq('clinic_id', clinicId)
             .eq('name', rec.name as string)
             .eq('phone', (rec.phone as string) || '')
             .limit(1)

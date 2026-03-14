@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 
 interface Column {
   key: string
@@ -27,8 +28,10 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
   const [form, setForm] = useState<Record<string, unknown>>({})
   const [adding, setAdding] = useState(false)
 
+  const clinicId = getClinicId()
+
   const load = async () => {
-    const { data } = await supabase.from(tableName).select('*').order(sortField)
+    const { data } = await supabase.from(tableName).select('*').eq('clinic_id', clinicId).order(sortField)
     setItems(data || [])
     setLoading(false)
   }
@@ -43,6 +46,7 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
       }
     })
     newItem.sort_order = items.length + 1
+    newItem.clinic_id = clinicId
     const { data } = await supabase.from(tableName).insert(newItem).select().single()
     if (data) {
       setItems([...items, data])

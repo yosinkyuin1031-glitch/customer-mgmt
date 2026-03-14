@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import { saleTabs } from '@/lib/saleTabs'
+import { getClinicId } from '@/lib/clinic'
 
 interface AreaData {
   area: string
@@ -20,6 +21,7 @@ type SortKey = 'totalLTV' | 'patientCount' | 'avgLTV' | 'avgVisits'
 
 export default function AreaLtvPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [areas, setAreas] = useState<AreaData[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('totalLTV')
@@ -38,6 +40,7 @@ export default function AreaLtvPage() {
       const { data: patients } = await supabase
         .from('cm_patients')
         .select('id, name, city, prefecture')
+        .eq('clinic_id', clinicId)
 
       if (!slips || slips.length === 0 || !patients) {
         setLoading(false)

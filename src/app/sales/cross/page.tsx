@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
 import { fetchAllSlips } from '@/lib/fetchAll'
+import { getClinicId } from '@/lib/clinic'
 
 type CrossAxis = 'referral_source' | 'gender' | 'occupation' | 'staff_name'
 const axisOptions: { key: CrossAxis, label: string }[] = [
@@ -24,6 +25,7 @@ interface CrossResult {
 
 export default function CrossPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [rowAxis, setRowAxis] = useState<CrossAxis>('referral_source')
   const [results, setResults] = useState<CrossResult[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,6 +56,7 @@ export default function CrossPage() {
         const { data: patientsData } = await supabase
           .from('cm_patients')
           .select('id, referral_source, gender, occupation')
+          .eq('clinic_id', clinicId)
           .in('id', patientIds)
 
         const patientMap: Record<string, Record<string, string>> = {}

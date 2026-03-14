@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 
 export default function IrregularHolidaysPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [holidays, setHolidays] = useState<{ id: string; holiday_date: string; reason: string }[]>([])
   const [newDate, setNewDate] = useState('')
   const [newReason, setNewReason] = useState('')
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('cm_irregular_holidays').select('*').order('holiday_date')
+      const { data } = await supabase.from('cm_irregular_holidays').select('*').eq('clinic_id', clinicId).order('holiday_date')
       setHolidays(data || [])
     }
     load()
@@ -19,7 +21,7 @@ export default function IrregularHolidaysPage() {
 
   const handleAdd = async () => {
     if (!newDate) return
-    const { data } = await supabase.from('cm_irregular_holidays').insert({ holiday_date: newDate, reason: newReason }).select().single()
+    const { data } = await supabase.from('cm_irregular_holidays').insert({ clinic_id: clinicId, holiday_date: newDate, reason: newReason }).select().single()
     if (data) {
       setHolidays([...holidays, data].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)))
       setNewDate('')

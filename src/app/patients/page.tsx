@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import type { Patient } from '@/lib/types'
 
@@ -19,6 +20,7 @@ type SortKey = 'name' | 'gender' | 'chief_complaint' | 'referral_source' | 'line
 
 export default function PatientsPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [patients, setPatients] = useState<PatientWithStats[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -33,7 +35,7 @@ export default function PatientsPage() {
   useEffect(() => {
     const load = async () => {
       // 患者データ取得
-      let query = supabase.from('cm_patients').select('*').order('updated_at', { ascending: false })
+      let query = supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).order('updated_at', { ascending: false })
       if (statusFilter) query = query.eq('status', statusFilter)
       if (genderFilter) query = query.eq('gender', genderFilter)
       if (referralFilter) query = query.eq('referral_source', referralFilter)

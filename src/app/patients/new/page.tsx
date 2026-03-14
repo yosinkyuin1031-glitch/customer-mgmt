@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 export default function NewPatientPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -116,6 +118,7 @@ export default function NewPatientPage() {
     const { error } = await supabase.from('cm_patients').insert({
       ...form,
       status: 'active',
+      clinic_id: clinicId,
     })
     if (!error) {
       setSaved(true)

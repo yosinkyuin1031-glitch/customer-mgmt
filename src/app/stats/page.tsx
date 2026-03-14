@@ -6,9 +6,11 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import type { Patient, Slip } from '@/lib/types'
+import { getClinicId } from '@/lib/clinic'
 
 export default function StatsPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [slips, setSlips] = useState<Slip[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [period, setPeriod] = useState('month')
@@ -31,7 +33,7 @@ export default function StatsPage() {
 
       const [slipsData, patientsRes] = await Promise.all([
         fetchAllSlips(supabase, '*', { gte: ['visit_date', startDate] }),
-        supabase.from('cm_patients').select('*'),
+        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId),
       ])
 
       setSlips(slipsData || [])

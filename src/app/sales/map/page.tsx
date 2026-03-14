@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
+import { getClinicId } from '@/lib/clinic'
 
 interface PatientRow {
   id: string
@@ -27,6 +28,7 @@ interface PrefData {
 
 export default function MapPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [prefData, setPrefData] = useState<PrefData[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedPref, setExpandedPref] = useState<string | null>(null)
@@ -46,6 +48,7 @@ export default function MapPage() {
         const { data, error } = await supabase
           .from('cm_patients')
           .select('id, name, prefecture, city')
+          .eq('clinic_id', clinicId)
           .order('id', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1)
 

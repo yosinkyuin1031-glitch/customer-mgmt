@@ -5,6 +5,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import type { Reservation, Patient } from '@/lib/types'
 import { RESERVATION_STATUSES } from '@/lib/types'
+import { getClinicId } from '@/lib/clinic'
 
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 9) // 9:00 ~ 21:00
 const SLOT_HEIGHT = 60
@@ -27,6 +28,7 @@ const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 
 export default function ReservationPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [viewMode, setViewMode] = useState<'week' | 'day' | 'list'>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [reservations, setReservations] = useState<Reservation[]>([])
@@ -58,6 +60,7 @@ export default function ReservationPage() {
     const { data } = await supabase
       .from('cm_reservations')
       .select('*')
+      .eq('clinic_id', clinicId)
       .gte('reservation_date', startDate)
       .lte('reservation_date', endDate)
       .order('start_time')
@@ -70,7 +73,7 @@ export default function ReservationPage() {
 
   useEffect(() => {
     const loadPatients = async () => {
-      const { data } = await supabase.from('cm_patients').select('*').eq('status', 'active').order('name')
+      const { data } = await supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name')
       setPatients(data || [])
     }
     loadPatients()
@@ -121,6 +124,7 @@ export default function ReservationPage() {
   const handleSave = async () => {
     const payload = {
       ...form,
+      clinic_id: clinicId,
       start_time: form.start_time + ':00',
       end_time: form.end_time + ':00',
     }

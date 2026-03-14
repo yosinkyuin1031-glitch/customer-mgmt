@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { findBestMatch } from '@/lib/nameMatch'
+import { getClinicId } from '@/lib/clinic'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
 
@@ -20,16 +21,19 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
+    const clinicId = getClinicId()
 
     // 全患者を取得（activeに限定しない - 休止中の患者も来院する可能性あり）
     const { data: patients } = await supabase
       .from('cm_patients')
       .select('id, name, furigana')
+      .eq('clinic_id', clinicId)
       .order('name')
 
     const { data: menus } = await supabase
       .from('cm_base_menus')
       .select('name, price, duration_minutes')
+      .eq('clinic_id', clinicId)
       .eq('is_active', true)
 
     const patientList = (patients || []).map(p => `${p.name}（${p.furigana || ''}）→ ID:${p.id}`).join('\n')

@@ -6,6 +6,7 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { findBestMatch } from '@/lib/nameMatch'
+import { getClinicId } from '@/lib/clinic'
 
 interface ParsedRecord {
   patient_id: string | null
@@ -19,6 +20,7 @@ interface ParsedRecord {
 
 export default function QuickInputPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const router = useRouter()
   const [inputText, setInputText] = useState('')
   const [records, setRecords] = useState<ParsedRecord[]>([])
@@ -110,7 +112,7 @@ export default function QuickInputPage() {
     setSaving(true)
 
     // patient_idがnullのレコードを保存前に再マッチング
-    const { data: allPatients } = await supabase.from('cm_patients').select('id, name, furigana')
+    const { data: allPatients } = await supabase.from('cm_patients').select('id, name, furigana').eq('clinic_id', clinicId)
     const candidates = (allPatients || []).map(p => ({ id: p.id, name: p.name, furigana: p.furigana }))
 
     const toInsert = records.map(r => {
@@ -126,6 +128,7 @@ export default function QuickInputPage() {
       }
 
       return {
+      clinic_id: clinicId,
       patient_id: patientId,
       patient_name: patientName,
       visit_date: r.visit_date,

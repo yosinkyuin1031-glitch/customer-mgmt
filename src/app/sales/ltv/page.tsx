@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import { saleTabs } from '@/lib/saleTabs'
+import { getClinicId } from '@/lib/clinic'
 
 interface PatientLTV {
   id: string
@@ -20,6 +21,7 @@ interface PatientLTV {
 
 export default function LtvPage() {
   const supabase = createClient()
+  const clinicId = getClinicId()
   const [patients, setPatients] = useState<PatientLTV[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<'ltv' | 'visit_count' | 'days'>('ltv')
@@ -34,6 +36,7 @@ export default function LtvPage() {
       const { data: patientList } = await supabase
         .from('cm_patients')
         .select('id, name')
+        .eq('clinic_id', clinicId)
 
       if (!slips || slips.length === 0) { setLoading(false); return }
 
