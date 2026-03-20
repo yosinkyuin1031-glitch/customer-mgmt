@@ -158,11 +158,11 @@ export default function ReservationPage() {
 
   const statusColor = (status: string) => {
     switch (status) {
-      case 'reserved': return 'bg-blue-100 border-blue-400 text-blue-800'
-      case 'visited': return 'bg-green-100 border-green-400 text-green-800'
-      case 'cancelled': return 'bg-gray-100 border-gray-400 text-gray-500'
-      case 'no_show': return 'bg-red-100 border-red-400 text-red-800'
-      default: return 'bg-blue-100 border-blue-400 text-blue-800'
+      case 'reserved': return 'bg-blue-100 border-blue-500 text-blue-800 font-medium'
+      case 'visited': return 'bg-green-100 border-green-500 text-green-800 font-medium'
+      case 'cancelled': return 'bg-gray-200 border-gray-400 text-gray-500 line-through'
+      case 'no_show': return 'bg-red-100 border-red-500 text-red-800 font-medium'
+      default: return 'bg-blue-100 border-blue-500 text-blue-800 font-medium'
     }
   }
 
@@ -173,15 +173,15 @@ export default function ReservationPage() {
       <div className="max-w-6xl mx-auto px-4 py-4">
         {/* ヘッダー */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="font-bold text-gray-800 text-lg">予約管理</h2>
-            <div className="flex gap-1">
+          <div className="flex items-center gap-3">
+            <h2 className="font-bold text-gray-800 text-lg">📅 予約管理</h2>
+            <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
               {(['week', 'day', 'list'] as const).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1 rounded text-xs font-medium ${
-                    viewMode === mode ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === mode ? 'bg-[#14252A] text-white shadow-sm' : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
                   {mode === 'week' ? '週' : mode === 'day' ? '日' : '一覧'}
@@ -189,10 +189,10 @@ export default function ReservationPage() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => navigateWeek(-1)} className="px-2 py-1 border rounded text-sm">&lt;</button>
-            <button onClick={goToday} className="px-3 py-1 border rounded text-xs font-medium">今日</button>
-            <button onClick={() => navigateWeek(1)} className="px-2 py-1 border rounded text-sm">&gt;</button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button onClick={() => navigateWeek(-1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">&lt;</button>
+            <button onClick={goToday} className="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50">今日</button>
+            <button onClick={() => navigateWeek(1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">&gt;</button>
             <input
               type="date"
               value={currentDate.toISOString().split('T')[0]}
@@ -346,7 +346,7 @@ export default function ReservationPage() {
               {/* 時間グリッド */}
               {HOURS.map(hour => (
                 <div key={hour} className="flex border-b" style={{ minHeight: SLOT_HEIGHT }}>
-                  <div className="w-16 flex-shrink-0 border-r text-xs text-gray-400 text-right pr-2 pt-1">
+                  <div className="w-16 flex-shrink-0 border-r text-sm text-gray-500 font-medium text-right pr-2 pt-1">
                     {formatTime(hour)}
                   </div>
                   {(viewMode === 'day' ? [currentDate] : weekDates).map((date, i) => {
@@ -382,11 +382,11 @@ export default function ReservationPage() {
         {showModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="p-4 border-b flex justify-between items-center">
-                <h3 className="font-bold text-gray-800">{editingReservation ? '予約編集' : '新規予約'}</h3>
-                <button onClick={() => setShowModal(false)} className="text-gray-400 text-xl">&times;</button>
+              <div className="p-5 border-b flex justify-between items-center" style={{ background: 'rgba(20,37,42,0.03)' }}>
+                <h3 className="font-bold text-gray-800 text-lg">{editingReservation ? '予約編集' : '新規予約'}</h3>
+                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
               </div>
-              <div className="p-4 space-y-3">
+              <div className="p-5 space-y-4">
                 {/* 患者選択 */}
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">患者</label>

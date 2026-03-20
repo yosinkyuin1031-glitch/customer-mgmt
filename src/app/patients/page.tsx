@@ -90,7 +90,7 @@ export default function PatientsPage() {
 
   const SortHeader = ({ label, sortId, className = '' }: { label: string; sortId: SortKey; className?: string }) => (
     <th
-      className={`px-3 py-2 text-xs text-gray-500 cursor-pointer hover:bg-gray-100 select-none ${className}`}
+      className={`px-3 py-2.5 text-xs text-gray-500 font-semibold cursor-pointer hover:bg-gray-100 select-none ${className}`}
       onClick={() => handleSort(sortId)}
     >
       {label}
@@ -196,37 +196,53 @@ export default function PatientsPage() {
       <Header title="患者一覧" />
       <div className="px-4 py-4 max-w-5xl mx-auto">
         {/* アクションバー */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Link href="/patients/new" className="text-white rounded-lg px-4 py-2 text-center font-bold text-sm" style={{ background: '#14252A' }}>
+        <div className="bg-white rounded-xl shadow-sm p-3 mb-4 flex flex-wrap gap-2 items-center">
+          <Link href="/patients/new" className="text-white rounded-lg px-4 py-2.5 text-center font-bold text-sm shadow-sm hover:opacity-90" style={{ background: '#14252A' }}>
             + 新規患者登録
           </Link>
-          <Link href="/patients/import" className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            CSVインポート
+          <Link href="/patients/import" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            📥 CSVインポート
           </Link>
-          <button onClick={() => setShowCsvModal(true)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            CSV出力
+          <button onClick={() => setShowCsvModal(true)} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            📤 CSV出力
           </button>
-          <button onClick={() => setShowAdvanced(!showAdvanced)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-            {showAdvanced ? '検索を閉じる' : '詳細検索'}
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            🔍 {showAdvanced ? '検索を閉じる' : '詳細検索'}
           </button>
         </div>
 
         {/* 基本検索 */}
         <div className="flex gap-2 mb-3">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="名前・電話・主訴・住所で検索"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
-          />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <option value="">全ステータス</option>
-            <option value="active">通院中</option>
-            <option value="inactive">休止</option>
-            <option value="completed">卒業</option>
-          </select>
+          <div className="flex-1 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="名前・電話・主訴・住所で検索"
+              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] bg-white shadow-sm"
+            />
+          </div>
+          <div className="flex gap-1 items-center">
+            {[
+              { value: '', label: '全て' },
+              { value: 'active', label: '通院中' },
+              { value: 'inactive', label: '休止' },
+              { value: 'completed', label: '卒業' },
+            ].map(s => (
+              <button
+                key={s.value}
+                onClick={() => setStatusFilter(s.value)}
+                className={`px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                  statusFilter === s.value
+                    ? 'bg-[#14252A] text-white shadow-sm'
+                    : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 詳細検索 */}
@@ -296,7 +312,7 @@ export default function PatientsPage() {
                     <SortHeader label="性別" sortId="gender" className="text-left" />
                     <SortHeader label="症状" sortId="chief_complaint" className="text-left" />
                     <SortHeader label="来院経路" sortId="referral_source" className="text-left" />
-                    <th className="px-3 py-2 text-xs text-gray-500 text-right cursor-pointer hover:bg-gray-100 select-none" onClick={() => handleSort('line_count')}>
+                    <th className="px-3 py-2.5 text-xs text-gray-500 text-right cursor-pointer hover:bg-gray-100 select-none" onClick={() => handleSort('line_count')}>
                       LINE{sortKey === 'line_count' && <span className="ml-1">{sortAsc ? '▲' : '▼'}</span>}
                     </th>
                     <SortHeader label="LTV" sortId="ltv" className="text-right" />
@@ -305,25 +321,25 @@ export default function PatientsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(p => (
-                    <tr key={p.id} className="border-b hover:bg-gray-50">
-                      <td className="px-3 py-2">
+                  {filtered.map((p, idx) => (
+                    <tr key={p.id} className={`border-b hover:bg-blue-50/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                      <td className="px-3 py-3">
                         <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline font-medium">
                           {p.name}
                         </Link>
                         {p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
                       </td>
-                      <td className="px-3 py-2 text-xs">{p.gender}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600 truncate max-w-[120px]">{p.chief_complaint || '-'}</td>
-                      <td className="px-3 py-2 text-xs">{p.referral_source || '-'}</td>
-                      <td className="px-3 py-2 text-right text-xs">{p.line_count > 0 ? `${p.line_count}回` : '-'}</td>
-                      <td className="px-3 py-2 text-right text-xs font-medium text-blue-600">
+                      <td className="px-3 py-3 text-xs">{p.gender}</td>
+                      <td className="px-3 py-3 text-xs text-gray-600 truncate max-w-[120px]">{p.chief_complaint || '-'}</td>
+                      <td className="px-3 py-3 text-xs">{p.referral_source || '-'}</td>
+                      <td className="px-3 py-3 text-right text-xs">{p.line_count > 0 ? `${p.line_count}回` : '-'}</td>
+                      <td className="px-3 py-3 text-right text-xs font-medium text-blue-600">
                         {p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}
                       </td>
-                      <td className="px-3 py-2 text-xs">{p.calcLastVisit || '-'}</td>
-                      <td className="px-3 py-2 text-right text-xs">
+                      <td className="px-3 py-3 text-xs">{p.calcLastVisit || '-'}</td>
+                      <td className="px-3 py-3 text-right text-xs">
                         {p.calcDaysSince !== null ? (
-                          <span className={p.calcDaysSince > 90 ? 'text-red-500' : p.calcDaysSince > 30 ? 'text-orange-500' : 'text-green-600'}>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${p.calcDaysSince > 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince > 30 ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
                             {p.calcDaysSince}日
                           </span>
                         ) : '-'}
@@ -338,15 +354,19 @@ export default function PatientsPage() {
             {/* モバイル: カード */}
             <div className="md:hidden space-y-2">
               {filtered.map(p => (
-                <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3 hover:shadow-md transition-shadow">
+                <Link key={p.id} href={`/patients/${p.id}`} className={`block bg-white rounded-xl shadow-sm p-3.5 hover:shadow-md transition-shadow border-l-4 ${
+                  p.status === 'active' ? 'border-l-green-500' :
+                  p.status === 'completed' ? 'border-l-blue-500' :
+                  'border-l-gray-300'
+                }`}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-gray-800">{p.name}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          p.status === 'active' ? 'bg-green-100 text-green-700' :
-                          p.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-500'
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                          p.status === 'active' ? 'bg-green-50 text-green-700' :
+                          p.status === 'completed' ? 'bg-blue-50 text-blue-700' :
+                          'bg-gray-50 text-gray-500'
                         }`}>
                           {p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'}
                         </span>
@@ -360,16 +380,16 @@ export default function PatientsPage() {
                       <p className="text-xs font-bold text-blue-600">{p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}</p>
                       <p className="text-xs text-gray-400">{p.calcVisitCount}回</p>
                       {p.calcDaysSince !== null && (
-                        <p className={`text-xs ${p.calcDaysSince > 90 ? 'text-red-500' : p.calcDaysSince > 30 ? 'text-orange-500' : 'text-green-600'}`}>
+                        <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${p.calcDaysSince > 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince > 30 ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
                           {p.calcDaysSince}日前
-                        </p>
+                        </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-1.5 text-xs text-gray-400">
+                  <div className="flex gap-3 mt-2 text-xs text-gray-400">
                     {p.referral_source && <span>{p.referral_source}</span>}
                     {p.line_count > 0 && <span>LINE:{p.line_count}回</span>}
-                    {p.phone && <span>TEL:{p.phone}</span>}
+                    {p.phone && <a className="text-blue-500 underline">TEL:{p.phone}</a>}
                   </div>
                 </Link>
               ))}

@@ -102,19 +102,19 @@ export default function PatientDetailPage() {
 
         {/* 患者基本情報 */}
         <div className="bg-white rounded-xl shadow-sm p-4">
-          <div className="flex justify-between items-start mb-3">
+          <div className="flex justify-between items-start mb-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-800">{patient.name}</h2>
-              {patient.furigana && <p className="text-xs text-gray-400">{patient.furigana}</p>}
+              <h2 className="text-2xl font-bold text-gray-800">{patient.name}</h2>
+              {patient.furigana && <p className="text-xs text-gray-400 mt-0.5">{patient.furigana}</p>}
             </div>
             <div className="flex items-center gap-2">
               {patient.is_direct_mail && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">DM可</span>
               )}
-              <span className={`text-xs px-2 py-1 rounded-full ${
-                patient.status === 'active' ? 'bg-green-100 text-green-700' :
-                patient.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                'bg-gray-100 text-gray-500'
+              <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${
+                patient.status === 'active' ? 'bg-green-100 text-green-700 border border-green-200' :
+                patient.status === 'completed' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                'bg-gray-100 text-gray-500 border border-gray-200'
               }`}>
                 {patient.status === 'active' ? '通院中' : patient.status === 'completed' ? '卒業' : '休止'}
               </span>
@@ -123,26 +123,26 @@ export default function PatientDetailPage() {
 
           {!editing ? (
             <div className="space-y-2 text-sm">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {age !== null && <p><span className="text-gray-500">年齢:</span> {age}歳</p>}
-                {patient.gender && <p><span className="text-gray-500">性別:</span> {patient.gender}</p>}
-                {patient.birth_date && <p><span className="text-gray-500">生年月日:</span> {patient.birth_date}</p>}
-                {patient.phone && <p><span className="text-gray-500">TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600">{patient.phone}</a></p>}
-                {patient.email && <p className="col-span-2"><span className="text-gray-500">Email:</span> {patient.email}</p>}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {age !== null && <p><span className="text-gray-500">🎂 年齢:</span> {age}歳</p>}
+                {patient.gender && <p><span className="text-gray-500">👤 性別:</span> {patient.gender}</p>}
+                {patient.birth_date && <p><span className="text-gray-500">📅 生年月日:</span> {patient.birth_date}</p>}
+                {patient.phone && <p><span className="text-gray-500">📱 TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600 underline">{patient.phone}</a></p>}
+                {patient.email && <p className="col-span-2"><span className="text-gray-500">✉️ Email:</span> <a href={`mailto:${patient.email}`} className="text-blue-600 underline">{patient.email}</a></p>}
               </div>
 
               {(patient.zipcode || fullAddress) && (
                 <div className="border-t pt-2 mt-2">
                   {patient.zipcode && <p><span className="text-gray-500">〒</span> {patient.zipcode}</p>}
-                  {fullAddress && <p><span className="text-gray-500">住所:</span> {fullAddress}</p>}
+                  {fullAddress && <p><span className="text-gray-500">📍 住所:</span> {fullAddress}</p>}
                 </div>
               )}
 
-              <div className="border-t pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
-                {patient.occupation && <p><span className="text-gray-500">職業:</span> {patient.occupation}</p>}
-                {patient.referral_source && <p><span className="text-gray-500">来院経路:</span> {patient.referral_source}</p>}
-                {patient.visit_motive && <p><span className="text-gray-500">来店動機:</span> {patient.visit_motive}</p>}
-                {patient.customer_category && <p><span className="text-gray-500">顧客区分:</span> {patient.customer_category}</p>}
+              <div className="border-t pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                {patient.occupation && <p><span className="text-gray-500">💼 職業:</span> {patient.occupation}</p>}
+                {patient.referral_source && <p><span className="text-gray-500">🔍 来院経路:</span> {patient.referral_source}</p>}
+                {patient.visit_motive && <p><span className="text-gray-500">💡 来店動機:</span> {patient.visit_motive}</p>}
+                {patient.customer_category && <p><span className="text-gray-500">🏷️ 顧客区分:</span> {patient.customer_category}</p>}
               </div>
 
               {patient.chief_complaint && (
@@ -183,6 +183,7 @@ export default function PatientDetailPage() {
             </div>
           ) : (
             <div className="space-y-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">基本情報</p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">氏名</label>
@@ -207,6 +208,7 @@ export default function PatientDetailPage() {
                   </select>
                 </div>
               </div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider pt-2 border-t mt-1">連絡先</p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">電話番号</label>
@@ -219,7 +221,7 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="border-t pt-2">
-                <p className="text-xs font-bold text-gray-500 mb-2">住所</p>
+                <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">住所</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">郵便番号</label>
@@ -304,23 +306,23 @@ export default function PatientDetailPage() {
           )}
         </div>
 
-        {/* 施術サマリー（CSSと同等） */}
+        {/* 施術サマリー */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold" style={{ color: '#14252A' }}>{visitCount}</p>
-            <p className="text-xs text-gray-500">来院回数</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4" style={{ borderTopColor: '#14252A' }}>
+            <p className="text-2xl font-bold" style={{ color: '#14252A' }}>{visitCount}</p>
+            <p className="text-xs text-gray-500 mt-1">来院回数</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-blue-600">{ltvValue.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">LTV(円)</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-t-blue-500">
+            <p className="text-2xl font-bold text-blue-600">{ltvValue.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">LTV(円)</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-green-600">{avgPrice.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">平均単価(円)</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-t-green-500">
+            <p className="text-2xl font-bold text-green-600">{avgPrice.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 mt-1">平均単価(円)</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-orange-600">{daysSince !== null && daysSince !== undefined ? daysSince : '-'}</p>
-            <p className="text-xs text-gray-500">最終来院(日前)</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-t-orange-500">
+            <p className="text-2xl font-bold text-orange-600">{daysSince !== null && daysSince !== undefined ? daysSince : '-'}</p>
+            <p className="text-xs text-gray-500 mt-1">最終来院(日前)</p>
           </div>
         </div>
 
@@ -430,15 +432,15 @@ export default function PatientDetailPage() {
                 </thead>
                 <tbody>
                   {displaySlips.map((s, i) => (
-                    <tr key={s.id} className={`border-b border-gray-50 ${editingSlip === s.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                      <td className="py-1.5 pr-2 text-gray-400">{slips.length - slips.indexOf(s)}</td>
-                      <td className="py-1.5 pr-2">
+                    <tr key={s.id} className={`border-b border-gray-100 ${editingSlip === s.id ? 'bg-blue-50' : i % 2 === 1 ? 'bg-gray-50/50' : ''} hover:bg-blue-50/30`}>
+                      <td className="py-2 pr-2 text-gray-400">{slips.length - slips.indexOf(s)}</td>
+                      <td className="py-2 pr-2">
                         {new Date(s.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
                       </td>
-                      <td className="py-1.5 pr-2 text-right">{s.base_price > 0 ? `￥${s.base_price.toLocaleString()}` : '-'}</td>
-                      <td className="py-1.5 pr-2 text-right">{s.option_price > 0 ? `￥${s.option_price.toLocaleString()}` : '-'}</td>
-                      <td className="py-1.5 text-right font-bold">{s.total_price > 0 ? `￥${s.total_price.toLocaleString()}` : '￥0'}</td>
-                      <td className="py-1.5 pl-1 text-center">
+                      <td className="py-2 pr-2 text-right">{s.base_price > 0 ? `￥${s.base_price.toLocaleString()}` : '-'}</td>
+                      <td className="py-2 pr-2 text-right">{s.option_price > 0 ? `￥${s.option_price.toLocaleString()}` : '-'}</td>
+                      <td className="py-2 text-right font-bold">{s.total_price > 0 ? `￥${s.total_price.toLocaleString()}` : '￥0'}</td>
+                      <td className="py-2 pl-1 text-center">
                         <button onClick={() => handleSlipEdit(s)} className="text-gray-400 hover:text-blue-600 text-xs">✏️</button>
                       </td>
                     </tr>

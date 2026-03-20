@@ -101,21 +101,21 @@ export default function StatsPage() {
           <>
             {/* メイン指標 */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold" style={{ color: '#14252A' }}>{totalRevenue.toLocaleString()}<span className="text-sm">円</span></p>
-                <p className="text-xs text-gray-500">売上合計</p>
+              <div className="bg-white rounded-xl shadow-sm p-5 text-center border-t-4" style={{ borderTopColor: '#14252A' }}>
+                <p className="text-xs text-gray-400 mb-1">売上合計</p>
+                <p className="text-3xl font-bold" style={{ color: '#14252A' }}>{totalRevenue.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-0.5">円</span></p>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">{slips.length}<span className="text-sm">件</span></p>
-                <p className="text-xs text-gray-500">施術件数</p>
+              <div className="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-t-blue-500">
+                <p className="text-xs text-gray-400 mb-1">施術件数</p>
+                <p className="text-3xl font-bold text-blue-600">{slips.length}<span className="text-sm font-normal text-gray-400 ml-0.5">件</span></p>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold text-green-600">{avgRevenue.toLocaleString()}<span className="text-sm">円</span></p>
-                <p className="text-xs text-gray-500">施術単価</p>
+              <div className="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-t-green-500">
+                <p className="text-xs text-gray-400 mb-1">施術単価</p>
+                <p className="text-3xl font-bold text-green-600">{avgRevenue.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-0.5">円</span></p>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-4 text-center">
-                <p className="text-2xl font-bold text-orange-600">{uniquePatients}<span className="text-sm">人</span></p>
-                <p className="text-xs text-gray-500">施術患者数</p>
+              <div className="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-t-orange-500">
+                <p className="text-xs text-gray-400 mb-1">施術患者数</p>
+                <p className="text-3xl font-bold text-orange-600">{uniquePatients}<span className="text-sm font-normal text-gray-400 ml-0.5">人</span></p>
               </div>
             </div>
 
@@ -142,18 +142,23 @@ export default function StatsPage() {
             {referralSorted.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm p-4">
                 <h3 className="font-bold text-gray-800 text-sm mb-3">来院経路</h3>
-                <div className="space-y-2">
-                  {referralSorted.map(([source, count]) => (
-                    <div key={source} className="flex justify-between items-center">
-                      <span className="text-sm text-gray-700">{source}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 bg-gray-100 rounded-full h-2">
-                          <div className="h-2 rounded-full" style={{ width: `${(count / patients.length) * 100}%`, background: '#14252A' }} />
+                <div className="space-y-3">
+                  {referralSorted.map(([source, count], idx) => {
+                    const colors = ['#14252A', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#F44336', '#00BCD4', '#795548']
+                    const color = colors[idx % colors.length]
+                    const pct = Math.round((count / patients.length) * 100)
+                    return (
+                      <div key={source}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium text-gray-700">{source}</span>
+                          <span className="text-xs font-bold" style={{ color }}>{count}人 ({pct}%)</span>
                         </div>
-                        <span className="text-xs text-gray-500 w-8 text-right">{count}人</span>
+                        <div className="w-full bg-gray-100 rounded-full h-3">
+                          <div className="h-3 rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -162,13 +167,17 @@ export default function StatsPage() {
             {Object.keys(paymentCounts).length > 0 && (
               <div className="bg-white rounded-xl shadow-sm p-4">
                 <h3 className="font-bold text-gray-800 text-sm mb-3">支払方法</h3>
-                <div className="flex gap-2 flex-wrap">
-                  {Object.entries(paymentCounts).sort((a, b) => b[1] - a[1]).map(([method, count]) => (
-                    <div key={method} className="bg-gray-50 rounded-lg px-3 py-2 text-center">
-                      <p className="text-lg font-bold">{count}</p>
-                      <p className="text-xs text-gray-500">{method}</p>
-                    </div>
-                  ))}
+                <div className="flex gap-2.5 flex-wrap">
+                  {Object.entries(paymentCounts).sort((a, b) => b[1] - a[1]).map(([method, count]) => {
+                    const icons: Record<string, string> = { '現金': '💴', 'カード': '💳', 'QR決済': '📱', '回数券': '🎫', 'その他': '📦' }
+                    return (
+                      <div key={method} className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-center shadow-sm hover:shadow-md transition-shadow min-w-[80px]">
+                        <div className="text-xl mb-1">{icons[method] || '💰'}</div>
+                        <p className="text-xl font-bold" style={{ color: '#14252A' }}>{count}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{method}</p>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

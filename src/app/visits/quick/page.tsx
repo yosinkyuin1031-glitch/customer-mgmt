@@ -249,17 +249,17 @@ export default function QuickInputPage() {
             <button
               type="button"
               onClick={toggleVoice}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-bold transition-all ${
                 listening
-                  ? 'bg-red-500 text-white animate-pulse shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-red-500 text-white animate-pulse-ring shadow-lg scale-105'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:shadow-sm'
               }`}
             >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                 <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
               </svg>
-              {listening ? '録音中...タップで停止' : '音声で入力'}
+              {listening ? '録音中...タップで停止' : '🎙 音声で入力'}
             </button>
 
             {/* 解析ボタン */}

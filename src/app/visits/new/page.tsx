@@ -215,7 +215,10 @@ function VisitForm() {
 
       {/* 1. 患者選択 */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">1. 患者を選択</h3>
+        <div className="flex items-center gap-3 border-b pb-2">
+          <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: '#14252A' }}>1</span>
+          <h3 className="font-bold text-gray-800 text-sm">患者を選択</h3>
+        </div>
 
         {selectedPatient ? (
           <div className="flex justify-between items-center bg-blue-50 rounded-lg p-3">
@@ -259,7 +262,10 @@ function VisitForm() {
 
       {/* 2. 来店日 */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h3 className="font-bold text-gray-800 text-sm border-b pb-2">2. 来店日</h3>
+        <div className="flex items-center gap-3 border-b pb-2">
+          <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: '#14252A' }}>2</span>
+          <h3 className="font-bold text-gray-800 text-sm">来店日</h3>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => update('visit_date', new Date().toISOString().split('T')[0])}
@@ -283,7 +289,10 @@ function VisitForm() {
       {/* 3. 施術メニュー */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
         <div className="flex items-center justify-between border-b pb-2">
-          <h3 className="font-bold text-gray-800 text-sm">3. 施術メニュー</h3>
+          <div className="flex items-center gap-3">
+            <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: '#14252A' }}>3</span>
+            <h3 className="font-bold text-gray-800 text-sm">施術メニュー</h3>
+          </div>
           <VoiceInput onResult={handleVoiceMenu} size="sm" />
         </div>
 
@@ -296,14 +305,14 @@ function VisitForm() {
                 <button
                   key={m.id}
                   onClick={() => selectBaseMenu(m)}
-                  className={`px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                  className={`px-4 py-3 rounded-xl text-sm font-medium border-2 transition-all min-w-[100px] ${
                     form.menu_name === m.name
-                      ? 'border-[#14252A] bg-[#14252A] text-white'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      ? 'border-[#14252A] bg-[#14252A] text-white shadow-md'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
                   }`}
                 >
                   {m.name}
-                  <span className="block text-[10px] opacity-75">{m.price.toLocaleString()}円 / {m.duration_minutes}分</span>
+                  <span className="block text-[10px] opacity-75 mt-0.5">{m.price.toLocaleString()}円 / {m.duration_minutes}分</span>
                 </button>
               ))}
             </div>
@@ -362,7 +371,10 @@ function VisitForm() {
       {/* 4. 料金 */}
       <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
         <div className="flex items-center justify-between border-b pb-2">
-          <h3 className="font-bold text-gray-800 text-sm">4. 料金</h3>
+          <div className="flex items-center gap-3">
+            <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: '#14252A' }}>4</span>
+            <h3 className="font-bold text-gray-800 text-sm">料金</h3>
+          </div>
           <VoiceInput onResult={handleVoicePrice} size="sm" />
         </div>
 

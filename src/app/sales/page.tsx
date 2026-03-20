@@ -33,13 +33,13 @@ export default function SalesPage() {
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 py-4">
         {/* タブ */}
-        <div className="flex gap-1 mb-4 overflow-x-auto pb-2 border-b">
+        <div className="flex gap-1.5 mb-5 overflow-x-auto pb-2 border-b border-gray-200">
           {saleTabs.map(tab => (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                tab.href === '/sales' ? 'bg-[#14252A] text-white' : 'text-gray-500 hover:bg-gray-100'
+              className={`px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                tab.href === '/sales' ? 'bg-[#14252A] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
             >
               {tab.label}
@@ -49,10 +49,14 @@ export default function SalesPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {menuCards.map(card => (
-            <Link key={card.href} href={card.href} className="bg-white rounded-xl shadow-sm p-5 hover:shadow-md transition-shadow">
-              <div className="text-2xl mb-2">{card.icon}</div>
-              <h3 className="font-bold text-gray-800">{card.title}</h3>
-              <p className="text-sm text-gray-500 mt-1">{card.desc}</p>
+            <Link key={card.href} href={card.href} className="bg-white rounded-xl shadow-sm p-5 hover:shadow-md transition-all hover:-translate-y-0.5 group border border-gray-100">
+              <div className="flex items-start gap-4">
+                <div className="text-3xl bg-gray-50 rounded-xl w-14 h-14 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">{card.icon}</div>
+                <div>
+                  <h3 className="font-bold text-gray-800 text-base">{card.title}</h3>
+                  <p className="text-sm text-gray-500 mt-1">{card.desc}</p>
+                </div>
+              </div>
             </Link>
           ))}
         </div>
