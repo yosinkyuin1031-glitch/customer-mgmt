@@ -8,6 +8,15 @@ import Header from '@/components/Header'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
 
+// 全角ハイフン・ダッシュ類を半角に統一
+function normalizePhone(val: string): string {
+  return val
+    .replace(/[\u2010-\u2015\u2212\uFF0D\uFF70₋]/g, '-')  // 各種全角ハイフン→半角
+    .replace(/[\uFF10-\uFF19]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))  // 全角数字→半角
+    .replace(/[^\d\-+() ]/g, '')  // 数字・ハイフン・+・括弧・スペース以外を除去
+    .trim()
+}
+
 // CSVヘッダー → DBカラムのマッピング辞書
 const HEADER_MAP: Record<string, string> = {
   // 日本語ヘッダー
@@ -16,7 +25,7 @@ const HEADER_MAP: Record<string, string> = {
   '生年月日': 'birth_date', '誕生日': 'birth_date', '生年': 'birth_date',
   '性別': 'gender',
   '電話番号': 'phone', '電話': 'phone', 'TEL': 'phone', 'tel': 'phone', '携帯': 'phone', '携帯番号': 'phone',
-  'メール': 'email', 'メールアドレス': 'email', 'email': 'email', 'Email': 'email', 'EMAIL': 'email',
+  'メール': 'email', 'メールアドレス': 'email', 'email': 'email', 'EMAIL': 'email',
   '郵便番号': 'zipcode', '〒': 'zipcode',
   '都道府県': 'prefecture', '県': 'prefecture',
   '市区町村': 'city', '市町村': 'city',
@@ -30,15 +39,20 @@ const HEADER_MAP: Record<string, string> = {
   '既往歴': 'medical_history', '病歴': 'medical_history',
   '備考': 'notes', 'メモ': 'notes', 'ノート': 'notes', 'Comment': 'notes',
   'ステータス': 'status', '状態': 'status',
+  '初回来院日': 'first_visit_date', '初診日': 'first_visit_date',
+  '最終来院日': 'last_visit_date', '最終日': 'last_visit_date',
+  '来院回数': 'visit_count',
+  '担当者': 'doctor',
   // CSS（顧客管理ソフト）英語ヘッダー対応
   'Name': 'name',
   'NameReading': 'furigana',
   'PhoneNumber': 'phone', 'SparePhoneNumber': 'phone2',
   'Zipcode': 'zipcode',
   'Prefecture': 'prefecture',
-  'City': 'city',
-  'Building': 'building',
-  'MobileEmail': 'email',
+  'City': 'css_city',         // CSSのCityは「市区町村＋番地」が入っているので専用処理
+  'Building': 'css_building', // CSSのBuildingは「町名＋番地＋建物」が入っているので専用処理
+  'Email': 'email',           // CSSのEmail列
+  'MobileEmail': 'mobile_email', // CSSのMobileEmail列（Email優先、なければこちら）
   'IsDirectMail': 'is_direct_mail_text',
   'Sex': 'gender',
   'Birthday': 'birth_date',
@@ -46,11 +60,13 @@ const HEADER_MAP: Record<string, string> = {
   'Job': 'occupation',
   'Motive': 'referral_source',
   'Symptom': 'chief_complaint',
-  'FirstDay': 'first_visit',
-  'LastDay': 'last_visit',
-  'OperationNum': 'visit_count_text',
-  'Ltv': 'ltv_text',
-  'RegistrationDate': 'registration_date',
+  'Doctor': 'doctor',
+  'FirstDay': 'first_visit_date',
+  'LastDay': 'last_visit_date',
+  'OperationNum': 'visit_count',
+  'ReservationNum': 'reservation_count_text',
+  'Ltv': 'ltv',
+  'RegistrationDate': 'registration_date_text',
 }
 
 const DB_COLUMNS = [
@@ -61,11 +77,14 @@ const DB_COLUMNS = [
   { key: 'gender', label: '性別' },
   { key: 'phone', label: '電話番号' },
   { key: 'email', label: 'メール' },
+  { key: 'mobile_email', label: 'モバイルメール' },
   { key: 'zipcode', label: '郵便番号' },
   { key: 'prefecture', label: '都道府県' },
   { key: 'city', label: '市区町村' },
+  { key: 'css_city', label: '市区町村（CSS形式）' },
   { key: 'address', label: '住所' },
   { key: 'building', label: '建物' },
+  { key: 'css_building', label: '建物（CSS形式：町名＋番地）' },
   { key: 'occupation', label: '職業' },
   { key: 'referral_source', label: '来院経路' },
   { key: 'visit_motive', label: '来院動機' },
@@ -74,13 +93,15 @@ const DB_COLUMNS = [
   { key: 'medical_history', label: '既往歴' },
   { key: 'notes', label: '備考' },
   { key: 'status', label: 'ステータス' },
+  { key: 'doctor', label: '担当者' },
   { key: 'phone2', label: '予備電話番号' },
   { key: 'is_direct_mail_text', label: 'DM送付可否' },
-  { key: 'first_visit', label: '初回来院日（参考）' },
-  { key: 'last_visit', label: '最終来院日（参考）' },
-  { key: 'visit_count_text', label: '来院回数（参考）' },
-  { key: 'ltv_text', label: 'LTV（参考）' },
-  { key: 'registration_date', label: '登録日（参考）' },
+  { key: 'first_visit_date', label: '初回来院日' },
+  { key: 'last_visit_date', label: '最終来院日' },
+  { key: 'visit_count', label: '来院回数' },
+  { key: 'ltv', label: 'LTV' },
+  { key: 'reservation_count_text', label: '予約回数（参考）' },
+  { key: 'registration_date_text', label: '登録日（参考）' },
 ]
 
 type Step = 'upload' | 'mapping' | 'preview' | 'done'
@@ -177,10 +198,7 @@ export default function ImportPage() {
     if (!file) return
     setFileName(file.name)
 
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string
-      // BOM除去
+    const tryParse = (text: string) => {
       const clean = text.replace(/^\uFEFF/, '')
       const parsed = parseCSV(clean)
       if (parsed.length < 2) return
@@ -190,13 +208,28 @@ export default function ImportPage() {
       setHeaders(csvHeaders)
       setRows(csvRows)
 
-      // 自動マッピング
       const autoMap = csvHeaders.map(h => {
         const trimmed = h.trim()
         return HEADER_MAP[trimmed] || ''
       })
       setMapping(autoMap)
       setStep('mapping')
+    }
+
+    // まずUTF-8で読み、文字化けしていたらShift-JISで再読み込み
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      // 文字化け判定: ヘッダーに制御文字や不正文字が含まれていないか
+      if (text.includes('\uFFFD') || /[\x00-\x08]/.test(text.substring(0, 200))) {
+        const reader2 = new FileReader()
+        reader2.onload = (ev2) => {
+          tryParse(ev2.target?.result as string)
+        }
+        reader2.readAsText(file, 'Shift_JIS')
+      } else {
+        tryParse(text)
+      }
     }
     reader.readAsText(file, 'UTF-8')
   }
@@ -222,6 +255,8 @@ export default function ImportPage() {
       is_direct_mail: true,
       clinic_id: clinicId,
     }
+    const extraNotes: string[] = []
+
     mapping.forEach((col, i) => {
       if (!col || !row[i]) return
       const val = row[i].trim()
@@ -233,29 +268,54 @@ export default function ImportPage() {
         record[col] = normalizeStatus(val)
       } else if (col === 'birth_date') {
         record[col] = normalizeBirthDate(val)
-      } else if (col === 'is_direct_mail_text') {
-        // CSS: "有効" → true, それ以外 → false
-        record['is_direct_mail'] = val === '有効'
-        record['is_enabled'] = val === '有効'
+      } else if (col === 'phone') {
+        record[col] = normalizePhone(val)
       } else if (col === 'phone2') {
         // 予備電話: メインが空なら使用
-        if (!record['phone']) record['phone'] = val
-      } else if (col === 'first_visit' || col === 'last_visit' || col === 'visit_count_text' || col === 'ltv_text' || col === 'registration_date') {
-        // これらはcm_patientsテーブルのカラムではないのでスキップ（参考情報）
-        record['notes'] = ((record['notes'] || '') as string +
-          (col === 'first_visit' ? `\n初回来院: ${val}` :
-           col === 'last_visit' ? `\n最終来院: ${val}` :
-           col === 'visit_count_text' ? `\n来院回数: ${val}` :
-           col === 'ltv_text' ? `\nLTV: ${val}` : '')).trim()
+        const normalized = normalizePhone(val)
+        if (normalized && !record['phone']) record['phone'] = normalized
+      } else if (col === 'is_direct_mail_text') {
+        record['is_direct_mail'] = val === '有効'
+        record['is_enabled'] = val === '有効'
+      } else if (col === 'css_city') {
+        // CSSのCity列: 「大阪市住吉区」のような市区町村部分 → city に格納
+        record['city'] = val
+      } else if (col === 'css_building') {
+        // CSSのBuilding列: 「苅田5-2-10-206」のような町名＋番地＋建物
+        // → addressに格納（CSSにはaddress列がないため）
+        record['address'] = val
+      } else if (col === 'mobile_email') {
+        // MobileEmail: Emailが空の場合のみ使用
+        if (!record['email'] && val) record['email'] = val
+      } else if (col === 'first_visit_date' || col === 'last_visit_date') {
+        // 日付カラム: 正規化してDBに直接保存
+        const normalized = normalizeBirthDate(val)
+        if (normalized) record[col] = normalized
+      } else if (col === 'visit_count') {
+        const num = parseInt(val, 10)
+        if (!isNaN(num)) record[col] = num
+      } else if (col === 'ltv') {
+        const num = parseInt(val, 10)
+        if (!isNaN(num)) record[col] = num
+      } else if (col === 'doctor') {
+        // 担当者: notesに追記
+        if (val) extraNotes.push(`担当: ${val}`)
+      } else if (col === 'reservation_count_text' || col === 'registration_date_text') {
+        // 参考情報: notesに追記
+        if (col === 'reservation_count_text' && val !== '0') extraNotes.push(`予約回数: ${val}`)
+        if (col === 'registration_date_text') extraNotes.push(`登録日: ${val}`)
       } else {
         record[col] = val
       }
     })
-    // EmailがMobileEmailから来た場合の処理
-    if (!record['email']) {
-      const mobileIdx = mapping.indexOf('email')
-      if (mobileIdx >= 0 && row[mobileIdx]) record['email'] = row[mobileIdx].trim()
+
+    // Email: CSVのEmail列を優先、なければMobileEmailを使用（上で処理済み）
+    // extraNotesをnotesに結合
+    if (extraNotes.length > 0) {
+      const existing = (record['notes'] || '') as string
+      record['notes'] = (existing ? existing + '\n' : '') + extraNotes.join('\n')
     }
+
     return record
   }
 
@@ -282,12 +342,13 @@ export default function ImportPage() {
       if (duplicateMode === 'update') {
         // 1件ずつupsert（名前+電話番号で重複チェック）
         for (const rec of records) {
+          const phoneForMatch = normalizePhone((rec.phone as string) || '')
           const { data: existing } = await supabase
             .from('cm_patients')
             .select('id')
             .eq('clinic_id', clinicId)
             .eq('name', rec.name as string)
-            .eq('phone', (rec.phone as string) || '')
+            .eq('phone', phoneForMatch)
             .limit(1)
 
           if (existing && existing.length > 0) {
