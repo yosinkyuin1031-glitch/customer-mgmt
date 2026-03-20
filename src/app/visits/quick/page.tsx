@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import { findBestMatch } from '@/lib/nameMatch'
+import { findBestMatch, findAllMatches } from '@/lib/nameMatch'
+import type { PatientCandidate } from '@/lib/nameMatch'
 import { getClinicId } from '@/lib/clinic'
 
 interface ParsedRecord {
@@ -16,6 +17,8 @@ interface ParsedRecord {
   total_price: number
   payment_method: string
   notes: string
+  _candidates?: { patient: PatientCandidate; score: number }[]  // 候補リスト
+  _showCandidates?: boolean  // 候補表示中かどうか
 }
 
 export default function QuickInputPage() {
@@ -29,6 +32,7 @@ export default function QuickInputPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [listening, setListening] = useState(false)
+  const [allPatients, setAllPatients] = useState<PatientCandidate[]>([])
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
   // 音声入力
@@ -78,6 +82,11 @@ export default function QuickInputPage() {
     setRecords([])
 
     try {
+      // 患者リストを先に取得（候補表示用）
+      const { data: pts } = await supabase.from('cm_patients').select('id, name, furigana').eq('clinic_id', clinicId).order('name')
+      const candidates = (pts || []).map(p => ({ id: p.id, name: p.name, furigana: p.furigana }))
+      setAllPatients(candidates)
+
       const res = await fetch('/api/parse-visits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,12 +97,45 @@ export default function QuickInputPage() {
       if (!res.ok) {
         setError(data.error || '解析に失敗しました')
       } else {
-        setRecords(data.records || [])
+        // 各レコードに候補リストを付与
+        const enriched = (data.records || []).map((r: ParsedRecord) => {
+          const matches = findAllMatches(r.patient_name, candidates)
+          // 候補が2人以上いる場合、または未マッチの場合は候補を表示
+          const needSelection = !r.patient_id || matches.length > 1
+          return {
+            ...r,
+            _candidates: matches,
+            _showCandidates: needSelection && matches.length > 1,
+          }
+        })
+        setRecords(enriched)
       }
     } catch {
       setError('通信エラーが発生しました')
     }
     setParsing(false)
+  }
+
+  // 候補を選択
+  const selectCandidate = (idx: number, candidate: PatientCandidate) => {
+    setRecords(prev => prev.map((r, i) => i === idx ? {
+      ...r,
+      patient_id: candidate.id,
+      patient_name: candidate.name,
+      _showCandidates: false,
+    } : r))
+  }
+
+  // 患者名を変更したとき候補を再検索
+  const updatePatientName = (idx: number, name: string) => {
+    const matches = findAllMatches(name, allPatients)
+    setRecords(prev => prev.map((r, i) => i === idx ? {
+      ...r,
+      patient_name: name,
+      patient_id: null,
+      _candidates: matches,
+      _showCandidates: matches.length > 0,
+    } : r))
   }
 
   // 個別レコード編集
@@ -260,12 +302,55 @@ export default function QuickInputPage() {
                     )}
                   </div>
 
-                  {/* 患者名 */}
-                  <div>
+                  {/* 患者名 + 候補選択 */}
+                  <div className="relative">
                     <label className="block text-[10px] text-gray-400">患者名</label>
-                    <input type="text" value={r.patient_name}
-                      onChange={e => updateRecord(idx, 'patient_name', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-medium" />
+                    <div className="flex gap-2 items-center">
+                      <input type="text" value={r.patient_name}
+                        onChange={e => updatePatientName(idx, e.target.value)}
+                        onFocus={() => {
+                          if (r._candidates && r._candidates.length > 1) {
+                            setRecords(prev => prev.map((rec, i) => i === idx ? { ...rec, _showCandidates: true } : rec))
+                          }
+                        }}
+                        className={`flex-1 px-2 py-1.5 border rounded-lg text-sm font-medium ${
+                          r.patient_id ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'
+                        }`} />
+                      {r.patient_id && <span className="text-green-500 text-xs shrink-0">✓ 確定</span>}
+                      {!r.patient_id && <span className="text-yellow-600 text-xs shrink-0">要選択</span>}
+                    </div>
+
+                    {/* 候補リスト */}
+                    {r._showCandidates && r._candidates && r._candidates.length > 0 && (
+                      <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        <div className="px-3 py-1.5 bg-gray-50 border-b">
+                          <p className="text-[10px] text-gray-500 font-bold">候補を選択してください（{r._candidates.length}件）</p>
+                        </div>
+                        {r._candidates.map((c, ci) => (
+                          <button key={ci}
+                            onClick={() => selectCandidate(idx, c.patient)}
+                            className={`w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50 flex items-center justify-between ${
+                              r.patient_id === c.patient.id ? 'bg-green-50' : ''
+                            }`}>
+                            <div>
+                              <span className="text-sm font-medium">{c.patient.name}</span>
+                              {c.patient.furigana && <span className="text-xs text-gray-400 ml-2">{c.patient.furigana}</span>}
+                            </div>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              c.score >= 90 ? 'bg-green-100 text-green-700' :
+                              c.score >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-500'
+                            }`}>
+                              {c.score >= 90 ? '高一致' : c.score >= 60 ? '中一致' : '低一致'}
+                            </span>
+                          </button>
+                        ))}
+                        <button onClick={() => setRecords(prev => prev.map((rec, i) => i === idx ? { ...rec, _showCandidates: false } : rec))}
+                          className="w-full text-center py-1.5 text-xs text-gray-400 hover:bg-gray-50">
+                          閉じる
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

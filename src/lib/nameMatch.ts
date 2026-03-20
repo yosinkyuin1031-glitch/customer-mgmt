@@ -15,10 +15,55 @@ export function normalizeName(name: string): string {
     .toLowerCase()
 }
 
-interface PatientCandidate {
+export interface PatientCandidate {
   id: string
   name: string
   furigana?: string | null
+}
+
+/**
+ * 患者リストからマッチする候補を全て返す（スコア付き）
+ * スコアが高いほど一致度が高い
+ */
+export function findAllMatches(
+  query: string,
+  patients: PatientCandidate[],
+  maxResults: number = 10
+): { patient: PatientCandidate; score: number }[] {
+  if (!query || query.trim() === '') return []
+
+  const normalizedQuery = normalizeName(query)
+  const results: { patient: PatientCandidate; score: number }[] = []
+
+  for (const p of patients) {
+    const normalizedName = normalizeName(p.name)
+    const normalizedFurigana = p.furigana ? normalizeName(p.furigana) : ''
+    let score = 0
+
+    // 完全一致
+    if (p.name === query) score = 100
+    else if (normalizedName === normalizedQuery) score = 95
+    else if (normalizedFurigana === normalizedQuery) score = 90
+    // 部分一致（名前にクエリが含まれる）
+    else if (normalizedName.includes(normalizedQuery)) score = 80
+    // 部分一致（クエリに名前が含まれる:「山田太郎さん」→「山田太郎」）
+    else if (normalizedQuery.includes(normalizedName)) score = 75
+    // ふりがな部分一致
+    else if (normalizedFurigana && normalizedFurigana.includes(normalizedQuery)) score = 70
+    // 姓一致（クエリが短い場合）
+    else if (normalizedQuery.length <= 4 && normalizedName.startsWith(normalizedQuery)) score = 60
+    else if (normalizedQuery.length <= 4 && normalizedFurigana && normalizedFurigana.startsWith(normalizedQuery)) score = 55
+    else {
+      // レーベンシュタイン距離
+      const dist = levenshtein(normalizedQuery, normalizedName)
+      const threshold = Math.max(1, Math.floor(normalizedName.length * 0.3))
+      if (dist <= threshold) score = Math.max(1, 50 - dist * 10)
+    }
+
+    if (score > 0) results.push({ patient: p, score })
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, maxResults)
 }
 
 /**
