@@ -11,21 +11,39 @@ import { fetchAllSlips } from '@/lib/fetchAll'
 export default function SlipsPage() {
   const supabase = createClient()
   const [slips, setSlips] = useState<Slip[]>([])
+  const [period, setPeriod] = useState('month')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const startDate = selectedMonth + '-01'
-      const d = new Date(startDate)
-      d.setMonth(d.getMonth() + 1)
-      d.setDate(0)
-      const endDate = d.toISOString().split('T')[0]
+      let queryStart: string
+      let queryEnd: string
+
+      if (period === 'day') {
+        queryStart = new Date().toISOString().split('T')[0]
+        queryEnd = queryStart
+      } else if (period === 'month') {
+        queryStart = selectedMonth + '-01'
+        const d = new Date(queryStart)
+        d.setMonth(d.getMonth() + 1)
+        d.setDate(0)
+        queryEnd = d.toISOString().split('T')[0]
+      } else if (period === 'year') {
+        queryStart = selectedYear + '-01-01'
+        queryEnd = selectedYear + '-12-31'
+      } else {
+        queryStart = startDate
+        queryEnd = endDate
+      }
 
       const data = await fetchAllSlips(supabase, '*', {
-        gte: ['visit_date', startDate],
-        lte: ['visit_date', endDate],
+        gte: ['visit_date', queryStart],
+        lte: ['visit_date', queryEnd],
       }) as Slip[]
 
       // fetchAllSlipsはid昇順なので、visit_date降順にソート
@@ -35,9 +53,11 @@ export default function SlipsPage() {
       setLoading(false)
     }
     load()
-  }, [selectedMonth])
+  }, [period, selectedMonth, selectedYear, startDate, endDate])
 
   const totalAmount = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
+
+  const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i))
 
   return (
     <AppShell>
@@ -51,10 +71,43 @@ export default function SlipsPage() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-800 text-lg">伝票一覧</h2>
-          <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-            className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+        <h2 className="font-bold text-gray-800 text-lg mb-4">伝票一覧</h2>
+
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {[
+            { key: 'day', label: '本日' },
+            { key: 'month', label: '月別' },
+            { key: 'year', label: '年間' },
+            { key: 'custom', label: '期間指定' },
+          ].map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
+                period === p.key ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500'
+              }`}>{p.label}</button>
+          ))}
+        </div>
+
+        {/* 期間選択UI */}
+        <div className="mb-4">
+          {period === 'month' && (
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+          )}
+          {period === 'year' && (
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+              {years.map(y => <option key={y} value={y}>{y}年</option>)}
+            </select>
+          )}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+              <span className="text-gray-400 text-sm">〜</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          )}
         </div>
 
         <div className="bg-blue-50 rounded-lg p-3 mb-4 flex justify-between items-center">

@@ -189,10 +189,18 @@ export default function ReservationPage() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => navigateWeek(-1)} className="px-2 py-1 border rounded text-sm">&lt;</button>
             <button onClick={goToday} className="px-3 py-1 border rounded text-xs font-medium">今日</button>
             <button onClick={() => navigateWeek(1)} className="px-2 py-1 border rounded text-sm">&gt;</button>
+            <input
+              type="date"
+              value={currentDate.toISOString().split('T')[0]}
+              onChange={e => {
+                if (e.target.value) setCurrentDate(new Date(e.target.value + 'T00:00:00'))
+              }}
+              className="px-2 py-1 border border-gray-300 rounded text-sm"
+            />
             <span className="text-sm font-medium text-gray-700">
               {weekDates[0].toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })} 〜 {weekDates[6].toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' })}
             </span>

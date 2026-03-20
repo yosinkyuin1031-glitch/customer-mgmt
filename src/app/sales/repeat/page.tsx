@@ -33,35 +33,68 @@ export default function RepeatPage() {
   const [data, setData] = useState<RepeatData[]>([])
   const [patientRepeats, setPatientRepeats] = useState<PatientRepeat[]>([])
   const [viewMode, setViewMode] = useState<'monthly' | 'patient'>('monthly')
+  const [period, setPeriod] = useState('month')
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
+
+  const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i))
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const visits = await fetchAllSlips(supabase, 'patient_id, visit_date, total_price') as { patient_id: string; visit_date: string; total_price: number }[]
+
+      let queryStart: string
+      let queryEnd: string
+
+      if (period === 'day') {
+        queryStart = new Date().toISOString().split('T')[0]
+        queryEnd = queryStart
+      } else if (period === 'month') {
+        queryStart = selectedMonth + '-01'
+        const d = new Date(queryStart)
+        d.setMonth(d.getMonth() + 1)
+        d.setDate(0)
+        queryEnd = d.toISOString().split('T')[0]
+      } else if (period === 'year') {
+        queryStart = selectedYear + '-01-01'
+        queryEnd = selectedYear + '-12-31'
+      } else {
+        queryStart = startDate
+        queryEnd = endDate
+      }
+
+      // 全期間のvisitsを取得（初回来院判定のため）
+      const allVisits = await fetchAllSlips(supabase, 'patient_id, visit_date, total_price') as { patient_id: string; visit_date: string; total_price: number }[]
 
       const { data: patients } = await supabase
         .from('cm_patients')
         .select('id, name')
         .eq('clinic_id', clinicId)
 
-      if (!visits || visits.length === 0 || !patients) { setLoading(false); return }
+      if (!allVisits || allVisits.length === 0 || !patients) { setData([]); setPatientRepeats([]); setLoading(false); return }
 
       const patientNameMap: Record<string, string> = {}
       patients.forEach(p => { patientNameMap[p.id] = p.name })
 
-      // 月別集計
-      const monthMap: Record<string, { patients: Set<string>, newPatients: Set<string>, totalVisits: number, newVisits: number, repeatVisits: number }> = {}
+      // 初回来院月を全期間から取得
       const firstVisitMonth: Record<string, string> = {}
-
-      visits.forEach(v => {
+      allVisits.forEach(v => {
         const month = v.visit_date.slice(0, 7)
         if (!firstVisitMonth[v.patient_id] || month < firstVisitMonth[v.patient_id]) {
           firstVisitMonth[v.patient_id] = month
         }
       })
 
-      visits.forEach(v => {
+      // フィルタ対象のvisitsを抽出
+      const filteredVisits = allVisits.filter(v => v.visit_date >= queryStart && v.visit_date <= queryEnd)
+
+      // 月別集計
+      const monthMap: Record<string, { patients: Set<string>, newPatients: Set<string>, totalVisits: number, newVisits: number, repeatVisits: number }> = {}
+
+      filteredVisits.forEach(v => {
         const month = v.visit_date.slice(0, 7)
         if (!monthMap[month]) monthMap[month] = { patients: new Set(), newPatients: new Set(), totalVisits: 0, newVisits: 0, repeatVisits: 0 }
         monthMap[month].patients.add(v.patient_id)
@@ -93,9 +126,9 @@ export default function RepeatPage() {
 
       setData(result)
 
-      // 患者別リピート回数集計
+      // 患者別リピート回数集計（フィルタ期間内）
       const patMap: Record<string, { count: number, revenue: number, first: string, last: string }> = {}
-      visits.forEach(v => {
+      filteredVisits.forEach(v => {
         if (!patMap[v.patient_id]) patMap[v.patient_id] = { count: 0, revenue: 0, first: v.visit_date, last: v.visit_date }
         patMap[v.patient_id].count++
         patMap[v.patient_id].revenue += v.total_price || 0
@@ -118,16 +151,33 @@ export default function RepeatPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [period, selectedMonth, selectedYear, startDate, endDate])
 
   const avgRepeatRate = data.length > 0
     ? Math.round(data.reduce((sum, d) => sum + d.repeatRate, 0) / data.length)
     : 0
 
-  // 来院回数分布
+  // 来院回数分布（1回, 2回, 3回, 4回, 5回, 6〜9回, 10回以上）
+  const distBuckets = [
+    { key: 1, label: '1回' },
+    { key: 2, label: '2回' },
+    { key: 3, label: '3回' },
+    { key: 4, label: '4回' },
+    { key: 5, label: '5回' },
+    { key: 6, label: '6〜9回' },
+    { key: 10, label: '10回以上' },
+  ]
+
   const countDist: Record<number, number> = {}
   patientRepeats.forEach(p => {
-    const bucket = p.visitCount >= 10 ? 10 : p.visitCount
+    let bucket: number
+    if (p.visitCount <= 5) {
+      bucket = p.visitCount
+    } else if (p.visitCount <= 9) {
+      bucket = 6
+    } else {
+      bucket = 10
+    }
     countDist[bucket] = (countDist[bucket] || 0) + 1
   })
 
@@ -144,8 +194,46 @@ export default function RepeatPage() {
           ))}
         </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-800 text-lg">リピート分析</h2>
+        <h2 className="font-bold text-gray-800 text-lg mb-4">リピート分析</h2>
+
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {[
+            { key: 'day', label: '本日' },
+            { key: 'month', label: '月別' },
+            { key: 'year', label: '年間' },
+            { key: 'custom', label: '期間指定' },
+          ].map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
+                period === p.key ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500'
+              }`}>{p.label}</button>
+          ))}
+        </div>
+
+        {/* 期間選択UI */}
+        <div className="mb-4">
+          {period === 'month' && (
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+          )}
+          {period === 'year' && (
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+              {years.map(y => <option key={y} value={y}>{y}年</option>)}
+            </select>
+          )}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+              <span className="text-gray-400 text-sm">〜</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end mb-4">
           <div className="flex gap-1">
             <button onClick={() => setViewMode('monthly')}
               className={`px-3 py-1 rounded text-xs font-medium ${viewMode === 'monthly' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
@@ -182,17 +270,16 @@ export default function RepeatPage() {
         </div>
 
         {/* 来院回数分布 */}
-        {viewMode === 'patient' && Object.keys(countDist).length > 0 && (
+        {viewMode === 'patient' && patientRepeats.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
             <h3 className="font-bold text-gray-800 text-sm mb-3">来院回数分布</h3>
             <div className="space-y-2">
-              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
-                const count = countDist[n] || 0
-                const label = n === 10 ? '10回以上' : `${n}回`
-                const maxCount = Math.max(...Object.values(countDist))
+              {distBuckets.map(b => {
+                const count = countDist[b.key] || 0
+                const maxCount = Math.max(...Object.values(countDist), 1)
                 return (
-                  <div key={n} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 w-16 text-right">{label}</span>
+                  <div key={b.key} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 w-16 text-right">{b.label}</span>
                     <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
                       <div className="h-5 rounded-full flex items-center px-2"
                         style={{ width: `${maxCount > 0 ? (count / maxCount * 100) : 0}%`, background: '#14252A', minWidth: count > 0 ? '24px' : '0' }}>

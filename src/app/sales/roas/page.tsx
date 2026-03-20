@@ -22,35 +22,66 @@ interface AdChannel {
 export default function RoasPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const [period, setPeriod] = useState('month')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [channelData, setChannelData] = useState<AdChannel[]>([])
   const [totalNewRevenue, setTotalNewRevenue] = useState(0)
   const [totalExistingRevenue, setTotalExistingRevenue] = useState(0)
   const [loading, setLoading] = useState(true)
 
+  const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i))
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const startDate = selectedMonth + '-01'
-      const d = new Date(startDate)
-      d.setMonth(d.getMonth() + 1)
-      d.setDate(0)
-      const endDate = d.toISOString().split('T')[0]
 
-      // 広告費データ取得
+      let queryStart: string
+      let queryEnd: string
+
+      if (period === 'day') {
+        queryStart = new Date().toISOString().split('T')[0]
+        queryEnd = queryStart
+      } else if (period === 'month') {
+        queryStart = selectedMonth + '-01'
+        const d = new Date(queryStart)
+        d.setMonth(d.getMonth() + 1)
+        d.setDate(0)
+        queryEnd = d.toISOString().split('T')[0]
+      } else if (period === 'year') {
+        queryStart = selectedYear + '-01-01'
+        queryEnd = selectedYear + '-12-31'
+      } else {
+        queryStart = startDate
+        queryEnd = endDate
+      }
+
+      // 広告費データ取得（月別のみ対応 - cm_ad_costsはmonthカラム）
+      // 期間に含まれる全月の広告費を取得
+      const startMonth = queryStart.slice(0, 7)
+      const endMonth = queryEnd.slice(0, 7)
       const { data: adCosts } = await supabase
         .from('cm_ad_costs')
         .select('*')
         .eq('clinic_id', clinicId)
-        .eq('month', selectedMonth)
+        .gte('month', startMonth)
+        .lte('month', endMonth)
 
       // cm_slipsから売上取得
       const slips = await fetchAllSlips(supabase, 'patient_id, total_price', {
-        gte: ['visit_date', startDate],
-        lte: ['visit_date', endDate],
+        gte: ['visit_date', queryStart],
+        lte: ['visit_date', queryEnd],
       }) as { patient_id: string; total_price: number }[]
 
-      if (!slips || slips.length === 0) { setLoading(false); return }
+      if (!slips || slips.length === 0) {
+        setChannelData([])
+        setTotalNewRevenue(0)
+        setTotalExistingRevenue(0)
+        setLoading(false)
+        return
+      }
 
       // 患者の初回来院月を取得して新規/既存を判別
       const patientIds = [...new Set(slips.map(s => s.patient_id).filter(Boolean))]
@@ -81,7 +112,7 @@ export default function RoasPage() {
       slips.forEach(s => {
         const amount = s.total_price || 0
         const pid = s.patient_id
-        const isNew = pid && firstVisitDate[pid] && firstVisitDate[pid] >= startDate && firstVisitDate[pid] <= endDate
+        const isNew = pid && firstVisitDate[pid] && firstVisitDate[pid] >= queryStart && firstVisitDate[pid] <= queryEnd
         const source = pid ? (patientSourceMap[pid] || 'その他') : 'その他'
 
         if (isNew) {
@@ -118,7 +149,6 @@ export default function RoasPage() {
 
       // 来院経路に基づく売上をマッピング
       Object.entries(channelRevenue).forEach(([source, rev]) => {
-        // 来院経路名と広告チャネル名のマッピング
         const channelName = mapSourceToChannel(source)
         if (channelMap[channelName]) {
           channelMap[channelName].revenue += rev
@@ -134,7 +164,7 @@ export default function RoasPage() {
       setLoading(false)
     }
     load()
-  }, [selectedMonth])
+  }, [period, selectedMonth, selectedYear, startDate, endDate])
 
   const totalCost = channelData.reduce((s, c) => s + c.cost, 0)
   const totalRevenue = totalNewRevenue + totalExistingRevenue
@@ -153,10 +183,43 @@ export default function RoasPage() {
           ))}
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-          <h2 className="font-bold text-gray-800 text-lg">ROAS・広告分析</h2>
-          <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-            className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+        <h2 className="font-bold text-gray-800 text-lg mb-4">ROAS・広告分析</h2>
+
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {[
+            { key: 'day', label: '本日' },
+            { key: 'month', label: '月別' },
+            { key: 'year', label: '年間' },
+            { key: 'custom', label: '期間指定' },
+          ].map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
+                period === p.key ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500'
+              }`}>{p.label}</button>
+          ))}
+        </div>
+
+        {/* 期間選択UI */}
+        <div className="mb-4">
+          {period === 'month' && (
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+          )}
+          {period === 'year' && (
+            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+              {years.map(y => <option key={y} value={y}>{y}年</option>)}
+            </select>
+          )}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+              <span className="text-gray-400 text-sm">〜</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          )}
         </div>
 
         {/* 全体ROAS */}
