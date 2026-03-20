@@ -22,6 +22,8 @@ export default function PatientDetailPage() {
   const [form, setForm] = useState<Partial<Patient>>({})
   const [loading, setLoading] = useState(true)
   const [showAllSlips, setShowAllSlips] = useState(false)
+  const [editingSlip, setEditingSlip] = useState<string | null>(null)
+  const [slipForm, setSlipForm] = useState<Partial<Slip>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -47,6 +49,26 @@ export default function PatientDetailPage() {
     if (!confirm('この患者を削除しますか？')) return
     await supabase.from('cm_patients').delete().eq('id', id)
     router.push('/patients')
+  }
+
+  const handleSlipEdit = (slip: Slip) => {
+    setEditingSlip(slip.id)
+    setSlipForm({ ...slip })
+  }
+
+  const handleSlipUpdate = async () => {
+    if (!editingSlip) return
+    const { id: _id, created_at: _c, ...updateData } = slipForm as Slip
+    await supabase.from('cm_slips').update(updateData).eq('id', editingSlip)
+    setSlips(slips.map(s => s.id === editingSlip ? { ...s, ...slipForm } : s))
+    setEditingSlip(null)
+  }
+
+  const handleSlipDelete = async (slipId: string) => {
+    if (!confirm('この伝票を削除しますか？')) return
+    await supabase.from('cm_slips').delete().eq('id', slipId)
+    setSlips(slips.filter(s => s.id !== slipId))
+    setEditingSlip(null)
   }
 
   const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
@@ -324,6 +346,76 @@ export default function PatientDetailPage() {
         {slips.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4">
             <h3 className="font-bold text-gray-800 mb-3">来院・売上履歴 <span className="text-xs text-gray-400 font-normal">（全{visitCount}件）</span></h3>
+
+            {/* 伝票編集モーダル */}
+            {editingSlip && (
+              <div className="bg-blue-50 rounded-xl p-4 mb-3 border border-blue-200">
+                <p className="text-xs font-bold text-gray-700 mb-3">伝票を編集</p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">来院日</label>
+                    <input type="date" value={slipForm.visit_date || ''} onChange={e => setSlipForm({...slipForm, visit_date: e.target.value})} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">担当</label>
+                    <input value={slipForm.staff_name || ''} onChange={e => setSlipForm({...slipForm, staff_name: e.target.value})} className={inputClass} />
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <label className="block text-xs text-gray-500 mb-1">メニュー名</label>
+                  <input value={slipForm.menu_name || ''} onChange={e => setSlipForm({...slipForm, menu_name: e.target.value})} className={inputClass} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">基本料金</label>
+                    <input type="number" value={slipForm.base_price ?? 0} onChange={e => {
+                      const base = parseInt(e.target.value) || 0
+                      setSlipForm({...slipForm, base_price: base, total_price: base + (slipForm.option_price || 0) - (slipForm.discount || 0)})
+                    }} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">オプション</label>
+                    <input type="number" value={slipForm.option_price ?? 0} onChange={e => {
+                      const opt = parseInt(e.target.value) || 0
+                      setSlipForm({...slipForm, option_price: opt, total_price: (slipForm.base_price || 0) + opt - (slipForm.discount || 0)})
+                    }} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">割引</label>
+                    <input type="number" value={slipForm.discount ?? 0} onChange={e => {
+                      const disc = parseInt(e.target.value) || 0
+                      setSlipForm({...slipForm, discount: disc, total_price: (slipForm.base_price || 0) + (slipForm.option_price || 0) - disc})
+                    }} className={inputClass} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">合計金額</label>
+                    <input type="number" value={slipForm.total_price ?? 0} onChange={e => setSlipForm({...slipForm, total_price: parseInt(e.target.value) || 0})} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">支払方法</label>
+                    <select value={slipForm.payment_method || '現金'} onChange={e => setSlipForm({...slipForm, payment_method: e.target.value})} className={inputClass}>
+                      <option value="現金">現金</option>
+                      <option value="カード">カード</option>
+                      <option value="QR決済">QR決済</option>
+                      <option value="回数券">回数券</option>
+                      <option value="その他">その他</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-xs text-gray-500 mb-1">メモ</label>
+                  <input value={slipForm.notes || ''} onChange={e => setSlipForm({...slipForm, notes: e.target.value})} className={inputClass} />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleSlipUpdate} className="flex-1 text-white py-2 rounded-lg text-xs font-bold" style={{ background: '#14252A' }}>保存</button>
+                  <button onClick={() => setEditingSlip(null)} className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-600">キャンセル</button>
+                  <button onClick={() => handleSlipDelete(editingSlip)} className="py-2 px-3 text-red-500 border border-red-200 rounded-lg text-xs">削除</button>
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -333,11 +425,12 @@ export default function PatientDetailPage() {
                     <th className="text-right py-1 pr-2">基本</th>
                     <th className="text-right py-1 pr-2">OP</th>
                     <th className="text-right py-1 font-bold">合計</th>
+                    <th className="text-center py-1 pl-1 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {displaySlips.map((s, i) => (
-                    <tr key={s.id} className="border-b border-gray-50">
+                    <tr key={s.id} className={`border-b border-gray-50 ${editingSlip === s.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                       <td className="py-1.5 pr-2 text-gray-400">{slips.length - slips.indexOf(s)}</td>
                       <td className="py-1.5 pr-2">
                         {new Date(s.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -345,6 +438,9 @@ export default function PatientDetailPage() {
                       <td className="py-1.5 pr-2 text-right">{s.base_price > 0 ? `￥${s.base_price.toLocaleString()}` : '-'}</td>
                       <td className="py-1.5 pr-2 text-right">{s.option_price > 0 ? `￥${s.option_price.toLocaleString()}` : '-'}</td>
                       <td className="py-1.5 text-right font-bold">{s.total_price > 0 ? `￥${s.total_price.toLocaleString()}` : '￥0'}</td>
+                      <td className="py-1.5 pl-1 text-center">
+                        <button onClick={() => handleSlipEdit(s)} className="text-gray-400 hover:text-blue-600 text-xs">✏️</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
