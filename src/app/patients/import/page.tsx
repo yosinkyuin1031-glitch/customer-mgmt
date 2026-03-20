@@ -262,7 +262,12 @@ export default function ImportPage() {
       const val = row[i].trim()
       if (!val) return
 
-      if (col === 'gender') {
+      if (col === 'name') {
+        // 全角スペースを半角に統一（例: 橋口　キリ → 橋口 キリ）
+        record[col] = val.replace(/\u3000/g, ' ')
+      } else if (col === 'furigana') {
+        record[col] = val.replace(/\u3000/g, ' ')
+      } else if (col === 'gender') {
         record[col] = normalizeGender(val)
       } else if (col === 'status') {
         record[col] = normalizeStatus(val)
