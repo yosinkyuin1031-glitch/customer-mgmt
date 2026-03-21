@@ -12,23 +12,61 @@ interface Column {
   width?: string
 }
 
+// 患者数カウント設定
+interface PatientCountConfig {
+  sourceTable: string       // 参照元テーブル (cm_patients or cm_slips)
+  sourceField: string       // 参照元フィールド (chief_complaint, occupation等)
+  matchKey?: string         // マスターデータのどのキーでマッチするか (デフォルト: 'name')
+  label?: string            // カウント列のラベル (デフォルト: '該当者数')
+  partialMatch?: boolean    // 部分一致（chief_complaintのようにカンマ区切り）
+}
+
 interface Props {
   title: string
   tableName: string
   columns: Column[]
   defaultValues?: Record<string, unknown>
   sortField?: string
+  patientCount?: PatientCountConfig
 }
 
-export default function SimpleMasterPage({ title, tableName, columns, defaultValues = {}, sortField = 'sort_order' }: Props) {
+export default function SimpleMasterPage({ title, tableName, columns, defaultValues = {}, sortField = 'sort_order', patientCount }: Props) {
   const supabase = createClient()
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<Record<string, unknown>>({})
   const [adding, setAdding] = useState(false)
+  const [countMap, setCountMap] = useState<Record<string, number>>({})
 
   const clinicId = getClinicId()
+
+  const loadCounts = async () => {
+    if (!patientCount) return
+    const { sourceTable, sourceField } = patientCount
+    const { data } = await supabase
+      .from(sourceTable)
+      .select(sourceField)
+      .eq('clinic_id', clinicId)
+    if (!data) return
+
+    const counts: Record<string, number> = {}
+    for (const row of data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const val = (row as any)[sourceField]
+      if (!val || typeof val !== 'string') continue
+      if (patientCount.partialMatch) {
+        // カンマ・読点・スペース区切りで複数値を分解
+        const parts = val.split(/[,、\s]+/).map(s => s.trim()).filter(Boolean)
+        for (const part of parts) {
+          counts[part] = (counts[part] || 0) + 1
+        }
+      } else {
+        counts[val] = (counts[val] || 0) + 1
+      }
+    }
+    setCountMap(counts)
+  }
 
   const load = async () => {
     const { data } = await supabase.from(tableName).select('*').eq('clinic_id', clinicId).order(sortField)
@@ -36,7 +74,7 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadCounts() }, [])
 
   const handleAdd = async () => {
     const newItem: Record<string, unknown> = { ...defaultValues }
@@ -97,6 +135,11 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
                     {col.label}
                   </th>
                 ))}
+                {patientCount && (
+                  <th className="text-right px-4 py-2 text-xs font-medium text-gray-500" style={{ width: '100px' }}>
+                    {patientCount.label || '該当者数'}
+                  </th>
+                )}
                 <th className="px-4 py-2 text-xs text-gray-500 w-24">操作</th>
               </tr>
             </thead>
@@ -152,6 +195,23 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
                       )}
                     </td>
                   ))}
+                  {patientCount && (
+                    <td className="px-4 py-2 text-right">
+                      {(() => {
+                        const matchKey = patientCount.matchKey || 'name'
+                        const name = item[matchKey] as string
+                        const count = countMap[name] || 0
+                        return count > 0 ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-sm font-semibold text-[#14252A]">{count}</span>
+                            <span className="text-xs text-gray-400">人</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">0</span>
+                        )
+                      })()}
+                    </td>
+                  )}
                   <td className="px-4 py-2">
                     {editingId === item.id ? (
                       <div className="flex gap-1">

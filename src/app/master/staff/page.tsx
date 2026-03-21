@@ -8,5 +8,9 @@ export default function Page() {
     { key: 'email', label: 'メール' },
     { key: 'phone', label: '電話番号' },
     { key: 'is_active', label: '有効', type: 'boolean', width: '70px' },
-  ]} />
+  ]} patientCount={{
+    sourceTable: 'cm_slips',
+    sourceField: 'staff_name',
+    label: '施術回数',
+  }} />
 }
