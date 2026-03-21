@@ -5,7 +5,6 @@ import AppShell from '@/components/AppShell'
 
 const saleTabs = [
   { href: '/sales', label: '概要' },
-  { href: '/patients', label: '顧客管理' },
   { href: '/sales/revenue', label: '売上集計' },
   { href: '/sales/slips', label: '伝票一覧' },
   { href: '/sales/ltv', label: 'LTV' },
@@ -16,16 +15,19 @@ const saleTabs = [
 ]
 
 const menuCards = [
-  { href: '/patients', icon: '👥', title: '顧客管理', desc: '患者の登録・検索・編集・施術履歴の管理' },
   { href: '/sales/revenue', icon: '💰', title: '売上集計', desc: '日別・月別・年別の売上分析' },
   { href: '/sales/slips', icon: '🧾', title: '伝票一覧', desc: '施術伝票の一覧と詳細' },
   { href: '/sales/ltv', icon: '📈', title: 'LTV分析', desc: '顧客生涯価値の分析' },
   { href: '/sales/repeat', icon: '🔄', title: 'リピート分析', desc: '新規・リピート比率の推移' },
+  { href: '/sales/new-existing', icon: '👤', title: '新規/既存分析', desc: '新規・既存患者の比率推移' },
+  { href: '/sales/roas', icon: '📣', title: 'ROAS分析', desc: '広告費用対効果の分析' },
   { href: '/sales/hourly', icon: '⏱', title: '時間単価', desc: '時間あたりの売上効率' },
   { href: '/sales/utilization', icon: '📊', title: '稼働率', desc: '予約枠の稼働状況' },
   { href: '/sales/cross', icon: '🔀', title: 'クロス集計', desc: '多角的な売上分析' },
+  { href: '/sales/area-ltv', icon: '🗺', title: 'エリア分析', desc: 'エリア別のLTV分析' },
+  { href: '/sales/map', icon: '📍', title: '地域分布', desc: '患者の地域分布マップ' },
+  { href: '/sales/ad-costs', icon: '💳', title: '広告費入力', desc: '媒体別の広告費用管理' },
   { href: '/visits/new', icon: '📝', title: '施術記録', desc: '施術内容・料金・次回予約の記録' },
-  { href: '/patients/new', icon: '➕', title: '新規患者登録', desc: '新しい患者の情報を登録' },
 ]
 
 export default function SalesPage() {

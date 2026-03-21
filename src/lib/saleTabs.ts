@@ -1,6 +1,5 @@
 export const saleTabs = [
   { href: '/sales', label: '概要' },
-  { href: '/patients', label: '顧客管理' },
   { href: '/sales/revenue', label: '売上集計' },
   { href: '/sales/slips', label: '伝票一覧' },
   { href: '/sales/new-existing', label: '新規/既存' },
