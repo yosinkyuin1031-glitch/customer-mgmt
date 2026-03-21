@@ -26,13 +26,17 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  if (!user && path !== '/login') {
+  // 認証不要パス
+  const publicPaths = ['/login', '/signup']
+  const isPublicPath = publicPaths.some(p => path === p || path.startsWith(p + '/'))
+
+  if (!user && !isPublicPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && path === '/login') {
+  if (user && (path === '/login' || path === '/signup')) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
