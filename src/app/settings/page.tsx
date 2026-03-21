@@ -30,6 +30,15 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [patientCount, setPatientCount] = useState<number>(0)
 
+  // メール・パスワード変更
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [emailMsg, setEmailMsg] = useState('')
+  const [pwMsg, setPwMsg] = useState('')
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [pwLoading, setPwLoading] = useState(false)
+
   const clinicId = getClinicId()
 
   useEffect(() => {
@@ -104,6 +113,42 @@ export default function SettingsPage() {
     }
   }
 
+  const handleChangeEmail = async () => {
+    if (!newEmail.trim()) return
+    setEmailLoading(true)
+    setEmailMsg('')
+    const { error } = await supabase.auth.updateUser({ email: newEmail.trim() })
+    if (error) {
+      setEmailMsg('変更に失敗しました: ' + error.message)
+    } else {
+      setEmailMsg('確認メールを送信しました。新しいメールアドレスで確認してください。')
+      setNewEmail('')
+    }
+    setEmailLoading(false)
+  }
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      setPwMsg('パスワードは6文字以上で入力してください')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPwMsg('パスワードが一致しません')
+      return
+    }
+    setPwLoading(true)
+    setPwMsg('')
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      setPwMsg('変更に失敗しました: ' + error.message)
+    } else {
+      setPwMsg('パスワードを変更しました')
+      setNewPassword('')
+      setConfirmPassword('')
+    }
+    setPwLoading(false)
+  }
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr)
     return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
@@ -114,9 +159,60 @@ export default function SettingsPage() {
       <Header title="設定" />
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
 
-        <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4 space-y-4">
           <h3 className="font-bold text-gray-800 text-sm mb-3">アカウント情報</h3>
-          <p className="text-sm text-gray-600">ログイン: {email}</p>
+          <p className="text-sm text-gray-600">現在のメールアドレス: {email}</p>
+
+          {/* メールアドレス変更 */}
+          <div className="border-t pt-3">
+            <label className="block text-xs text-gray-500 mb-1">メールアドレスを変更</label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
+                placeholder="新しいメールアドレス"
+              />
+              <button
+                onClick={handleChangeEmail}
+                disabled={emailLoading || !newEmail.trim()}
+                className="px-4 py-2 bg-[#14252A] text-white text-xs rounded-lg disabled:opacity-50"
+              >
+                {emailLoading ? '...' : '変更'}
+              </button>
+            </div>
+            {emailMsg && <p className={`text-xs mt-1 ${emailMsg.includes('失敗') ? 'text-red-500' : 'text-green-600'}`}>{emailMsg}</p>}
+          </div>
+
+          {/* パスワード変更 */}
+          <div className="border-t pt-3">
+            <label className="block text-xs text-gray-500 mb-1">パスワードを変更</label>
+            <div className="space-y-2">
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
+                placeholder="新しいパスワード（6文字以上）"
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
+                placeholder="パスワード確認（もう一度入力）"
+              />
+              <button
+                onClick={handleChangePassword}
+                disabled={pwLoading || !newPassword}
+                className="w-full py-2 bg-[#14252A] text-white text-xs rounded-lg disabled:opacity-50"
+              >
+                {pwLoading ? '変更中...' : 'パスワードを変更'}
+              </button>
+            </div>
+            {pwMsg && <p className={`text-xs mt-1 ${pwMsg.includes('失敗') || pwMsg.includes('一致') || pwMsg.includes('6文字') ? 'text-red-500' : 'text-green-600'}`}>{pwMsg}</p>}
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-4">
