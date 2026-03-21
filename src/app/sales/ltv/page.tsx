@@ -26,6 +26,15 @@ interface SlipRow {
   total_price: number
 }
 
+interface PatientRow {
+  id: string
+  name: string
+  ltv: number | null
+  visit_count: number | null
+  first_visit_date: string | null
+  last_visit_date: string | null
+}
+
 type PeriodKey = 'all' | '1m' | '3m' | '6m' | '1y' | 'custom'
 
 function getDateRange(period: PeriodKey, customFrom: string, customTo: string): { from: string | null; to: string | null } {
@@ -46,7 +55,7 @@ export default function LtvPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
   const [allSlips, setAllSlips] = useState<SlipRow[]>([])
-  const [nameMap, setNameMap] = useState<Record<string, string>>({})
+  const [patientData, setPatientData] = useState<PatientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<'ltv' | 'visit_count' | 'days'>('ltv')
   const [period, setPeriod] = useState<PeriodKey>('all')
@@ -56,15 +65,14 @@ export default function LtvPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const slips = await fetchAllSlips(supabase, 'patient_id, patient_name, visit_date, total_price') as SlipRow[]
-      const { data: patientList } = await supabase
-        .from('cm_patients')
-        .select('id, name')
-        .eq('clinic_id', clinicId)
-
-      const nm: Record<string, string> = {}
-      patientList?.forEach(p => { nm[p.id] = p.name })
-      setNameMap(nm)
+      const [slips, { data: patients }] = await Promise.all([
+        fetchAllSlips(supabase, 'patient_id, patient_name, visit_date, total_price') as Promise<SlipRow[]>,
+        supabase
+          .from('cm_patients')
+          .select('id, name, ltv, visit_count, first_visit_date, last_visit_date')
+          .eq('clinic_id', clinicId)
+      ])
+      setPatientData(patients || [])
       setAllSlips(slips || [])
       setLoading(false)
     }
@@ -72,32 +80,85 @@ export default function LtvPage() {
   }, [])
 
   const patients = useMemo(() => {
+    const isAllPeriod = period === 'all'
+
+    if (isAllPeriod) {
+      // 全期間: cm_patients.ltvを使用（CSSインポートの正確なデータ）
+      // スリップデータで補完（新しい来院分）
+      const slipMap: Record<string, { count: number; revenue: number; first: string; last: string }> = {}
+      allSlips.forEach(s => {
+        if (!s.patient_id) return
+        if (!slipMap[s.patient_id]) {
+          slipMap[s.patient_id] = { count: 0, revenue: 0, first: s.visit_date, last: s.visit_date }
+        }
+        if (s.total_price > 0) {
+          slipMap[s.patient_id].count++
+          slipMap[s.patient_id].revenue += s.total_price
+        }
+        if (s.visit_date < slipMap[s.patient_id].first) slipMap[s.patient_id].first = s.visit_date
+        if (s.visit_date > slipMap[s.patient_id].last) slipMap[s.patient_id].last = s.visit_date
+      })
+
+      const now = Date.now()
+      return patientData
+        .filter(p => (p.ltv && p.ltv > 0) || (slipMap[p.id]?.revenue > 0))
+        .map((p): PatientLTV => {
+          const slip = slipMap[p.id]
+          // cm_patients.ltvが高い場合はそちらを使用（CSSデータが正確）
+          const ltvFromSlips = slip?.revenue || 0
+          const ltv = Math.max(p.ltv || 0, ltvFromSlips)
+          const visitCount = p.visit_count || slip?.count || 0
+          const firstVisit = p.first_visit_date || slip?.first || ''
+          const lastVisit = p.last_visit_date || slip?.last || ''
+          // スリップの日付がcm_patientsより新しければ更新
+          const actualLast = slip?.last && (!lastVisit || slip.last > lastVisit) ? slip.last : lastVisit
+          const actualFirst = slip?.first && (!firstVisit || slip.first < firstVisit) ? slip.first : firstVisit
+
+          return {
+            id: p.id,
+            name: p.name,
+            visitCount,
+            ltv,
+            avgPrice: visitCount > 0 ? Math.round(ltv / visitCount) : 0,
+            firstVisit: actualFirst,
+            lastVisit: actualLast,
+            daysSince: actualLast ? Math.floor((now - new Date(actualLast).getTime()) / (24 * 60 * 60 * 1000)) : null,
+          }
+        })
+        .sort((a, b) => b.ltv - a.ltv)
+    }
+
+    // 期間フィルター: cm_slipsから計算（total_price > 0のみカウント）
     if (allSlips.length === 0) return []
     const { from, to } = getDateRange(period, customFrom, customTo)
 
-    // 期間でフィルタ
+    const nameMap: Record<string, string> = {}
+    patientData.forEach(p => { nameMap[p.id] = p.name })
+
     const filtered = allSlips.filter(s => {
+      if (!s.patient_id) return false
       if (from && s.visit_date < from) return false
       if (to && s.visit_date > to) return false
       return true
     })
 
-    // 患者ごとに集計
     const patMap: Record<string, { count: number; revenue: number; first: string; last: string; name: string }> = {}
     filtered.forEach(s => {
-      const pid = s.patient_id || 'unknown'
+      const pid = s.patient_id
       if (!patMap[pid]) {
         patMap[pid] = { count: 0, revenue: 0, first: s.visit_date, last: s.visit_date, name: nameMap[pid] || s.patient_name || '不明' }
       }
-      patMap[pid].count++
-      patMap[pid].revenue += s.total_price || 0
+      if (s.total_price > 0) {
+        patMap[pid].count++
+        patMap[pid].revenue += s.total_price
+      }
       if (s.visit_date < patMap[pid].first) patMap[pid].first = s.visit_date
       if (s.visit_date > patMap[pid].last) patMap[pid].last = s.visit_date
     })
 
     const now = Date.now()
     return Object.entries(patMap)
-      .filter(([id]) => id !== 'unknown')
+      .filter(([, d]) => d.revenue > 0)
       .map(([id, d]): PatientLTV => ({
         id,
         name: d.name,
@@ -109,7 +170,7 @@ export default function LtvPage() {
         daysSince: Math.floor((now - new Date(d.last).getTime()) / (24 * 60 * 60 * 1000)),
       }))
       .sort((a, b) => b.ltv - a.ltv)
-  }, [allSlips, nameMap, period, customFrom, customTo])
+  }, [allSlips, patientData, period, customFrom, customTo])
 
   const sorted = [...patients].sort((a, b) => {
     if (sortKey === 'ltv') return b.ltv - a.ltv

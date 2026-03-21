@@ -4,17 +4,18 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
-import { fetchAllSlips } from '@/lib/fetchAll'
 import { saleTabs } from '@/lib/saleTabs'
 import { getClinicId } from '@/lib/clinic'
 
 interface AreaData {
   area: string
+  prefecture: string
   patientCount: number
   totalLTV: number
   avgLTV: number
   totalVisits: number
   avgVisits: number
+  topPatients: { name: string; ltv: number }[]
 }
 
 type SortKey = 'totalLTV' | 'patientCount' | 'avgLTV' | 'avgVisits'
@@ -25,66 +26,66 @@ export default function AreaLtvPage() {
   const [areas, setAreas] = useState<AreaData[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('totalLTV')
+  const [expandedArea, setExpandedArea] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
 
-      // Fetch all slips
-      const slips = await fetchAllSlips(
-        supabase,
-        'patient_id, total_price, visit_date'
-      ) as { patient_id: string; total_price: number; visit_date: string }[]
+      // Fetch patients with LTV data directly
+      const PAGE_SIZE = 1000
+      let allPatients: { id: string; name: string; city: string; prefecture: string; ltv: number; visit_count: number }[] = []
+      let offset = 0
+      let hasMore = true
 
-      // Fetch patients with city info
-      const { data: patients } = await supabase
-        .from('cm_patients')
-        .select('id, name, city, prefecture')
-        .eq('clinic_id', clinicId)
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('cm_patients')
+          .select('id, name, city, prefecture, ltv, visit_count')
+          .eq('clinic_id', clinicId)
+          .order('id', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1)
 
-      if (!slips || slips.length === 0 || !patients) {
+        if (error || !data) break
+        allPatients = allPatients.concat(data)
+        hasMore = data.length === PAGE_SIZE
+        offset += PAGE_SIZE
+      }
+
+      if (allPatients.length === 0) {
         setLoading(false)
         return
       }
 
-      // Build patient → area map
-      const patientArea: Record<string, string> = {}
-      patients.forEach(p => {
+      // Aggregate by city
+      const areaMap: Record<string, {
+        prefecture: string
+        patients: { name: string; ltv: number }[]
+        totalLTV: number
+        totalVisits: number
+      }> = {}
+
+      allPatients.forEach(p => {
         const area = p.city || p.prefecture || '不明'
-        patientArea[p.id] = area
-      })
-
-      // Aggregate slips by patient first
-      const patientSlips: Record<string, { area: string; revenue: number; visits: number }> = {}
-      slips.forEach(s => {
-        if (!s.patient_id) return
-        const area = patientArea[s.patient_id] || '不明'
-        if (!patientSlips[s.patient_id]) {
-          patientSlips[s.patient_id] = { area, revenue: 0, visits: 0 }
-        }
-        patientSlips[s.patient_id].revenue += s.total_price || 0
-        patientSlips[s.patient_id].visits++
-      })
-
-      // Aggregate by area
-      const areaMap: Record<string, { patients: Set<string>; totalLTV: number; totalVisits: number }> = {}
-      Object.entries(patientSlips).forEach(([pid, data]) => {
-        const area = data.area
         if (!areaMap[area]) {
-          areaMap[area] = { patients: new Set(), totalLTV: 0, totalVisits: 0 }
+          areaMap[area] = { prefecture: p.prefecture || '不明', patients: [], totalLTV: 0, totalVisits: 0 }
         }
-        areaMap[area].patients.add(pid)
-        areaMap[area].totalLTV += data.revenue
-        areaMap[area].totalVisits += data.visits
+        const ltv = p.ltv || 0
+        const visits = p.visit_count || 0
+        areaMap[area].patients.push({ name: p.name, ltv })
+        areaMap[area].totalLTV += ltv
+        areaMap[area].totalVisits += visits
       })
 
       const result: AreaData[] = Object.entries(areaMap).map(([area, d]) => ({
         area,
-        patientCount: d.patients.size,
+        prefecture: d.prefecture,
+        patientCount: d.patients.length,
         totalLTV: d.totalLTV,
-        avgLTV: d.patients.size > 0 ? Math.round(d.totalLTV / d.patients.size) : 0,
+        avgLTV: d.patients.length > 0 ? Math.round(d.totalLTV / d.patients.length) : 0,
         totalVisits: d.totalVisits,
-        avgVisits: d.patients.size > 0 ? Math.round((d.totalVisits / d.patients.size) * 10) / 10 : 0,
+        avgVisits: d.patients.length > 0 ? Math.round((d.totalVisits / d.patients.length) * 10) / 10 : 0,
+        topPatients: d.patients.sort((a, b) => b.ltv - a.ltv).slice(0, 5),
       }))
 
       setAreas(result)
@@ -106,6 +107,9 @@ export default function AreaLtvPage() {
   const totalLTV = areas.reduce((s, a) => s + a.totalLTV, 0)
   const overallAvgLTV = totalPatients > 0 ? Math.round(totalLTV / totalPatients) : 0
 
+  // Best performing area
+  const bestAvgArea = [...areas].sort((a, b) => b.avgLTV - a.avgLTV).find(a => a.patientCount >= 3)
+
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 py-4">
@@ -119,10 +123,15 @@ export default function AreaLtvPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-4">エリア別LTV分析</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-800 text-lg">エリア別LTV分析</h2>
+          <Link href="/sales/map" className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+            📍 マップで見る →
+          </Link>
+        </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
             <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{areas.length}<span className="text-xs sm:text-sm">エリア</span></p>
             <p className="text-[10px] sm:text-xs text-gray-500">対象エリア数</p>
@@ -134,6 +143,10 @@ export default function AreaLtvPage() {
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
             <p className="text-lg sm:text-2xl font-bold text-green-600">{overallAvgLTV.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
             <p className="text-[10px] sm:text-xs text-gray-500">全体平均LTV</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+            <p className="text-sm sm:text-base font-bold text-orange-500 truncate">{bestAvgArea?.area || '-'}</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">最高平均LTVエリア</p>
           </div>
         </div>
 
@@ -158,40 +171,49 @@ export default function AreaLtvPage() {
           <>
             {/* Bar Chart */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-              <h3 className="text-sm font-bold text-gray-700 mb-3">エリア別 総LTVランキング（上位10）</h3>
+              <h3 className="text-sm font-bold text-gray-700 mb-3">
+                エリア別 {sortKey === 'totalLTV' ? '総LTV' : sortKey === 'patientCount' ? '患者数' : sortKey === 'avgLTV' ? '平均LTV' : '来院頻度'}ランキング（上位10）
+              </h3>
               <div className="space-y-2">
-                {sorted.slice(0, 10).map((a, i) => (
-                  <div key={a.area} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
-                    <span className="text-xs font-medium w-20 sm:w-28 truncate">{a.area}</span>
-                    <div className="flex-1 h-6 bg-gray-100 rounded overflow-hidden">
-                      <div
-                        className="h-full rounded flex items-center px-2"
-                        style={{
-                          width: `${Math.max((a.totalLTV / maxLTV) * 100, 2)}%`,
-                          backgroundColor: '#14252A',
-                          opacity: 1 - (i * 0.06),
-                        }}
-                      >
-                        <span className="text-[10px] text-white whitespace-nowrap">
-                          {a.totalLTV.toLocaleString()}円
-                        </span>
+                {sorted.slice(0, 10).map((a, i) => {
+                  const value = sortKey === 'totalLTV' ? a.totalLTV : sortKey === 'patientCount' ? a.patientCount : sortKey === 'avgLTV' ? a.avgLTV : a.avgVisits
+                  const maxVal = sortKey === 'totalLTV' ? maxLTV : sorted[0]?.[sortKey] || 1
+                  const displayValue = sortKey === 'avgVisits' ? `${a.avgVisits}回` : sortKey === 'patientCount' ? `${a.patientCount}人` : `${value.toLocaleString()}円`
+                  return (
+                    <div key={a.area} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
+                      <span className="text-xs font-medium w-20 sm:w-28 truncate">{a.area}</span>
+                      <div className="flex-1 h-6 bg-gray-100 rounded overflow-hidden">
+                        <div
+                          className="h-full rounded flex items-center px-2"
+                          style={{
+                            width: `${Math.max((value / maxVal) * 100, 2)}%`,
+                            backgroundColor: '#14252A',
+                            opacity: 1 - (i * 0.06),
+                          }}
+                        >
+                          <span className="text-[10px] text-white whitespace-nowrap">
+                            {displayValue}
+                          </span>
+                        </div>
                       </div>
+                      <span className="text-[10px] text-gray-400 w-10 text-right">{a.patientCount}人</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 w-10 text-right">{a.patientCount}人</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
             {/* Mobile cards */}
             <div className="sm:hidden space-y-2">
               {sorted.map((a, i) => (
-                <div key={a.area} className="bg-white rounded-xl shadow-sm p-3">
+                <button key={a.area} onClick={() => setExpandedArea(expandedArea === a.area ? null : a.area)}
+                  className="w-full text-left bg-white rounded-xl shadow-sm p-3">
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
                       <span className="font-medium text-sm">{a.area}</span>
+                      <span className="text-[10px] text-gray-400 ml-1">{a.prefecture}</span>
                     </div>
                     <p className="font-bold text-sm" style={{ color: '#14252A' }}>{a.totalLTV.toLocaleString()}円</p>
                   </div>
@@ -200,7 +222,18 @@ export default function AreaLtvPage() {
                     <span>平均{a.avgLTV.toLocaleString()}円</span>
                     <span>来院{a.avgVisits}回</span>
                   </div>
-                </div>
+                  {expandedArea === a.area && a.topPatients.length > 0 && (
+                    <div className="border-t mt-2 pt-2 space-y-1">
+                      <p className="text-[10px] text-gray-400">LTV上位</p>
+                      {a.topPatients.map((p, j) => (
+                        <div key={j} className="flex justify-between text-xs">
+                          <span>{p.name}</span>
+                          <span className="text-gray-500">{p.ltv.toLocaleString()}円</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </button>
               ))}
             </div>
 
@@ -212,6 +245,7 @@ export default function AreaLtvPage() {
                     <tr className="bg-gray-50 border-b">
                       <th className="text-left px-3 py-2 text-xs text-gray-500">#</th>
                       <th className="text-left px-3 py-2 text-xs text-gray-500">エリア</th>
+                      <th className="text-left px-3 py-2 text-xs text-gray-500">都道府県</th>
                       <th className="text-right px-3 py-2 text-xs text-gray-500">患者数</th>
                       <th className="text-right px-3 py-2 text-xs text-gray-500">総LTV</th>
                       <th className="text-right px-3 py-2 text-xs text-gray-500">平均LTV</th>
@@ -221,9 +255,11 @@ export default function AreaLtvPage() {
                   </thead>
                   <tbody>
                     {sorted.map((a, i) => (
-                      <tr key={a.area} className="border-b hover:bg-gray-50">
+                      <tr key={a.area} className="border-b hover:bg-gray-50 cursor-pointer"
+                        onClick={() => setExpandedArea(expandedArea === a.area ? null : a.area)}>
                         <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                         <td className="px-3 py-2 font-medium">{a.area}</td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{a.prefecture}</td>
                         <td className="px-3 py-2 text-right">{a.patientCount}人</td>
                         <td className="px-3 py-2 text-right font-medium">{a.totalLTV.toLocaleString()}円</td>
                         <td className="px-3 py-2 text-right">{a.avgLTV.toLocaleString()}円</td>
@@ -233,6 +269,20 @@ export default function AreaLtvPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            {/* Insights */}
+            <div className="bg-blue-50 rounded-xl p-4 mt-4">
+              <h3 className="text-sm font-bold text-gray-700 mb-2">分析のポイント</h3>
+              <div className="space-y-1 text-xs text-gray-600">
+                {bestAvgArea && (
+                  <p>- 平均LTV最高エリアは<strong>{bestAvgArea.area}</strong>（{bestAvgArea.avgLTV.toLocaleString()}円 / {bestAvgArea.patientCount}人）</p>
+                )}
+                {sorted[0] && (
+                  <p>- 売上貢献1位は<strong>{sorted[0].area}</strong>（総LTV {sorted[0].totalLTV.toLocaleString()}円）</p>
+                )}
+                <p className="text-[10px] text-gray-400 mt-2">※ 行をタップすると上位患者を表示</p>
               </div>
             </div>
           </>

@@ -28,6 +28,7 @@ const menuCards = [
   { href: '/sales/map', icon: '📍', title: '地域分布', desc: '患者の地域分布マップ' },
   { href: '/sales/ad-costs', icon: '💳', title: '広告費入力', desc: '媒体別の広告費用管理' },
   { href: '/visits/new', icon: '📝', title: '施術記録', desc: '施術内容・料金・次回予約の記録' },
+  { href: '/visits/import', icon: '📥', title: '来院履歴CSV取込', desc: '他システムからの来院データ移行' },
 ]
 
 export default function SalesPage() {

@@ -72,7 +72,7 @@ export default function HomePage() {
         </div>
 
         {/* クイックアクション */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Link href="/patients/new" className="text-white rounded-xl p-3 text-center font-bold shadow-sm text-xs" style={{ background: '#14252A' }}>
             + 新規患者
           </Link>
@@ -81,6 +81,9 @@ export default function HomePage() {
           </Link>
           <Link href="/visits/quick" className="bg-green-600 text-white rounded-xl p-3 text-center font-bold shadow-sm text-xs">
             一括入力
+          </Link>
+          <Link href="/visits/import" className="bg-white border-2 border-gray-200 text-gray-700 rounded-xl p-3 text-center font-bold shadow-sm text-xs hover:bg-gray-50">
+            CSV取込
           </Link>
         </div>
 

@@ -61,12 +61,16 @@ export default function PatientsPage() {
       const now = Date.now()
       const merged: PatientWithStats[] = (patientsData || []).map(p => {
         const st = statsMap[p.id]
-        const lastVisit = st?.lastVisit || null
+        const slipRevenue = st?.revenue || 0
+        const lastVisit = st?.lastVisit || p.last_visit_date || null
         const daysSince = lastVisit ? Math.floor((now - new Date(lastVisit).getTime()) / (24 * 60 * 60 * 1000)) : null
+        // cm_patients.ltv（CSSインポート値）とスリップ計算値の大きい方を使用
+        const ltv = Math.max(p.ltv || 0, slipRevenue)
+        const visitCount = (p.ltv || 0) > slipRevenue ? (p.visit_count || st?.count || 0) : (st?.count || p.visit_count || 0)
         return {
           ...p,
-          calcVisitCount: st?.count || 0,
-          calcLtv: st?.revenue || 0,
+          calcVisitCount: visitCount,
+          calcLtv: ltv,
           calcLastVisit: lastVisit,
           calcDaysSince: daysSince,
         }

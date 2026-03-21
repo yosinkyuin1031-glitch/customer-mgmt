@@ -71,7 +71,12 @@ export default function SlipsPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-4">伝票一覧</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-800 text-lg">伝票一覧</h2>
+          <Link href="/visits/import" className="px-4 py-2 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50">
+            📥 CSV取込
+          </Link>
+        </div>
 
         <div className="flex gap-2 mb-4 flex-wrap">
           {[
