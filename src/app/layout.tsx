@@ -3,7 +3,7 @@ import './globals.css'
 import ClinicProvider from '@/components/ClinicProvider'
 
 export const metadata: Metadata = {
-  title: '顧客管理シート | 大口神経整体院',
+  title: '顧客管理シート',
   description: '患者情報・施術記録・来院履歴を一元管理',
 }
 

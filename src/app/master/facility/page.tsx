@@ -42,7 +42,7 @@ export default function FacilityPage() {
       <h2 className="font-bold text-gray-800 border-b pb-2">施設基本情報</h2>
       <div>
         <label className="block text-xs text-gray-600 mb-1">施設名</label>
-        <input value={form.facility_name} onChange={e => setForm({...form, facility_name: e.target.value})} className={inputClass} placeholder="大口神経整体院" />
+        <input value={form.facility_name} onChange={e => setForm({...form, facility_name: e.target.value})} className={inputClass} placeholder="例：○○整骨院" />
       </div>
       <div>
         <label className="block text-xs text-gray-600 mb-1">住所</label>

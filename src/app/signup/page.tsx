@@ -124,7 +124,7 @@ function SignupForm() {
               value={clinicName}
               onChange={(e) => setClinicName(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
-              placeholder="例：大口神経整体院"
+              placeholder="例：○○整骨院"
               required
             />
           </div>

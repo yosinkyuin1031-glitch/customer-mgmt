@@ -30,7 +30,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-white">顧客管理シート</h1>
-          <p className="text-gray-300 text-sm mt-1">大口神経整体院</p>
+          <p className="text-gray-300 text-sm mt-1">治療院向け顧客管理システム</p>
         </div>
 
         <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-xl p-6 space-y-4">

@@ -23,6 +23,7 @@ const PLAN_DESCRIPTIONS: Record<PlanType, string> = {
 export default function SettingsPage() {
   const supabase = createClient()
   const [email, setEmail] = useState('')
+  const [clinicName, setClinicName] = useState('')
   const [plan, setPlan] = useState<PlanType>('free')
   const [stripeCustomerId, setStripeCustomerId] = useState<string | null>(null)
   const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null)
@@ -39,11 +40,12 @@ export default function SettingsPage() {
       // クリニック情報を取得
       const { data: clinic } = await supabase
         .from('clinics')
-        .select('plan, stripe_customer_id, plan_expires_at')
+        .select('name, plan, stripe_customer_id, plan_expires_at')
         .eq('id', clinicId)
         .single()
 
       if (clinic) {
+        setClinicName(clinic.name || '')
         setPlan((clinic.plan as PlanType) || 'free')
         setStripeCustomerId(clinic.stripe_customer_id || null)
         setPlanExpiresAt(clinic.plan_expires_at || null)
@@ -120,8 +122,7 @@ export default function SettingsPage() {
         <div className="bg-white rounded-xl shadow-sm p-4">
           <h3 className="font-bold text-gray-800 text-sm mb-3">院情報</h3>
           <div className="space-y-1 text-sm text-gray-600">
-            <p>大口神経整体院</p>
-            <p>大阪市住吉区長居</p>
+            <p>{clinicName || '未設定'}</p>
           </div>
         </div>
 
