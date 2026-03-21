@@ -434,6 +434,42 @@ export default function ImportPage() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h3 className="font-bold text-gray-800 mb-4">CSVファイルをアップロード</h3>
 
+            {/* テンプレートダウンロード */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="font-bold text-green-800 text-sm mb-2">テンプレートをダウンロード</p>
+              <p className="text-xs text-green-700 mb-3">Excelやスプレッドシートで開いて、患者情報を入力してからCSVで保存してください。</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const bom = '\uFEFF'
+                    const csv = bom + '氏名,ふりがな,性別,電話番号,メールアドレス,郵便番号,住所,生年月日,職業,来院経路,主訴,既往歴,備考,初回来院日,来院回数\n山田 太郎,やまだ たろう,男性,090-1234-5678,yamada@example.com,530-0001,大阪市北区梅田1-1-1,1985/04/15,会社員,ホームページ,腰痛,特になし,定期メンテナンス,2024/01/10,5\n'
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url; a.download = '患者インポートテンプレート.csv'; a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"
+                >
+                  患者テンプレート（CSV）
+                </button>
+                <button
+                  onClick={() => {
+                    const bom = '\uFEFF'
+                    const csv = bom + '患者名,来院日,施術メニュー,合計金額,担当者,支払方法,備考\n山田 太郎,2024/01/10,整体コース,8800,田中,現金,初回割引適用\n山田 太郎,2024/01/24,整体コース,8800,田中,現金,\n'
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url; a.download = '来院履歴インポートテンプレート.csv'; a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="px-4 py-2 bg-white border border-green-600 text-green-700 text-xs font-bold rounded-lg hover:bg-green-50"
+                >
+                  来院履歴テンプレート（CSV）
+                </button>
+              </div>
+            </div>
+
             <div className="bg-blue-50 rounded-lg p-4 mb-4 text-sm text-blue-800">
               <p className="font-bold mb-1">対応フォーマット</p>
               <ul className="list-disc pl-4 space-y-0.5 text-xs">

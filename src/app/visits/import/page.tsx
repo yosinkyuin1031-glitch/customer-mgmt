@@ -400,6 +400,26 @@ export default function SlipImportPage() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h3 className="font-bold text-gray-800 mb-4">来院履歴CSVをアップロード</h3>
 
+            {/* テンプレートダウンロード */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="font-bold text-green-800 text-sm mb-2">テンプレートをダウンロード</p>
+              <p className="text-xs text-green-700 mb-3">Excelやスプレッドシートで開いて、来院履歴を入力してからCSVで保存してください。</p>
+              <button
+                onClick={() => {
+                  const bom = '\uFEFF'
+                  const csv = bom + '患者名,来院日,施術メニュー,合計金額,基本料金,オプション料金,割引,担当者,支払方法,施術時間,備考\n山田 太郎,2024/01/10,整体コース,8800,8800,0,0,田中,現金,60,初回割引適用\n山田 太郎,2024/01/24,整体コース,8800,8800,0,0,田中,現金,60,\n鈴木 花子,2024/01/15,骨盤矯正,6600,6600,0,0,佐藤,クレジット,40,\n'
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = '来院履歴インポートテンプレート.csv'; a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className="px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700"
+              >
+                来院履歴テンプレート（CSV）
+              </button>
+            </div>
+
             <div className="bg-blue-50 rounded-lg p-4 mb-4 text-sm text-blue-800">
               <p className="font-bold mb-1">対応フォーマット</p>
               <ul className="list-disc pl-4 space-y-0.5 text-xs">
