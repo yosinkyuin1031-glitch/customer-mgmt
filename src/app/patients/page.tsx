@@ -207,6 +207,9 @@ export default function PatientsPage() {
           <Link href="/patients/import" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
             📥 CSVインポート
           </Link>
+          <Link href="/patients/bulk-edit" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            📝 一括編集
+          </Link>
           <button onClick={() => setShowCsvModal(true)} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
             📤 CSV出力
           </button>
