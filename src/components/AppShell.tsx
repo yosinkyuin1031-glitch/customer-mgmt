@@ -7,7 +7,6 @@ import { useState } from 'react'
 const mainTabs = [
   { key: 'home', href: '/', label: 'ホーム', icon: '🏠' },
   { key: 'patients', href: '/patients', label: '顧客管理', icon: '👥' },
-  { key: 'reservation', href: '/reservation', label: '予約管理', icon: '📅' },
   { key: 'sales', href: '/sales', label: '営業データ', icon: '📊' },
   { key: 'master', href: '/master', label: 'マスター', icon: '⚙️' },
 ]
@@ -17,7 +16,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const activeTab = pathname.startsWith('/master') ? 'master'
-    : pathname.startsWith('/reservation') ? 'reservation'
     : pathname.startsWith('/patients') ? 'patients'
     : pathname.startsWith('/sales') || pathname.startsWith('/visits') ? 'sales'
     : 'home'

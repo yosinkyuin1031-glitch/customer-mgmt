@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
@@ -19,63 +19,97 @@ interface PatientLTV {
   daysSince: number | null
 }
 
+interface SlipRow {
+  patient_id: string
+  patient_name: string
+  visit_date: string
+  total_price: number
+}
+
+type PeriodKey = 'all' | '1m' | '3m' | '6m' | '1y' | 'custom'
+
+function getDateRange(period: PeriodKey, customFrom: string, customTo: string): { from: string | null; to: string | null } {
+  const today = new Date()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  const to = fmt(today)
+  switch (period) {
+    case '1m': { const d = new Date(today); d.setMonth(d.getMonth() - 1); return { from: fmt(d), to } }
+    case '3m': { const d = new Date(today); d.setMonth(d.getMonth() - 3); return { from: fmt(d), to } }
+    case '6m': { const d = new Date(today); d.setMonth(d.getMonth() - 6); return { from: fmt(d), to } }
+    case '1y': { const d = new Date(today); d.setFullYear(d.getFullYear() - 1); return { from: fmt(d), to } }
+    case 'custom': return { from: customFrom || null, to: customTo || to }
+    default: return { from: null, to: null }
+  }
+}
+
 export default function LtvPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
-  const [patients, setPatients] = useState<PatientLTV[]>([])
+  const [allSlips, setAllSlips] = useState<SlipRow[]>([])
+  const [nameMap, setNameMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<'ltv' | 'visit_count' | 'days'>('ltv')
+  const [period, setPeriod] = useState<PeriodKey>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-
-      // cm_slipsから全件取得（1000件制限回避）
-      const slips = await fetchAllSlips(supabase, 'patient_id, patient_name, visit_date, total_price') as { patient_id: string; patient_name: string; visit_date: string; total_price: number }[]
-
+      const slips = await fetchAllSlips(supabase, 'patient_id, patient_name, visit_date, total_price') as SlipRow[]
       const { data: patientList } = await supabase
         .from('cm_patients')
         .select('id, name')
         .eq('clinic_id', clinicId)
 
-      if (!slips || slips.length === 0) { setLoading(false); return }
-
-      const nameMap: Record<string, string> = {}
-      patientList?.forEach(p => { nameMap[p.id] = p.name })
-
-      // 患者ごとに集計
-      const patMap: Record<string, { count: number, revenue: number, first: string, last: string, name: string }> = {}
-      slips.forEach(s => {
-        const pid = s.patient_id || 'unknown'
-        if (!patMap[pid]) {
-          patMap[pid] = { count: 0, revenue: 0, first: s.visit_date, last: s.visit_date, name: nameMap[pid] || s.patient_name || '不明' }
-        }
-        patMap[pid].count++
-        patMap[pid].revenue += s.total_price || 0
-        if (s.visit_date < patMap[pid].first) patMap[pid].first = s.visit_date
-        if (s.visit_date > patMap[pid].last) patMap[pid].last = s.visit_date
-      })
-
-      const now = Date.now()
-      const result: PatientLTV[] = Object.entries(patMap)
-        .filter(([id]) => id !== 'unknown')
-        .map(([id, d]) => ({
-          id,
-          name: d.name,
-          visitCount: d.count,
-          ltv: d.revenue,
-          avgPrice: d.count > 0 ? Math.round(d.revenue / d.count) : 0,
-          firstVisit: d.first,
-          lastVisit: d.last,
-          daysSince: Math.floor((now - new Date(d.last).getTime()) / (24 * 60 * 60 * 1000)),
-        }))
-        .sort((a, b) => b.ltv - a.ltv)
-
-      setPatients(result)
+      const nm: Record<string, string> = {}
+      patientList?.forEach(p => { nm[p.id] = p.name })
+      setNameMap(nm)
+      setAllSlips(slips || [])
       setLoading(false)
     }
     load()
   }, [])
+
+  const patients = useMemo(() => {
+    if (allSlips.length === 0) return []
+    const { from, to } = getDateRange(period, customFrom, customTo)
+
+    // 期間でフィルタ
+    const filtered = allSlips.filter(s => {
+      if (from && s.visit_date < from) return false
+      if (to && s.visit_date > to) return false
+      return true
+    })
+
+    // 患者ごとに集計
+    const patMap: Record<string, { count: number; revenue: number; first: string; last: string; name: string }> = {}
+    filtered.forEach(s => {
+      const pid = s.patient_id || 'unknown'
+      if (!patMap[pid]) {
+        patMap[pid] = { count: 0, revenue: 0, first: s.visit_date, last: s.visit_date, name: nameMap[pid] || s.patient_name || '不明' }
+      }
+      patMap[pid].count++
+      patMap[pid].revenue += s.total_price || 0
+      if (s.visit_date < patMap[pid].first) patMap[pid].first = s.visit_date
+      if (s.visit_date > patMap[pid].last) patMap[pid].last = s.visit_date
+    })
+
+    const now = Date.now()
+    return Object.entries(patMap)
+      .filter(([id]) => id !== 'unknown')
+      .map(([id, d]): PatientLTV => ({
+        id,
+        name: d.name,
+        visitCount: d.count,
+        ltv: d.revenue,
+        avgPrice: d.count > 0 ? Math.round(d.revenue / d.count) : 0,
+        firstVisit: d.first,
+        lastVisit: d.last,
+        daysSince: Math.floor((now - new Date(d.last).getTime()) / (24 * 60 * 60 * 1000)),
+      }))
+      .sort((a, b) => b.ltv - a.ltv)
+  }, [allSlips, nameMap, period, customFrom, customTo])
 
   const sorted = [...patients].sort((a, b) => {
     if (sortKey === 'ltv') return b.ltv - a.ltv
@@ -85,6 +119,12 @@ export default function LtvPage() {
 
   const totalLTV = patients.reduce((sum, p) => sum + p.ltv, 0)
   const avgLTV = patients.length > 0 ? Math.round(totalLTV / patients.length) : 0
+
+  const periodLabel = (() => {
+    const { from, to } = getDateRange(period, customFrom, customTo)
+    if (!from) return '全期間'
+    return `${from} 〜 ${to}`
+  })()
 
   return (
     <AppShell>
@@ -98,7 +138,40 @@ export default function LtvPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-4">LTV（顧客生涯価値）分析</h2>
+        <h2 className="font-bold text-gray-800 text-lg mb-3">LTV（顧客生涯価値）分析</h2>
+
+        {/* 期間選択 */}
+        <div className="bg-white rounded-xl shadow-sm p-3 mb-4">
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-gray-500 mr-1">期間:</span>
+            {([
+              { key: 'all' as PeriodKey, label: '全期間' },
+              { key: '1m' as PeriodKey, label: '1ヶ月' },
+              { key: '3m' as PeriodKey, label: '3ヶ月' },
+              { key: '6m' as PeriodKey, label: '6ヶ月' },
+              { key: '1y' as PeriodKey, label: '1年' },
+              { key: 'custom' as PeriodKey, label: 'カスタム' },
+            ]).map(p => (
+              <button key={p.key} onClick={() => setPeriod(p.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  period === p.key ? 'bg-[#14252A] text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >{p.label}</button>
+            ))}
+          </div>
+          {period === 'custom' && (
+            <div className="flex gap-2 mt-2 items-center">
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 rounded text-sm" />
+              <span className="text-xs text-gray-400">〜</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                className="px-2 py-1.5 border border-gray-300 rounded text-sm" />
+            </div>
+          )}
+          {period !== 'all' && (
+            <p className="text-xs text-gray-400 mt-1.5">{periodLabel}</p>
+          )}
+        </div>
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
