@@ -37,21 +37,21 @@ const DEFAULT_TEMPLATES: SMSTemplate[] = [
   {
     id: 'followup',
     name: 'フォローアップ',
-    text: '{patient_name}様\n大口神経整体院です。前回のご来院から{days}日が経ちました。お身体の調子はいかがですか？\nご予約▶{reservation_url}',
+    text: '{patient_name}様、ご来院ありがとうございました。お体の調子はいかがでしょうか？次回のご予約をお待ちしております。',
   },
   {
-    id: 'info',
-    name: 'お知らせ',
-    text: '{patient_name}様\n大口神経整体院よりお知らせです。\n\n{reservation_url}',
+    id: 'revisit',
+    name: '再来院促進',
+    text: '{patient_name}様、前回のご来院から日数が経っております。お体の調子を拝見させてください。ご予約お待ちしております。',
   },
   {
     id: 'campaign',
     name: 'キャンペーン',
-    text: '{patient_name}様\n大口神経整体院です。今月のキャンペーンのご案内です。\n\n詳細▶{reservation_url}',
+    text: '{patient_name}様、当院よりお知らせです。',
   },
   {
     id: 'custom',
-    name: '自由入力',
+    name: 'カスタム',
     text: '',
   },
 ]
@@ -111,6 +111,7 @@ export default function SMSPage() {
 
   // Step 1: 患者選択
   const [patients, setPatients] = useState<PatientWithStats[]>([])
+  const [couponLowIds, setCouponLowIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string>('all')
@@ -134,12 +135,26 @@ export default function SMSPage() {
   // 患者データ読み込み
   useEffect(() => {
     const load = async () => {
-      const { data: patientsData } = await supabase
-        .from('cm_patients')
-        .select('*')
-        .eq('clinic_id', clinicId)
-        .eq('status', 'active')
-        .order('name', { ascending: true })
+      const [{ data: patientsData }, { data: couponData }] = await Promise.all([
+        supabase
+          .from('cm_patients')
+          .select('*')
+          .eq('clinic_id', clinicId)
+          .eq('status', 'active')
+          .order('name', { ascending: true }),
+        supabase
+          .from('cm_coupon_books')
+          .select('patient_id, remaining')
+          .eq('clinic_id', clinicId),
+      ])
+
+      // 回数券残りわずか（残り1〜2回）の患者IDセット
+      const lowIds = new Set<string>(
+        (couponData || [])
+          .filter((c: { remaining: number }) => c.remaining > 0 && c.remaining <= 2)
+          .map((c: { patient_id: string }) => c.patient_id)
+      )
+      setCouponLowIds(lowIds)
 
       // cm_slipsから最終来院日を取得
       const slips = await fetchAllSlips(supabase, 'patient_id, visit_date')
@@ -174,8 +189,8 @@ export default function SMSPage() {
     // クイックフィルタ
     if (filter === 'no_visit_30') {
       list = list.filter(p => p.calcDaysSince !== null && p.calcDaysSince >= 30)
-    } else if (filter === 'no_visit_60') {
-      list = list.filter(p => p.calcDaysSince !== null && p.calcDaysSince >= 60)
+    } else if (filter === 'coupon_low') {
+      list = list.filter(p => couponLowIds.has(p.id))
     } else if (filter === 'new_this_month') {
       const monthStart = new Date().toISOString().slice(0, 7) + '-01'
       list = list.filter(p => p.first_visit_date && p.first_visit_date >= monthStart)
@@ -193,7 +208,7 @@ export default function SMSPage() {
     }
 
     return list
-  }, [patients, search, filter])
+  }, [patients, search, filter, couponLowIds])
 
   // 選択された患者のリスト
   const selectedPatients = useMemo(() => {
@@ -383,7 +398,7 @@ export default function SMSPage() {
                 {[
                   { key: 'all', label: '全患者' },
                   { key: 'no_visit_30', label: '30日以上未来院' },
-                  { key: 'no_visit_60', label: '60日以上未来院' },
+                  { key: 'coupon_low', label: '回数券残りわずか' },
                   { key: 'new_this_month', label: '今月の新規' },
                 ].map(f => (
                   <button
