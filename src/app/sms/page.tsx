@@ -318,7 +318,7 @@ export default function SMSPage() {
   const handleReset = () => {
     setStep(1)
     setSelectedIds(new Set())
-    setSelectedTemplateId('followup')
+    setSelectedTemplateId(DEFAULT_TEMPLATES[0].id)
     setMessageText(DEFAULT_TEMPLATES[0].text)
     setSent(false)
   }
