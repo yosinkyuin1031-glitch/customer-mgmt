@@ -7,6 +7,8 @@ import { useState } from 'react'
 const mainTabs = [
   { key: 'home', href: '/', label: 'ホーム', icon: '🏠' },
   { key: 'patients', href: '/patients', label: '顧客管理', icon: '👥' },
+  { key: 'coupon-books', href: '/coupon-books', label: '回数券', icon: '🎫' },
+  { key: 'sms', href: '/sms', label: 'SMS送信', icon: '💬' },
   { key: 'sales', href: '/sales', label: '営業データ', icon: '📊' },
   { key: 'master', href: '/master', label: 'マスター', icon: '⚙️' },
 ]
@@ -17,6 +19,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const activeTab = pathname.startsWith('/master') ? 'master'
     : pathname.startsWith('/patients') ? 'patients'
+    : pathname.startsWith('/coupon-books') ? 'coupon-books'
+    : pathname.startsWith('/sms') ? 'sms'
     : pathname.startsWith('/sales') || pathname.startsWith('/visits') ? 'sales'
     : 'home'
 

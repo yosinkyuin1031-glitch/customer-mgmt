@@ -105,6 +105,32 @@ export const RESERVATION_STATUSES = {
   no_show: '無断キャンセル',
 } as const
 
+export interface CouponBook {
+  id: string
+  clinic_id: string
+  patient_id: string
+  patient_name: string
+  coupon_type: string
+  total_count: number
+  used_count: number
+  remaining_count: number // computed
+  purchase_date: string
+  purchase_amount: number
+  unit_price: number // computed
+  expiry_date: string | null
+  status: 'active' | 'completed' | 'expired' | 'refunded'
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const COUPON_TYPES = [
+  { label: '15回券', count: 15, price: 150000 },
+  { label: '30回券', count: 30, price: 285000 },
+  { label: '45回券', count: 45, price: 405000 },
+  { label: 'カスタム', count: 0, price: 0 },
+] as const
+
 export const PREFECTURES = [
   '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
   '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
