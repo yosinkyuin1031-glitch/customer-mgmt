@@ -7,8 +7,8 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
-import type { Patient, Slip } from '@/lib/types'
-import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
+import type { Patient, Slip, CouponBook } from '@/lib/types'
+import { REFERRAL_SOURCES, PREFECTURES, COUPON_TYPES } from '@/lib/types'
 
 export default function PatientDetailPage() {
   const supabase = createClient()
@@ -24,6 +24,18 @@ export default function PatientDetailPage() {
   const [showAllSlips, setShowAllSlips] = useState(false)
   const [editingSlip, setEditingSlip] = useState<string | null>(null)
   const [slipForm, setSlipForm] = useState<Partial<Slip>>({})
+  const [couponBooks, setCouponBooks] = useState<CouponBook[]>([])
+  const [couponLoaded, setCouponLoaded] = useState(false)
+  const [showCouponForm, setShowCouponForm] = useState(false)
+  const [couponForm, setCouponForm] = useState({
+    coupon_type: '15回券',
+    total_count: 15,
+    purchase_amount: 150000,
+    purchase_date: new Date().toISOString().split('T')[0],
+    expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    notes: '',
+  })
+  const [couponUsing, setCouponUsing] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -34,6 +46,16 @@ export default function PatientDetailPage() {
       }
       const { data: s } = await supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).eq('patient_id', id).order('visit_date', { ascending: false })
       setSlips(s || [])
+      // 回数券を読み込み（テーブルが存在しない場合はスキップ）
+      try {
+        const { data: cb, error: cbErr } = await supabase.from('cm_coupon_books').select('*').eq('clinic_id', clinicId).eq('patient_id', id).order('purchase_date', { ascending: false })
+        if (!cbErr) {
+          setCouponBooks(cb || [])
+          setCouponLoaded(true)
+        }
+      } catch {
+        // テーブルが存在しない場合はスキップ
+      }
       setLoading(false)
     }
     load()
@@ -69,6 +91,67 @@ export default function PatientDetailPage() {
     await supabase.from('cm_slips').delete().eq('id', slipId)
     setSlips(slips.filter(s => s.id !== slipId))
     setEditingSlip(null)
+  }
+
+  // 回数券: 1回使用
+  const handleCouponUse = async (coupon: CouponBook) => {
+    setCouponUsing(coupon.id)
+    const newUsed = coupon.used_count + 1
+    const newStatus = newUsed >= coupon.total_count ? 'completed' : coupon.status
+    const { error } = await supabase.from('cm_coupon_books').update({
+      used_count: newUsed,
+      status: newStatus,
+    }).eq('id', coupon.id)
+    if (!error) {
+      setCouponBooks(couponBooks.map(cb =>
+        cb.id === coupon.id
+          ? { ...cb, used_count: newUsed, remaining_count: cb.total_count - newUsed, status: newStatus as CouponBook['status'] }
+          : cb
+      ))
+    }
+    setCouponUsing(null)
+  }
+
+  // 回数券: 新規登録
+  const handleCouponCreate = async () => {
+    if (!patient) return
+    const { data, error } = await supabase.from('cm_coupon_books').insert({
+      clinic_id: clinicId,
+      patient_id: id,
+      patient_name: patient.name,
+      coupon_type: couponForm.coupon_type,
+      total_count: couponForm.total_count,
+      used_count: 0,
+      purchase_date: couponForm.purchase_date,
+      purchase_amount: couponForm.purchase_amount,
+      expiry_date: couponForm.expiry_date || null,
+      status: 'active',
+      notes: couponForm.notes || null,
+    }).select().single()
+    if (!error && data) {
+      setCouponBooks([data, ...couponBooks])
+      setShowCouponForm(false)
+      setCouponForm({
+        coupon_type: '15回券',
+        total_count: 15,
+        purchase_amount: 150000,
+        purchase_date: new Date().toISOString().split('T')[0],
+        expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        notes: '',
+      })
+    }
+  }
+
+  // 回数券: 券種変更ハンドラ
+  const handleCouponTypeChange = (label: string) => {
+    const ct = COUPON_TYPES.find(t => t.label === label)
+    if (ct) {
+      if (ct.label === 'カスタム') {
+        setCouponForm({ ...couponForm, coupon_type: label, total_count: 0, purchase_amount: 0 })
+      } else {
+        setCouponForm({ ...couponForm, coupon_type: label, total_count: ct.count, purchase_amount: ct.price })
+      }
+    }
   }
 
   const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
@@ -343,6 +426,133 @@ export default function PatientDetailPage() {
         >
           + この患者の施術記録を追加
         </Link>
+
+        {/* 回数券セクション */}
+        {couponLoaded && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-bold text-gray-800">回数券
+                {couponBooks.length > 0 && <span className="text-xs text-gray-400 font-normal ml-1">（{couponBooks.length}件）</span>}
+              </h3>
+              <button
+                onClick={() => setShowCouponForm(!showCouponForm)}
+                className="text-xs px-3 py-1.5 rounded-lg font-bold text-white"
+                style={{ background: '#14252A' }}
+              >
+                {showCouponForm ? '閉じる' : '+ 回数券を登録'}
+              </button>
+            </div>
+
+            {/* 簡易登録フォーム */}
+            {showCouponForm && (
+              <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-200">
+                <p className="text-xs font-bold text-gray-700 mb-3">回数券を新規登録</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">券種</label>
+                    <select
+                      value={couponForm.coupon_type}
+                      onChange={e => handleCouponTypeChange(e.target.value)}
+                      className={inputClass}
+                    >
+                      {COUPON_TYPES.map(ct => (
+                        <option key={ct.label} value={ct.label}>{ct.label}{ct.price > 0 ? `（¥${ct.price.toLocaleString()}）` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {couponForm.coupon_type === 'カスタム' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">回数</label>
+                        <input type="number" value={couponForm.total_count || ''} onChange={e => setCouponForm({ ...couponForm, total_count: parseInt(e.target.value) || 0 })} className={inputClass} placeholder="例: 10" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">金額</label>
+                        <input type="number" value={couponForm.purchase_amount || ''} onChange={e => setCouponForm({ ...couponForm, purchase_amount: parseInt(e.target.value) || 0 })} className={inputClass} placeholder="例: 100000" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">購入日</label>
+                      <input type="date" value={couponForm.purchase_date} onChange={e => setCouponForm({ ...couponForm, purchase_date: e.target.value })} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">有効期限</label>
+                      <input type="date" value={couponForm.expiry_date} onChange={e => setCouponForm({ ...couponForm, expiry_date: e.target.value })} className={inputClass} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">メモ</label>
+                    <input value={couponForm.notes} onChange={e => setCouponForm({ ...couponForm, notes: e.target.value })} className={inputClass} placeholder="任意" />
+                  </div>
+                  <button
+                    onClick={handleCouponCreate}
+                    disabled={couponForm.total_count <= 0}
+                    className="w-full text-white py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                    style={{ background: '#14252A' }}
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 回数券一覧 */}
+            {couponBooks.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-2">回数券はまだ登録されていません</p>
+            ) : (
+              <div className="space-y-3">
+                {couponBooks.map(cb => {
+                  const usageRate = cb.total_count > 0 ? cb.used_count / cb.total_count : 0
+                  const barColor = usageRate < 0.5 ? '#3B82F6' : usageRate < 0.8 ? '#F59E0B' : '#EF4444'
+                  const statusLabel: Record<string, string> = { active: '利用中', completed: '使い切り', expired: '期限切れ', refunded: '返金済' }
+                  const statusColor: Record<string, string> = { active: 'bg-green-100 text-green-700', completed: 'bg-blue-100 text-blue-700', expired: 'bg-gray-100 text-gray-500', refunded: 'bg-red-100 text-red-600' }
+                  return (
+                    <div key={cb.id} className="border border-gray-200 rounded-xl p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-gray-800">{cb.coupon_type}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusColor[cb.status] || 'bg-gray-100 text-gray-500'}`}>
+                            {statusLabel[cb.status] || cb.status}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">¥{cb.purchase_amount.toLocaleString()}</span>
+                      </div>
+                      {/* プログレスバー */}
+                      <div className="mb-2">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>使用 {cb.used_count} / {cb.total_count} 回</span>
+                          <span>残り {cb.remaining_count} 回</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div className="h-2.5 rounded-full transition-all" style={{ width: `${usageRate * 100}%`, backgroundColor: barColor }} />
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-gray-500">
+                        <div>
+                          <span>購入: {cb.purchase_date}</span>
+                          {cb.expiry_date && <span className="ml-2">期限: {cb.expiry_date}</span>}
+                        </div>
+                        {cb.status === 'active' && cb.remaining_count > 0 && (
+                          <button
+                            onClick={() => handleCouponUse(cb)}
+                            disabled={couponUsing === cb.id}
+                            className="px-3 py-1.5 rounded-lg text-white text-xs font-bold disabled:opacity-50"
+                            style={{ background: '#14252A' }}
+                          >
+                            {couponUsing === cb.id ? '処理中...' : '1回使用'}
+                          </button>
+                        )}
+                      </div>
+                      {cb.notes && <p className="text-xs text-gray-400 mt-1">{cb.notes}</p>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 来院・売上履歴（cm_slips） */}
         {slips.length > 0 && (
