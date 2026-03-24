@@ -36,12 +36,26 @@ function VisitForm() {
   const searchParams = useSearchParams()
   const preselectedPatientId = searchParams.get('patient_id') || ''
 
+  interface CouponBook {
+    id: string
+    patient_id: string
+    patient_name: string
+    coupon_type: string
+    total_count: number
+    used_count: number
+    remaining_count: number
+    status: string
+    expiry_date: string | null
+  }
+
   const [patients, setPatients] = useState<Patient[]>([])
   const [baseMenus, setBaseMenus] = useState<BaseMenu[]>([])
   const [optionMenus, setOptionMenus] = useState<OptionMenu[]>([])
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [patientCoupons, setPatientCoupons] = useState<CouponBook[]>([])
+  const [selectedCouponId, setSelectedCouponId] = useState<string>('')
 
   const [form, setForm] = useState({
     patient_id: preselectedPatientId,
@@ -83,6 +97,26 @@ function VisitForm() {
     : []
 
   const selectedPatient = patients.find(p => p.id === form.patient_id)
+
+  // 患者選択時にアクティブな回数券を取得
+  useEffect(() => {
+    if (!form.patient_id) {
+      setPatientCoupons([])
+      setSelectedCouponId('')
+      return
+    }
+    const loadCoupons = async () => {
+      const { data } = await supabase
+        .from('cm_coupon_books')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .eq('patient_id', form.patient_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      setPatientCoupons(data || [])
+    }
+    loadCoupons()
+  }, [form.patient_id])
 
   // 基本メニュー選択
   const selectBaseMenu = (menu: BaseMenu) => {
@@ -190,6 +224,19 @@ function VisitForm() {
     if (!error) {
       // 患者のupdated_atを更新
       await supabase.from('cm_patients').update({ updated_at: new Date().toISOString() }).eq('id', form.patient_id)
+
+      // 回数券選択時は自動消化（used_count +1）
+      if (form.payment_method === '回数券' && selectedCouponId) {
+        const coupon = patientCoupons.find(c => c.id === selectedCouponId)
+        if (coupon) {
+          const newUsed = coupon.used_count + 1
+          const newStatus = newUsed >= coupon.total_count ? 'completed' : 'active'
+          await supabase.from('cm_coupon_books').update({
+            used_count: newUsed,
+            status: newStatus,
+          }).eq('id', selectedCouponId)
+        }
+      }
 
       setSaved(true)
       setTimeout(() => {
@@ -418,6 +465,43 @@ function VisitForm() {
             ))}
           </div>
         </div>
+
+        {/* 回数券選択（支払方法で「回数券」を選んだ場合のみ表示） */}
+        {form.payment_method === '回数券' && form.patient_id && (
+          <div className="mt-3">
+            <label className="block text-xs text-gray-600 mb-1">使用する回数券を選択</label>
+            {patientCoupons.length === 0 ? (
+              <p className="text-xs text-red-500 bg-red-50 rounded-lg p-3">この患者さんにアクティブな回数券がありません</p>
+            ) : (
+              <div className="space-y-2">
+                {patientCoupons.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCouponId(c.id)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg border-2 transition-all ${
+                      selectedCouponId === c.id
+                        ? 'border-[#14252A] bg-blue-50'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">{c.coupon_type}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        c.remaining_count <= 5 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                      }`}>
+                        残り{c.remaining_count}回
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {c.used_count}/{c.total_count}回使用済み
+                      {c.expiry_date && ` ・ 期限: ${c.expiry_date}`}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* メモ（任意） */}

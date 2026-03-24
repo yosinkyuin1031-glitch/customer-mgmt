@@ -14,7 +14,7 @@ interface TodaySlip extends Slip {
 
 interface ChurnPatient extends Patient {
   daysSince: number
-  level: 'warning' | 'danger' | 'critical'
+  level: 'warning' | 'danger'
 }
 
 interface Advice {
@@ -24,28 +24,24 @@ interface Advice {
   priority: 'high' | 'medium' | 'low'
 }
 
-function getChurnLevel(days: number): 'warning' | 'danger' | 'critical' {
-  if (days >= 91) return 'critical'
-  if (days >= 61) return 'danger'
+function getChurnLevel(days: number): 'warning' | 'danger' {
+  if (days >= 45) return 'danger'
   return 'warning'
 }
 
-function getChurnStyle(level: 'warning' | 'danger' | 'critical') {
+function getChurnStyle(level: 'warning' | 'danger') {
   switch (level) {
     case 'warning':
       return { bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-800', badge: 'bg-yellow-100 text-yellow-700', label: '注意' }
     case 'danger':
       return { bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-700', label: '警告' }
-    case 'critical':
-      return { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-800', badge: 'bg-red-100 text-red-700', label: '危険' }
   }
 }
 
-function getChurnMessage(level: 'warning' | 'danger' | 'critical') {
+function getChurnMessage(level: 'warning' | 'danger') {
   switch (level) {
     case 'warning': return 'フォローのタイミングです'
     case 'danger': return '離反リスクが高まっています'
-    case 'critical': return '離反の可能性が高いです'
   }
 }
 
@@ -247,15 +243,16 @@ export default function HomePage() {
       const lastMonthStart = lastMonth.toISOString().split('T')[0]
       const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().split('T')[0]
 
-      // 30日前の日付
+      // 離反アラート範囲: 30日〜60日未来院（2ヶ月以内のみ表示）
       const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const sixtyDaysAgo = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
       const [patientsRes, todayRes, monthRes, churnRes, lastMonthSlipsRes, allActiveRes] = await Promise.all([
         supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('updated_at', { ascending: false }).limit(5),
         supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).eq('visit_date', todayStr).order('created_at', { ascending: false }),
         supabase.from('cm_slips').select('id, total_price', { count: 'exact' }).eq('clinic_id', clinicId).gte('visit_date', monthStart),
-        // 離反アラート: 30日以上未来院のアクティブ患者
-        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').lte('last_visit_date', thirtyDaysAgo).order('last_visit_date', { ascending: true }),
+        // 離反アラート: 30〜60日未来院のアクティブ患者（2ヶ月以内のみ）
+        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').lte('last_visit_date', thirtyDaysAgo).gte('last_visit_date', sixtyDaysAgo).order('last_visit_date', { ascending: true }),
         // 先月の施術データ
         supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).gte('visit_date', lastMonthStart).lte('visit_date', lastMonthEnd),
         // 全アクティブ患者（アドバイス用）
@@ -310,7 +307,7 @@ export default function HomePage() {
 
         if (activeCoupons) {
           const todayDate = new Date(todayStr)
-          const low = activeCoupons.filter(c => c.remaining_count <= 3 && c.remaining_count > 0)
+          const low = activeCoupons.filter(c => c.remaining_count <= 5 && c.remaining_count > 0)
           const expiring = activeCoupons.filter(c => {
             if (!c.expiry_date) return false
             const diff = (new Date(c.expiry_date).getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)

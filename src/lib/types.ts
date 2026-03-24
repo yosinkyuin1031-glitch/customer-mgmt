@@ -28,6 +28,7 @@ export interface Patient {
   days_since_last_visit: number | null
   line_date: string | null
   line_count: number
+  patient_number: number | null
   created_at: string
   updated_at: string
 }

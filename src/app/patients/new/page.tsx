@@ -115,10 +115,21 @@ export default function NewPatientPage() {
   const handleSave = async () => {
     if (!form.name) return
     setSaving(true)
+
+    // 患者番号を自動採番（clinic_id内の最大値+1）
+    const { data: maxRes } = await supabase
+      .from('cm_patients')
+      .select('patient_number')
+      .eq('clinic_id', clinicId)
+      .order('patient_number', { ascending: false })
+      .limit(1)
+    const nextNumber = (maxRes?.[0]?.patient_number || 0) + 1
+
     const { error } = await supabase.from('cm_patients').insert({
       ...form,
       status: 'active',
       clinic_id: clinicId,
+      patient_number: nextNumber,
     })
     if (!error) {
       setSaved(true)
