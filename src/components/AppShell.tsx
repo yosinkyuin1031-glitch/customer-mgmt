@@ -10,6 +10,7 @@ const mainTabs = [
   { key: 'coupon-books', href: '/coupon-books', label: '回数券', icon: '🎫' },
   { key: 'sms', href: '/sms', label: 'SMS送信', icon: '💬' },
   { key: 'sales', href: '/sales', label: '営業データ', icon: '📊' },
+  { key: 'stats', href: '/stats', label: '月間統計', icon: '📈' },
   { key: 'master', href: '/master', label: 'マスター', icon: '⚙️' },
 ]
 
@@ -21,6 +22,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     : pathname.startsWith('/patients') ? 'patients'
     : pathname.startsWith('/coupon-books') ? 'coupon-books'
     : pathname.startsWith('/sms') ? 'sms'
+    : pathname.startsWith('/stats') ? 'stats'
     : pathname.startsWith('/sales') || pathname.startsWith('/visits') ? 'sales'
     : 'home'
 
