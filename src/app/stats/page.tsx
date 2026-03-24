@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
@@ -445,9 +446,14 @@ export default function StatsPage() {
               )}
             </div>
 
-            {/* Notice */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-              全項目は来院記録から自動集計。広告費は「営業データ &gt; 広告費入力」から取得。各月の行をタップすると新規・既存の内訳が見れます。
+            {/* Notice + manual link */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 flex items-center justify-between">
+              <div>
+                全項目は来院記録から自動集計。各月の行をタップすると内訳が見れます。
+              </div>
+              <Link href="/stats/manual" className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-blue-700 font-medium hover:bg-blue-100 transition-colors whitespace-nowrap ml-2">
+                手動入力
+              </Link>
             </div>
 
             {/* Monthly detail table */}
