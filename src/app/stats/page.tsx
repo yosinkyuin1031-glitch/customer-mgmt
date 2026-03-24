@@ -44,6 +44,13 @@ interface MonthlyCalc {
   newLtv: number
   cpa: number
   profitLtv: number
+  repeat2Count: number
+  repeat2Rate: number | null
+  repeat6Count: number
+  repeat6Rate: number | null
+  couponPurchaseCount: number
+  couponPurchaseRate: number | null
+  targetRevenue: number | null
   breakdown: MonthBreakdown
 }
 
@@ -75,24 +82,27 @@ export default function StatsPage() {
   const [viewYear, setViewYear] = useState(new Date().getFullYear())
   const [expandedMonth, setExpandedMonth] = useState<number | null>(null)
   const [editingSlots, setEditingSlots] = useState<{ month: number; value: string } | null>(null)
+  const [editingTarget, setEditingTarget] = useState<{ month: number; value: string } | null>(null)
   const [savingSlots, setSavingSlots] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
 
     // Fetch all data in parallel
-    const [allSlips, adCostsRes, savedStatsRes, patientsRes] = await Promise.all([
+    const [allSlips, adCostsRes, savedStatsRes, patientsRes, couponRes] = await Promise.all([
       fetchAllSlips(supabase, 'patient_id, visit_date, total_price') as Promise<{
         patient_id: string; visit_date: string; total_price: number
       }[]>,
       supabase.from('cm_ad_costs').select('month, cost').eq('clinic_id', clinicId),
-      supabase.from('cm_monthly_stats').select('year, month, slots').eq('clinic_id', clinicId),
+      supabase.from('cm_monthly_stats').select('year, month, slots, target_revenue').eq('clinic_id', clinicId),
       supabase.from('cm_patients').select('id, name, birth_date, gender, referral_source, chief_complaint, occupation, visit_motive').eq('clinic_id', clinicId),
+      supabase.from('cm_coupon_books').select('patient_id, purchase_date').eq('clinic_id', clinicId),
     ])
 
     const adCosts = adCostsRes.data || []
     const savedStats = savedStatsRes.data || []
     const patients = (patientsRes.data || []) as PatientInfo[]
+    const couponBooks = couponRes.data || []
 
     // Patient lookup
     const patientMap: Record<string, PatientInfo> = {}
@@ -106,12 +116,28 @@ export default function StatsPage() {
       }
     })
 
+    // Per-patient total visit count (all time) for repeat rate calculation
+    const patientTotalVisits: Record<string, number> = {}
+    allSlips.forEach(s => {
+      if (s.patient_id) {
+        patientTotalVisits[s.patient_id] = (patientTotalVisits[s.patient_id] || 0) + 1
+      }
+    })
+
+    // Coupon book owners (patient IDs who have purchased coupon books)
+    const couponPatientIds = new Set(couponBooks.map(c => c.patient_id))
+
     // Ad cost & slots maps
     const adCostByMonth: Record<string, number> = {}
     adCosts.forEach(ac => { adCostByMonth[ac.month] = (adCostByMonth[ac.month] || 0) + (ac.cost || 0) })
 
     const slotsMap: Record<string, number | null> = {}
-    savedStats.forEach(s => { slotsMap[`${s.year}-${String(s.month).padStart(2, '0')}`] = s.slots })
+    const targetMap: Record<string, number | null> = {}
+    savedStats.forEach(s => {
+      const key = `${s.year}-${String(s.month).padStart(2, '0')}`
+      slotsMap[key] = s.slots
+      targetMap[key] = s.target_revenue
+    })
 
     // Group slips by month
     const monthBuckets: Record<string, typeof allSlips> = {}
@@ -169,6 +195,21 @@ export default function StatsPage() {
       const newLtv = newPatients > 0 ? Math.round(newRevenue / newPatients) : 0
       const cpa = newPatients > 0 && adCost > 0 ? Math.round(adCost / newPatients) : 0
       const profitLtv = newLtv - cpa
+      const targetRevenue = targetMap[monthKey] ?? null
+
+      // Repeat rates: count new patients who have >= 2 or >= 6 total visits
+      let repeat2Count = 0
+      let repeat6Count = 0
+      let couponPurchaseCount = 0
+      newPatientIds.forEach(pid => {
+        const totalVisits = patientTotalVisits[pid] || 0
+        if (totalVisits >= 2) repeat2Count++
+        if (totalVisits >= 6) repeat6Count++
+        if (couponPatientIds.has(pid)) couponPurchaseCount++
+      })
+      const repeat2Rate = newPatients > 0 ? repeat2Count / newPatients : null
+      const repeat6Rate = newPatients > 0 ? repeat6Count / newPatients : null
+      const couponPurchaseRate = newPatients > 0 ? couponPurchaseCount / newPatients : null
 
       // Build breakdown
       const referralCounts: Record<string, number> = {}
@@ -220,6 +261,8 @@ export default function StatsPage() {
         year: y, month: m, revenue, newRevenue, existingRevenue,
         treatments, chartCount, frequency, newPatients, avgPrice,
         adCost, slots, utilizationRate, newLtv, cpa, profitLtv,
+        repeat2Count, repeat2Rate, repeat6Count, repeat6Rate,
+        couponPurchaseCount, couponPurchaseRate, targetRevenue,
         breakdown: { newPatientList, existingPatientList, referralCounts, ageCounts, genderCounts, complaintCounts },
       })
     })
@@ -238,6 +281,16 @@ export default function StatsPage() {
     }, { onConflict: 'clinic_id,year,month' })
     setSavingSlots(false)
     setEditingSlots(null)
+    loadData()
+  }
+
+  const saveTarget = async (month: number, targetValue: number) => {
+    setSavingSlots(true)
+    await supabase.from('cm_monthly_stats').upsert({
+      clinic_id: clinicId, year: viewYear, month, target_revenue: targetValue,
+    }, { onConflict: 'clinic_id,year,month' })
+    setSavingSlots(false)
+    setEditingTarget(null)
     loadData()
   }
 
@@ -417,6 +470,11 @@ export default function StatsPage() {
                     <th className="px-2 py-2 text-right text-gray-500">LTV</th>
                     <th className="px-2 py-2 text-right text-gray-500">CPA</th>
                     <th className="px-2 py-2 text-right text-gray-500">利益LTV</th>
+                    <th className="px-2 py-2 text-right text-gray-500">2回リピ</th>
+                    <th className="px-2 py-2 text-right text-gray-500">6回リピ</th>
+                    <th className="px-2 py-2 text-right text-gray-500">券購入率</th>
+                    <th className="px-2 py-2 text-right text-gray-500">目標</th>
+                    <th className="px-2 py-2 text-right text-gray-500">目標差</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -476,11 +534,60 @@ export default function StatsPage() {
                           <td className="px-2 py-2.5 text-right font-medium" style={{ color: d.profitLtv > 0 ? '#14252A' : d.profitLtv < 0 ? '#ef4444' : '#9ca3af' }}>
                             {d.newLtv > 0 || d.cpa > 0 ? fmt(d.profitLtv) : '-'}
                           </td>
+                          <td className="px-2 py-2.5 text-right">
+                            {d.repeat2Rate !== null ? (
+                              <span className={d.repeat2Rate >= 0.7 ? 'text-green-600 font-medium' : d.repeat2Rate < 0.5 ? 'text-red-500' : ''}>
+                                {d.repeat2Count}人 ({Math.round(d.repeat2Rate * 100)}%)
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right">
+                            {d.repeat6Rate !== null ? (
+                              <span className={d.repeat6Rate >= 0.5 ? 'text-green-600 font-medium' : d.repeat6Rate < 0.3 ? 'text-red-500' : ''}>
+                                {d.repeat6Count}人 ({Math.round(d.repeat6Rate * 100)}%)
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right">
+                            {d.couponPurchaseRate !== null ? (
+                              <span className={d.couponPurchaseRate >= 0.4 ? 'text-green-600 font-medium' : ''}>
+                                {d.couponPurchaseCount}人 ({Math.round(d.couponPurchaseRate * 100)}%)
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="px-2 py-2.5 text-right" onClick={e => e.stopPropagation()}>
+                            {editingTarget?.month === d.month ? (
+                              <div className="flex items-center gap-1 justify-end">
+                                <input type="number" value={editingTarget.value}
+                                  onChange={e => setEditingTarget({ month: d.month, value: e.target.value })}
+                                  className="w-20 px-1 py-0.5 border border-blue-400 rounded text-xs text-right" autoFocus
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && editingTarget.value) saveTarget(d.month, parseInt(editingTarget.value))
+                                    else if (e.key === 'Escape') setEditingTarget(null)
+                                  }}
+                                />
+                                <button onClick={() => editingTarget.value && saveTarget(d.month, parseInt(editingTarget.value))}
+                                  disabled={savingSlots} className="text-blue-600 font-bold">OK</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setEditingTarget({ month: d.month, value: String(d.targetRevenue || '') })}
+                                className={`${d.targetRevenue ? 'text-gray-700' : 'text-gray-300'} hover:text-blue-600`}>
+                                {d.targetRevenue ? fmt(d.targetRevenue) : '---'}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-2 py-2.5 text-right font-medium">
+                            {d.targetRevenue ? (
+                              <span className={d.revenue >= d.targetRevenue ? 'text-green-600' : 'text-red-500'}>
+                                {d.revenue >= d.targetRevenue ? '+' : ''}{fmt(d.revenue - d.targetRevenue)}
+                              </span>
+                            ) : '-'}
+                          </td>
                         </tr>
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr key={`${d.month}-detail`}>
-                            <td colSpan={15} className="p-0">
+                            <td colSpan={20} className="p-0">
                               <div className="bg-gray-50 px-4 py-4 space-y-4 border-b-2 border-blue-200">
                                 {/* New patients detail */}
                                 {d.breakdown.newPatientList.length > 0 && (
@@ -602,6 +709,33 @@ export default function StatsPage() {
                     <td className="px-2 py-2.5 text-right">-</td>
                     <td className="px-2 py-2.5 text-right">-</td>
                     <td className="px-2 py-2.5 text-right">-</td>
+                    <td className="px-2 py-2.5 text-right">
+                      {(() => {
+                        const total2 = yearSum(currentYearData, 'repeat2Count')
+                        return totalNewPatients > 0 ? `${total2}人 (${Math.round((total2 / totalNewPatients) * 100)}%)` : '-'
+                      })()}
+                    </td>
+                    <td className="px-2 py-2.5 text-right">
+                      {(() => {
+                        const total6 = yearSum(currentYearData, 'repeat6Count')
+                        return totalNewPatients > 0 ? `${total6}人 (${Math.round((total6 / totalNewPatients) * 100)}%)` : '-'
+                      })()}
+                    </td>
+                    <td className="px-2 py-2.5 text-right">
+                      {(() => {
+                        const totalC = yearSum(currentYearData, 'couponPurchaseCount')
+                        return totalNewPatients > 0 ? `${totalC}人 (${Math.round((totalC / totalNewPatients) * 100)}%)` : '-'
+                      })()}
+                    </td>
+                    <td className="px-2 py-2.5 text-right">{fmt(yearSum(currentYearData, 'targetRevenue'))}</td>
+                    <td className="px-2 py-2.5 text-right">
+                      {(() => {
+                        const totalTarget = yearSum(currentYearData, 'targetRevenue')
+                        if (!totalTarget) return '-'
+                        const diff = totalRevenue - totalTarget
+                        return <span className={diff >= 0 ? 'text-green-600' : 'text-red-500'}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
+                      })()}
+                    </td>
                   </tr>
                 </tbody>
               </table>
