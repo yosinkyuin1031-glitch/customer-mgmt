@@ -124,7 +124,8 @@ ${text}`
 
     return NextResponse.json({ records: verified })
   } catch (error) {
-    console.error('Parse error:', error)
-    return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('Parse error:', errMsg)
+    return NextResponse.json({ error: '解析中にエラーが発生しました', detail: errMsg }, { status: 500 })
   }
 }
