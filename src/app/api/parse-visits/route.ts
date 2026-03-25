@@ -126,6 +126,10 @@ ${text}`
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error)
     console.error('Parse error:', errMsg)
-    return NextResponse.json({ error: '解析中にエラーが発生しました', detail: errMsg }, { status: 500 })
+    // クレジット不足の場合は分かりやすいメッセージ
+    if (errMsg.includes('credit balance') || errMsg.includes('billing')) {
+      return NextResponse.json({ error: 'AIのAPIクレジットが不足しています。管理者にお問い合わせください。' }, { status: 500 })
+    }
+    return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }
 }
