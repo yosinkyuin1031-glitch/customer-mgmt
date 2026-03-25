@@ -311,6 +311,12 @@ export default function CouponBookDetailPage() {
               <p className="text-xs text-gray-500">購入日</p>
               <p className="font-bold text-gray-800">{coupon.purchase_date}</p>
             </div>
+            {coupon.consumption_start_date && coupon.consumption_start_date !== coupon.purchase_date && (
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">消費開始日</p>
+                <p className="font-bold text-blue-700">{coupon.consumption_start_date}</p>
+              </div>
+            )}
             <div className={`rounded-lg p-3 ${isExpired ? 'bg-red-100' : isExpiringSoon ? 'bg-red-50' : 'bg-gray-50'}`}>
               <p className="text-xs text-gray-500">有効期限</p>
               <p className={`font-bold ${isExpired ? 'text-red-700' : isExpiringSoon ? 'text-red-600' : 'text-gray-800'}`}>
@@ -318,6 +324,38 @@ export default function CouponBookDetailPage() {
               </p>
             </div>
           </div>
+
+          {/* 消費タイムライン */}
+          {(() => {
+            const startDate = coupon.consumption_start_date || coupon.purchase_date
+            const endDate = coupon.expiry_date
+            if (!endDate) return null
+            const start = new Date(startDate).getTime()
+            const end = new Date(endDate).getTime()
+            const now = new Date(today).getTime()
+            const totalDays = Math.max((end - start) / (1000 * 60 * 60 * 24), 1)
+            const elapsedDays = Math.max(0, Math.min((now - start) / (1000 * 60 * 60 * 24), totalDays))
+            const timePercent = (elapsedDays / totalDays) * 100
+            const usagePercent = coupon.total_count > 0 ? (coupon.used_count / coupon.total_count) * 100 : 0
+            const pace = timePercent > 0 ? usagePercent / timePercent : 0
+            const paceLabel = pace >= 1.2 ? 'ハイペース' : pace >= 0.8 ? '順調' : pace >= 0.5 ? 'やや遅め' : '遅れ気味'
+            const paceColor = pace >= 1.2 ? 'text-blue-600' : pace >= 0.8 ? 'text-green-600' : pace >= 0.5 ? 'text-yellow-600' : 'text-red-600'
+
+            return (
+              <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500 mb-2">消費ペース</p>
+                <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="absolute h-full bg-gray-300 rounded-full" style={{ width: `${timePercent}%` }} />
+                  <div className="absolute h-full rounded-full" style={{ width: `${usagePercent}%`, background: getProgressColor() }} />
+                </div>
+                <div className="flex justify-between mt-1 text-[10px] text-gray-400">
+                  <span>{startDate}</span>
+                  <span className={`font-medium ${paceColor}`}>{paceLabel}（{Math.round(usagePercent)}% / 期間{Math.round(timePercent)}%経過）</span>
+                  <span>{endDate}</span>
+                </div>
+              </div>
+            )
+          })()}
 
           {coupon.notes && (
             <div className="mt-3 bg-yellow-50 rounded-lg p-3">

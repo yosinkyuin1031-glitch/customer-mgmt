@@ -32,8 +32,10 @@ export default function PatientDetailPage() {
     total_count: 15,
     purchase_amount: 150000,
     purchase_date: new Date().toISOString().split('T')[0],
+    consumption_start_date: new Date().toISOString().split('T')[0],
     expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     notes: '',
+    use_different_start: false,
   })
   const [couponUsing, setCouponUsing] = useState<string | null>(null)
 
@@ -123,6 +125,7 @@ export default function PatientDetailPage() {
       total_count: couponForm.total_count,
       used_count: 0,
       purchase_date: couponForm.purchase_date,
+      consumption_start_date: couponForm.use_different_start ? couponForm.consumption_start_date : couponForm.purchase_date,
       purchase_amount: couponForm.purchase_amount,
       expiry_date: couponForm.expiry_date || null,
       status: 'active',
@@ -136,8 +139,10 @@ export default function PatientDetailPage() {
         total_count: 15,
         purchase_amount: 150000,
         purchase_date: new Date().toISOString().split('T')[0],
+        consumption_start_date: new Date().toISOString().split('T')[0],
         expiry_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes: '',
+        use_different_start: false,
       })
     }
   }
@@ -475,12 +480,30 @@ export default function PatientDetailPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">購入日</label>
-                      <input type="date" value={couponForm.purchase_date} onChange={e => setCouponForm({ ...couponForm, purchase_date: e.target.value })} className={inputClass} />
+                      <input type="date" value={couponForm.purchase_date} onChange={e => setCouponForm({ ...couponForm, purchase_date: e.target.value, consumption_start_date: couponForm.use_different_start ? couponForm.consumption_start_date : e.target.value })} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">有効期限</label>
                       <input type="date" value={couponForm.expiry_date} onChange={e => setCouponForm({ ...couponForm, expiry_date: e.target.value })} className={inputClass} />
                     </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={couponForm.use_different_start}
+                        onChange={(e) => setCouponForm({
+                          ...couponForm,
+                          use_different_start: e.target.checked,
+                          consumption_start_date: e.target.checked ? couponForm.consumption_start_date : couponForm.purchase_date,
+                        })}
+                        className="w-3.5 h-3.5 rounded border-gray-300"
+                      />
+                      <span className="text-xs text-gray-500">消費開始日を別に設定</span>
+                    </label>
+                    {couponForm.use_different_start && (
+                      <input type="date" value={couponForm.consumption_start_date} onChange={e => setCouponForm({ ...couponForm, consumption_start_date: e.target.value })} className={`${inputClass} mt-1`} />
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">メモ</label>

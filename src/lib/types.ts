@@ -116,6 +116,7 @@ export interface CouponBook {
   used_count: number
   remaining_count: number // computed
   purchase_date: string
+  consumption_start_date: string | null // 消費開始日（購入日と異なる場合）
   purchase_amount: number
   unit_price: number // computed
   expiry_date: string | null

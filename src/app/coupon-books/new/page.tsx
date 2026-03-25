@@ -33,9 +33,11 @@ export default function NewCouponBookPage() {
     total_count: 30,
     purchase_amount: 285000,
     purchase_date: today,
+    consumption_start_date: today,
     expiry_date: defaultExpiryStr,
     notes: '',
     is_custom: false,
+    use_different_start: false,
   })
 
   useEffect(() => {
@@ -94,6 +96,7 @@ export default function NewCouponBookPage() {
     setForm(prev => ({
       ...prev,
       purchase_date: date,
+      consumption_start_date: prev.use_different_start ? prev.consumption_start_date : date,
       expiry_date: d.toISOString().split('T')[0],
     }))
   }
@@ -110,6 +113,7 @@ export default function NewCouponBookPage() {
       total_count: form.total_count,
       used_count: 0,
       purchase_date: form.purchase_date,
+      consumption_start_date: form.use_different_start ? form.consumption_start_date : form.purchase_date,
       purchase_amount: form.purchase_amount,
       expiry_date: form.expiry_date || null,
       status: 'active',
@@ -314,6 +318,37 @@ export default function NewCouponBookPage() {
             </div>
           </div>
 
+          {/* 消費開始日 */}
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.use_different_start}
+                onChange={(e) => setForm(prev => ({
+                  ...prev,
+                  use_different_start: e.target.checked,
+                  consumption_start_date: e.target.checked ? prev.consumption_start_date : prev.purchase_date,
+                }))}
+                className="w-4 h-4 rounded border-gray-300 text-[#14252A] focus:ring-[#14252A]"
+              />
+              <span className="text-xs text-gray-600">消費開始日を購入日と別に設定する</span>
+            </label>
+            {form.use_different_start && (
+              <div className="mt-2">
+                <label className="block text-xs text-gray-600 mb-1">消費開始日</label>
+                <input
+                  type="date"
+                  value={form.consumption_start_date}
+                  onChange={(e) => update('consumption_start_date', e.target.value)}
+                  className={inputClass}
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  この日から回数券の消費カウントが開始されます
+                </p>
+              </div>
+            )}
+          </div>
+
           {!form.is_custom && (
             <div>
               <label className="block text-xs text-gray-600 mb-1">購入金額（変更可）</label>
@@ -345,6 +380,9 @@ export default function NewCouponBookPage() {
             <p>券種: <span className="text-gray-800 font-medium">{form.coupon_type}（{form.total_count}回）</span></p>
             <p>金額: <span className="text-gray-800 font-medium">{form.purchase_amount.toLocaleString()}円</span></p>
             <p>単価: <span className="text-gray-800 font-medium">{unitPrice.toLocaleString()}円/回</span></p>
+            {form.use_different_start && (
+              <p>消費開始: <span className="text-gray-800 font-medium">{form.consumption_start_date}</span></p>
+            )}
             <p>期限: <span className="text-gray-800 font-medium">{form.expiry_date}</span></p>
           </div>
         )}

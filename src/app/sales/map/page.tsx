@@ -151,9 +151,11 @@ export default function MapPage() {
         if (res.ok) {
           const { results } = await res.json()
           Object.assign(allResults, results)
+        } else {
+          console.error('Geocode API error:', res.status, await res.text().catch(() => ''))
         }
-      } catch {
-        // Continue with what we have
+      } catch (err) {
+        console.error('Geocode fetch error:', err)
       }
 
       setGeocodeProgress(`住所を地図座標に変換中... (${Math.min(i + BATCH_SIZE, toGeocode.length)}/${toGeocode.length})`)
@@ -290,8 +292,16 @@ export default function MapPage() {
                   </div>
                 ) : mapMarkers.length > 0 ? (
                   <LeafletMap markers={mapMarkers} height="500px" />
+                ) : allCities.filter(c => c.prefecture !== '不明' && c.city !== '不明').length > 0 ? (
+                  <div className="text-center py-16">
+                    <p className="text-gray-500 mb-2">地図の読み込みに失敗しました</p>
+                    <button
+                      onClick={() => { setMapMarkers([]); geocodeCities(allCities) }}
+                      className="px-4 py-2 bg-[#14252A] text-white rounded-lg text-sm"
+                    >再読み込み</button>
+                  </div>
                 ) : (
-                  <p className="text-center py-16 text-gray-400">住所データがある患者がいません</p>
+                  <p className="text-center py-16 text-gray-400">患者の住所（都道府県・市区町村）を登録すると地図に表示されます</p>
                 )}
               </div>
             )}

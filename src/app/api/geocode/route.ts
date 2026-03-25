@@ -169,22 +169,8 @@ const PREF_CENTERS: Record<string, { lat: number; lng: number }> = {
   '沖縄県': { lat: 26.34, lng: 127.80 },
 }
 
-async function geocodeWithNominatim(query: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=jp`
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'customer-mgmt-app/1.0' },
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    if (data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
-    }
-    return null
-  } catch {
-    return null
-  }
-}
+// Nominatim is too slow for Vercel serverless (1.1s/city rate limit → timeout)
+// Use KNOWN_CITIES + PREF_CENTERS only for instant response
 
 export async function POST(request: NextRequest) {
   try {
@@ -212,20 +198,10 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Try Nominatim for unknown cities
-      const coords = await geocodeWithNominatim(`${prefecture}${city}`)
-      if (coords) {
-        results[key] = coords
-        geocodeCache.set(key, coords)
-      } else {
-        // Fallback to prefecture center
-        const prefCoords = PREF_CENTERS[prefecture] || null
-        results[key] = prefCoords
-        geocodeCache.set(key, prefCoords)
-      }
-
-      // Rate limit: 1 req/sec for Nominatim
-      await new Promise(r => setTimeout(r, 1100))
+      // Fallback to prefecture center (instant, no external API call)
+      const prefCoords = PREF_CENTERS[prefecture] || null
+      results[key] = prefCoords
+      geocodeCache.set(key, prefCoords)
     }
 
     return NextResponse.json({ results })
