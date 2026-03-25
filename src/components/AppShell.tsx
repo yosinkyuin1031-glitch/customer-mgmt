@@ -8,7 +8,8 @@ const mainTabs = [
   { key: 'home', href: '/', label: 'ホーム', icon: '🏠' },
   { key: 'patients', href: '/patients', label: '顧客管理', icon: '👥' },
   { key: 'coupon-books', href: '/coupon-books', label: '回数券', icon: '🎫' },
-  { key: 'sms', href: '/sms', label: 'SMS送信', icon: '💬' },
+  // SMS機能はTwilio連携後に有効化
+  // { key: 'sms', href: '/sms', label: 'SMS送信', icon: '💬' },
   { key: 'sales', href: '/sales', label: '営業データ', icon: '📊' },
   { key: 'stats', href: '/stats', label: '月間統計', icon: '📈' },
   { key: 'master', href: '/master', label: 'マスター', icon: '⚙️' },

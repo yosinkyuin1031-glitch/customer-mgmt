@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
+import { getClinicIdServer } from '@/lib/clinic-server'
+import { callWithRetry, AnthropicApiError } from '@/lib/anthropic'
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,8 +13,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEYが設定されていません' }, { status: 500 })
     }
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const clinicId = await getClinicIdServer()
+
+    const response = await callWithRetry({
+      clinicId,
+      endpoint: 'parse-patient',
       max_tokens: 1500,
       messages: [
         {
@@ -69,6 +71,9 @@ ${text}`
     const parsed = JSON.parse(jsonMatch[0])
     return NextResponse.json({ patient: parsed })
   } catch (error) {
+    if (error instanceof AnthropicApiError) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     console.error('Parse error:', error)
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }

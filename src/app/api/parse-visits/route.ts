@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 import { findBestMatch } from '@/lib/nameMatch'
 import { getClinicIdServer } from '@/lib/clinic-server'
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' })
+import { callWithRetry, AnthropicApiError } from '@/lib/anthropic'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -41,8 +39,9 @@ export async function POST(req: NextRequest) {
 
     const today = new Date().toISOString().split('T')[0]
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const response = await callWithRetry({
+      clinicId,
+      endpoint: 'parse-visits',
       max_tokens: 2000,
       messages: [
         {
@@ -124,12 +123,11 @@ ${text}`
 
     return NextResponse.json({ records: verified })
   } catch (error) {
+    if (error instanceof AnthropicApiError) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     const errMsg = error instanceof Error ? error.message : String(error)
     console.error('Parse error:', errMsg)
-    // クレジット不足の場合は分かりやすいメッセージ
-    if (errMsg.includes('credit balance') || errMsg.includes('billing')) {
-      return NextResponse.json({ error: 'AIのAPIクレジットが不足しています。管理者にお問い合わせください。' }, { status: 500 })
-    }
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }
 }
