@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,6 +24,31 @@ export default function LoginPage() {
     } else {
       window.location.href = '/'
     }
+  }
+
+  const handleDemoLogin = async () => {
+    setDemoLoading(true)
+    setError('')
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: 'demo@customer-mgmt.app',
+      password: 'demo1234',
+    })
+
+    if (error) {
+      setError('デモアカウントへのログインに失敗しました。しばらくしてからお試しください。')
+      setDemoLoading(false)
+      return
+    }
+
+    // デモデータ生成APIを呼ぶ
+    try {
+      await fetch('/api/demo/seed', { method: 'POST' })
+    } catch {
+      // シード失敗してもログイン自体は続行
+    }
+
+    window.location.href = '/'
   }
 
   return (
@@ -78,6 +104,24 @@ export default function LoginPage() {
             </Link>
           </p>
         </form>
+
+        <button
+          onClick={handleDemoLogin}
+          disabled={demoLoading}
+          className="w-full mt-3 py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50 border-2 border-white/30 text-white hover:bg-white/10"
+        >
+          {demoLoading ? 'デモ環境を準備中...' : 'デモアカウントで試す'}
+        </button>
+
+        <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400">
+          <Link href="/terms" className="hover:text-gray-200 transition-colors">
+            利用規約
+          </Link>
+          <span>|</span>
+          <Link href="/privacy" className="hover:text-gray-200 transition-colors">
+            プライバシーポリシー
+          </Link>
+        </div>
       </div>
     </div>
   )

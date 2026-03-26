@@ -7,6 +7,7 @@ import AppShell from '@/components/AppShell'
 import Header from '@/components/Header'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 
 // 全角ハイフン・ダッシュ類を半角に統一
 function normalizePhone(val: string): string {
@@ -181,6 +182,7 @@ function normalizeBirthDate(val: string): string | null {
 export default function ImportPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -242,7 +244,7 @@ export default function ImportPage() {
 
   const goToPreview = () => {
     if (!mapping.includes('name')) {
-      alert('「氏名」の列を指定してください')
+      showToast('「氏名」の列を指定してください', 'warning')
       return
     }
     setStep('preview')
@@ -263,10 +265,10 @@ export default function ImportPage() {
       if (!val) return
 
       if (col === 'name') {
-        // 全角スペースを半角に統一（例: 橋口　キリ → 橋口 キリ）
-        record[col] = val.replace(/\u3000/g, ' ')
+        // 全角スペース→半角、連続スペース→1つに統一（例: 橋口　キリ → 橋口 キリ）
+        record[col] = val.replace(/[\u3000\u00A0]/g, ' ').replace(/\s+/g, ' ').trim()
       } else if (col === 'furigana') {
-        record[col] = val.replace(/\u3000/g, ' ')
+        record[col] = val.replace(/[\u3000\u00A0]/g, ' ').replace(/\s+/g, ' ').trim()
       } else if (col === 'gender') {
         record[col] = normalizeGender(val)
       } else if (col === 'status') {

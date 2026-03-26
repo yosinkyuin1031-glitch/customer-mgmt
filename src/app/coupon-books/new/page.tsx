@@ -6,6 +6,7 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 import { COUPON_TYPES } from '@/lib/types'
 import type { Patient } from '@/lib/types'
 import { normalizeName } from '@/lib/nameMatch'
@@ -13,6 +14,7 @@ import { normalizeName } from '@/lib/nameMatch'
 export default function NewCouponBookPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
   const router = useRouter()
 
   const [patients, setPatients] = useState<Patient[]>([])
@@ -124,7 +126,7 @@ export default function NewCouponBookPage() {
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
         setTableError(true)
       } else {
-        alert('保存に失敗しました: ' + error.message)
+        showToast('保存に失敗しました: ' + error.message, 'error')
       }
       setSaving(false)
       return

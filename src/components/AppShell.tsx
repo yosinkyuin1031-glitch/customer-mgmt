@@ -21,6 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     : pathname.startsWith('/coupon-books') ? 'coupon-books'
     : pathname.startsWith('/sms') ? 'sms'
     : pathname.startsWith('/stats') ? 'stats'
+    : pathname.startsWith('/help') ? 'help'
     : pathname.startsWith('/sales') || pathname.startsWith('/visits') ? 'sales'
     : 'home'
 
@@ -33,7 +34,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/" className="font-bold text-sm flex items-center gap-1.5">
                 顧客管理シート
               </Link>
-            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white text-xl">☰</button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/help"
+                className={`text-sm flex items-center gap-1 transition-colors ${
+                  activeTab === 'help' ? 'text-white font-bold' : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                <span>📘</span>
+                <span className="hidden sm:inline">ヘルプ</span>
+              </Link>
+              <Link
+                href="/settings"
+                className={`text-sm flex items-center gap-1 transition-colors ${
+                  pathname.startsWith('/settings') ? 'text-white font-bold' : 'text-gray-300 hover:text-white'
+                }`}
+              >
+                <span>⚙️</span>
+                <span className="hidden sm:inline">設定</span>
+              </Link>
+              <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white text-xl">☰</button>
+            </div>
           </div>
           {/* タブ（PC） */}
           <nav className="hidden md:flex gap-1 -mb-px">
@@ -69,6 +90,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="mr-2">{tab.icon}</span>{tab.label}
             </Link>
           ))}
+          <Link
+            href="/help"
+            onClick={() => setMenuOpen(false)}
+            className={`block px-4 py-3 text-sm border-b border-gray-100 ${
+              activeTab === 'help' ? 'bg-blue-50 font-bold text-gray-800' : 'text-gray-600'
+            }`}
+          >
+            <span className="mr-2">📘</span>ヘルプ
+          </Link>
+          <Link
+            href="/settings"
+            onClick={() => setMenuOpen(false)}
+            className={`block px-4 py-3 text-sm border-b border-gray-100 ${
+              pathname.startsWith('/settings') ? 'bg-blue-50 font-bold text-gray-800' : 'text-gray-600'
+            }`}
+          >
+            <span className="mr-2">⚙️</span>設定
+          </Link>
         </div>
       )}
 

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import ClinicProvider from '@/components/ClinicProvider'
+import { ToastProvider } from '@/lib/toast'
+import ToastContainer from '@/components/Toast'
 
 export const metadata: Metadata = {
   title: '顧客管理シート',
@@ -11,7 +13,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <body className="antialiased">
-        <ClinicProvider>{children}</ClinicProvider>
+        <ToastProvider>
+          <ClinicProvider>{children}</ClinicProvider>
+          <ToastContainer />
+        </ToastProvider>
       </body>
     </html>
   )

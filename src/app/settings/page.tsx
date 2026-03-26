@@ -5,6 +5,7 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 
 type PlanType = 'free' | 'basic' | 'pro'
 
@@ -22,6 +23,7 @@ const PLAN_DESCRIPTIONS: Record<PlanType, string> = {
 
 export default function SettingsPage() {
   const supabase = createClient()
+  const { showToast } = useToast()
   const [email, setEmail] = useState('')
   const [clinicName, setClinicName] = useState('')
   const [plan, setPlan] = useState<PlanType>('free')
@@ -83,10 +85,10 @@ export default function SettingsPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert(data.error || 'エラーが発生しました')
+        showToast(data.error || 'エラーが発生しました', 'error')
       }
     } catch {
-      alert('ネットワークエラーが発生しました')
+      showToast('ネットワークエラーが発生しました', 'error')
     } finally {
       setLoading(false)
     }
@@ -104,10 +106,10 @@ export default function SettingsPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert(data.error || 'エラーが発生しました')
+        showToast(data.error || 'エラーが発生しました', 'error')
       }
     } catch {
-      alert('ネットワークエラーが発生しました')
+      showToast('ネットワークエラーが発生しました', 'error')
     } finally {
       setLoading(false)
     }
@@ -301,8 +303,27 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-4">
-          <h3 className="font-bold text-gray-800 text-sm mb-3">データ</h3>
-          <p className="text-xs text-gray-400">患者データ・施術記録はSupabaseに安全に保存されています。</p>
+          <h3 className="font-bold text-gray-800 text-sm mb-3">データエクスポート</h3>
+          <p className="text-xs text-gray-400 mb-3">患者データ・施術記録をCSV形式でダウンロードできます。</p>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                window.location.href = `/api/export/patients?clinicId=${clinicId}`
+              }}
+              className="w-full py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <span>&#x1F4CB;</span> 患者一覧をCSVダウンロード
+            </button>
+            <button
+              onClick={() => {
+                window.location.href = `/api/export/sales?clinicId=${clinicId}`
+              }}
+              className="w-full py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <span>&#x1F4B0;</span> 売上データをCSVダウンロード
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">BOM付きUTF-8形式（Excel対応）</p>
         </div>
       </div>
     </AppShell>

@@ -170,6 +170,16 @@ function SignupForm() {
             </Link>
           </p>
         </form>
+
+        <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400">
+          <Link href="/terms" className="hover:text-gray-200 transition-colors">
+            利用規約
+          </Link>
+          <span>|</span>
+          <Link href="/privacy" className="hover:text-gray-200 transition-colors">
+            プライバシーポリシー
+          </Link>
+        </div>
       </div>
     </div>
   )

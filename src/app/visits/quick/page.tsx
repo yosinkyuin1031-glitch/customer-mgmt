@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { findBestMatch, findAllMatches } from '@/lib/nameMatch'
 import type { PatientCandidate } from '@/lib/nameMatch'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 
 interface ParsedRecord {
   patient_id: string | null
@@ -24,6 +25,7 @@ interface ParsedRecord {
 export default function QuickInputPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
   const router = useRouter()
   const [inputText, setInputText] = useState('')
   const [records, setRecords] = useState<ParsedRecord[]>([])
@@ -45,7 +47,7 @@ export default function QuickInputPage() {
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
-      alert('お使いのブラウザは音声入力に対応していません')
+      showToast('お使いのブラウザは音声入力に対応していません', 'warning')
       return
     }
 

@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import Header from '@/components/Header'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 import { findAllMatches, type PatientCandidate } from '@/lib/nameMatch'
 import {
   parseCSV, normalizeDate, normalizePrice, normalizePaymentMethod,
@@ -79,6 +80,7 @@ interface MatchedRow {
 export default function SlipImportPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [step, setStep] = useState<Step>('upload')
@@ -132,7 +134,7 @@ export default function SlipImportPage() {
   // Step 3: プレビュー（患者マッチング実行）
   const goToPreview = async () => {
     if (!hasRequired) {
-      alert('「患者名」と「来院日」の列を必ず指定してください')
+      showToast('「患者名」と「来院日」の列を必ず指定してください', 'warning')
       return
     }
     setMatchProcessing(true)

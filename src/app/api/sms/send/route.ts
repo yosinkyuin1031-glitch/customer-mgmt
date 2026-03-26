@@ -37,31 +37,62 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // TODO: Twilio連携時にここを実装
-    // const twilio = require('twilio')(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
-    // for (const r of recipients) {
-    //   const personalizedMessage = message
-    //     .replace(/{patient_name}/g, r.name);
-    //   await twilio.messages.create({
-    //     body: personalizedMessage,
-    //     from: process.env.TWILIO_PHONE_NUMBER,
-    //     to: '+81' + r.phone.replace(/[-\s]/g, '').slice(1),
-    //   });
-    // }
+    // Twilio環境変数チェック
+    const twilioSid = process.env.TWILIO_ACCOUNT_SID
+    const twilioToken = process.env.TWILIO_AUTH_TOKEN
+    const twilioPhone = process.env.TWILIO_PHONE_NUMBER
+    const isLive = !!(twilioSid && twilioToken && twilioPhone)
 
-    // 今はモック: コンソールに出力
-    console.log(`SMS送信（モック）: ${recipients.length}名に送信`)
-    console.log(`テンプレート: ${templateName}`)
-    recipients.forEach(r => {
-      const personalizedMessage = message.replace(/{patient_name}/g, r.name)
-      console.log(`  -> ${r.name} (${r.phone}): ${personalizedMessage}`)
-    })
+    const results: { name: string; success: boolean; error?: string }[] = []
 
-    return NextResponse.json({
-      success: true,
-      count: recipients.length,
-      sentAt: new Date().toISOString(),
-    })
+    if (isLive) {
+      // Twilio本番送信
+      const twilio = require('twilio')(twilioSid, twilioToken)
+
+      for (const r of recipients) {
+        const personalizedMessage = message.replace(/{patient_name}/g, r.name)
+        const toNumber = '+81' + r.phone.replace(/[-\s]/g, '').slice(1)
+
+        try {
+          await twilio.messages.create({
+            body: personalizedMessage,
+            from: twilioPhone,
+            to: toNumber,
+          })
+          results.push({ name: r.name, success: true })
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : '送信失敗'
+          results.push({ name: r.name, success: false, error: errMsg })
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length
+      const failedCount = results.filter(r => !r.success).length
+
+      return NextResponse.json({
+        success: failedCount === 0,
+        mode: 'live',
+        count: successCount,
+        failed: failedCount,
+        results,
+        sentAt: new Date().toISOString(),
+      })
+    } else {
+      // モック送信（Twilio未設定時）
+      console.log(`SMS送信（モック）: ${recipients.length}名に送信`)
+      console.log(`テンプレート: ${templateName}`)
+      recipients.forEach(r => {
+        const personalizedMessage = message.replace(/{patient_name}/g, r.name)
+        console.log(`  -> ${r.name} (${r.phone}): ${personalizedMessage}`)
+      })
+
+      return NextResponse.json({
+        success: true,
+        mode: 'mock',
+        count: recipients.length,
+        sentAt: new Date().toISOString(),
+      })
+    }
   } catch (error) {
     console.error('SMS送信エラー:', error)
     return NextResponse.json({ success: false, error: 'サーバーエラーが発生しました' }, { status: 500 })

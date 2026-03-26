@@ -5,6 +5,7 @@ import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
 type FieldKey = 'birth_date' | 'referral_source' | 'visit_motive' | 'occupation' | 'chief_complaint' | 'customer_category' | 'prefecture' | 'city' | 'phone'
@@ -49,6 +50,7 @@ interface PatientRow {
 export default function BulkEditPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
 
   const [patients, setPatients] = useState<PatientRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -142,7 +144,7 @@ export default function BulkEditPage() {
 
     setEdits({})
     setSaving(false)
-    alert(`${count}件の患者情報を更新しました`)
+    showToast(`${count}件の患者情報を更新しました`, 'success')
   }
 
   const handleBulkApply = () => {

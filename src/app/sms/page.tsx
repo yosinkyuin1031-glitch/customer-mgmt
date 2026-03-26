@@ -6,6 +6,7 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import type { Patient } from '@/lib/types'
 
@@ -105,6 +106,7 @@ function getCustomTemplates(): SMSTemplate[] {
 export default function SMSPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
 
   // ステップ管理
   const [step, setStep] = useState(1)
@@ -125,6 +127,7 @@ export default function SMSPage() {
   // Step 3: 送信
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [sentMode, setSentMode] = useState<'live' | 'mock'>('mock')
 
   // テンプレート読み込み
   useEffect(() => {
@@ -303,12 +306,14 @@ export default function SMSPage() {
           message: messageText,
         }
         saveSMSLog(log)
+        setSentMode(data.mode || 'mock')
         setSent(true)
       } else {
-        alert(`送信エラー: ${data.error}`)
+        const failedNames = data.results?.filter((r: { success: boolean }) => !r.success).map((r: { name: string; error?: string }) => `${r.name}: ${r.error}`).join('\n')
+        showToast(`送信エラー: ${data.error || ''}\n${failedNames || ''}`, 'error')
       }
     } catch {
-      alert('送信に失敗しました。もう一度お試しください。')
+      showToast('送信に失敗しました。もう一度お試しください。', 'error')
     } finally {
       setSending(false)
     }
@@ -333,7 +338,13 @@ export default function SMSPage() {
             <div className="text-5xl mb-4">&#x2705;</div>
             <h2 className="text-xl font-bold text-gray-800 mb-2">送信完了</h2>
             <p className="text-gray-500 mb-1">{selectedPatients.length}名にSMSを送信しました</p>
-            <p className="text-xs text-gray-400 mb-6">（モック: 実際には送信されていません）</p>
+            {sentMode === 'mock' && (
+              <p className="text-xs text-gray-400 mb-2">（テストモード: 実際には送信されていません）</p>
+            )}
+            {sentMode === 'live' && (
+              <p className="text-xs text-green-600 font-medium mb-2">Twilio経由で実際に送信されました</p>
+            )}
+            <div className="mb-6" />
             <div className="flex gap-3 justify-center">
               <button
                 onClick={handleReset}
@@ -669,10 +680,10 @@ export default function SMSPage() {
               )}
             </div>
 
-            {/* モック注意 */}
-            <div className="bg-yellow-50 rounded-xl p-3 mb-4 border border-yellow-200">
-              <p className="text-xs text-yellow-700">
-                &#x26A0; 現在テストモードです。実際のSMS送信は行われません（Twilio連携後に有効化）
+            {/* 送信モード表示 */}
+            <div className="bg-blue-50 rounded-xl p-3 mb-4 border border-blue-100">
+              <p className="text-xs text-blue-700">
+                Twilio連携が未設定の場合はテスト送信になります。設定画面でTwilio情報を登録すると実際にSMSが送信されます。
               </p>
             </div>
 

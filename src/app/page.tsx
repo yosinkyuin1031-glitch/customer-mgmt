@@ -4,8 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
+import SetupWizard from '@/components/SetupWizard'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 import type { Patient, Slip, CouponBook } from '@/lib/types'
 
 interface TodaySlip extends Slip {
@@ -189,6 +191,7 @@ function generateAdvice(
 export default function HomePage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
   const [todaySlips, setTodaySlips] = useState<TodaySlip[]>([])
   const [recentPatients, setRecentPatients] = useState<Patient[]>([])
   const [stats, setStats] = useState({ totalPatients: 0, monthVisits: 0, todayVisits: 0, todayRevenue: 0 })
@@ -227,7 +230,7 @@ export default function HomePage() {
       setMemoText('')
       setMemoOpenId(null)
     } else {
-      alert('メモの保存に失敗しました')
+      showToast('メモの保存に失敗しました', 'error')
     }
     setSavingMemo(false)
   }, [memoText, supabase, clinicId])
@@ -330,6 +333,7 @@ export default function HomePage() {
   return (
     <AppShell>
       <Header title="顧客管理シート" />
+      <SetupWizard />
       <div className="px-4 py-5 max-w-lg mx-auto">
 
         {/* 統計カード */}

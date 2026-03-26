@@ -7,11 +7,13 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { useToast } from '@/lib/toast'
 import type { CouponBook, Slip } from '@/lib/types'
 
 export default function CouponBookDetailPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
+  const { showToast } = useToast()
   const router = useRouter()
   const params = useParams()
   const couponId = params.id as string
@@ -74,7 +76,7 @@ export default function CouponBookDetailPage() {
     if (!error) {
       await loadCoupon()
     } else {
-      alert('更新に失敗しました: ' + error.message)
+      showToast('更新に失敗しました: ' + error.message, 'error')
     }
     setUpdating(false)
   }
@@ -94,7 +96,7 @@ export default function CouponBookDetailPage() {
     if (!error) {
       await loadCoupon()
     } else {
-      alert('更新に失敗しました: ' + error.message)
+      showToast('更新に失敗しました: ' + error.message, 'error')
     }
     setUpdating(false)
   }

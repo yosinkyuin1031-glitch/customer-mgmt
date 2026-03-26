@@ -126,7 +126,7 @@ export function readFileWithEncoding(
   reader.readAsText(file, 'UTF-8')
 }
 
-/** 全角スペースを半角に統一 */
+/** 全角スペース→半角、連続スペース→1つに統一 */
 export function normalizeSpaces(val: string): string {
-  return val.replace(/\u3000/g, ' ').trim()
+  return val.replace(/[\u3000\u00A0]/g, ' ').replace(/\s+/g, ' ').trim()
 }
