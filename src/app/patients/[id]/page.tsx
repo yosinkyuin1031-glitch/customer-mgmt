@@ -37,8 +37,6 @@ export default function PatientDetailPage() {
     notes: '',
     use_different_start: false,
   })
-  const [couponUsing, setCouponUsing] = useState<string | null>(null)
-
   useEffect(() => {
     const load = async () => {
       const { data: p } = await supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('id', id).single()
@@ -95,24 +93,53 @@ export default function PatientDetailPage() {
     setEditingSlip(null)
   }
 
-  // 回数券: 1回使用
-  const handleCouponUse = async (coupon: CouponBook) => {
-    setCouponUsing(coupon.id)
-    const newUsed = coupon.used_count + 1
-    const newStatus = newUsed >= coupon.total_count ? 'completed' : coupon.status
-    const { error } = await supabase.from('cm_coupon_books').update({
-      used_count: newUsed,
-      status: newStatus,
-    }).eq('id', coupon.id)
-    if (!error) {
-      setCouponBooks(couponBooks.map(cb =>
-        cb.id === coupon.id
-          ? { ...cb, used_count: newUsed, remaining_count: cb.total_count - newUsed, status: newStatus as CouponBook['status'] }
-          : cb
-      ))
-    }
-    setCouponUsing(null)
-  }
+  // 回数券の消費を伝票から自動計算
+  // 支払方法が「回数券」の伝票を、消費開始日の古い回数券から順に割り当て
+  const couponBooksWithAuto = (() => {
+    if (couponBooks.length === 0) return []
+    // 回数券伝票を日付順に取得
+    const couponSlips = slips
+      .filter(s => s.payment_method === '回数券')
+      .sort((a, b) => a.visit_date.localeCompare(b.visit_date))
+
+    // 回数券を消費開始日順にソート（古い順）
+    const sorted = [...couponBooks].sort((a, b) => {
+      const dateA = a.consumption_start_date || a.purchase_date
+      const dateB = b.consumption_start_date || b.purchase_date
+      return dateA.localeCompare(dateB)
+    })
+
+    // 各回数券に伝票を割り当て
+    let slipIndex = 0
+    return sorted.map(cb => {
+      const startDate = cb.consumption_start_date || cb.purchase_date
+      let used = 0
+      const assignedSlips: Slip[] = []
+
+      while (slipIndex < couponSlips.length && used < cb.total_count) {
+        const slip = couponSlips[slipIndex]
+        if (slip.visit_date >= startDate) {
+          used++
+          assignedSlips.push(slip)
+          slipIndex++
+        } else {
+          slipIndex++
+        }
+      }
+
+      const autoStatus = used >= cb.total_count ? 'completed' as const
+        : (cb.expiry_date && new Date(cb.expiry_date) < new Date()) ? 'expired' as const
+        : 'active' as const
+
+      return {
+        ...cb,
+        used_count: used,
+        remaining_count: cb.total_count - used,
+        status: cb.status === 'refunded' ? cb.status : autoStatus,
+        assignedSlips,
+      }
+    })
+  })()
 
   // 回数券: 新規登録
   const handleCouponCreate = async () => {
@@ -521,16 +548,23 @@ export default function PatientDetailPage() {
               </div>
             )}
 
-            {/* 回数券一覧 */}
-            {couponBooks.length === 0 ? (
+            {/* 回数券一覧（伝票から自動計算） */}
+            {couponBooksWithAuto.length === 0 ? (
               <p className="text-gray-400 text-sm text-center py-2">回数券はまだ登録されていません</p>
             ) : (
               <div className="space-y-3">
-                {couponBooks.map(cb => {
+                {couponBooksWithAuto.map(cb => {
                   const usageRate = cb.total_count > 0 ? cb.used_count / cb.total_count : 0
-                  const barColor = usageRate < 0.5 ? '#3B82F6' : usageRate < 0.8 ? '#F59E0B' : '#EF4444'
+                  const barColor = usageRate >= 1 ? '#3B82F6' : usageRate >= 0.7 ? '#F59E0B' : '#14252A'
                   const statusLabel: Record<string, string> = { active: '利用中', completed: '使い切り', expired: '期限切れ', refunded: '返金済' }
                   const statusColor: Record<string, string> = { active: 'bg-green-100 text-green-700', completed: 'bg-blue-100 text-blue-700', expired: 'bg-gray-100 text-gray-500', refunded: 'bg-red-100 text-red-600' }
+
+                  // 消費ペース計算
+                  const startDate = cb.consumption_start_date || cb.purchase_date
+                  const daysSinceStart = Math.max(1, Math.floor((Date.now() - new Date(startDate).getTime()) / (24 * 60 * 60 * 1000)))
+                  const daysPerUse = cb.used_count > 0 ? Math.round(daysSinceStart / cb.used_count) : 0
+                  const estimatedDaysLeft = cb.remaining_count > 0 && daysPerUse > 0 ? daysPerUse * cb.remaining_count : null
+
                   return (
                     <div key={cb.id} className="border border-gray-200 rounded-xl p-3">
                       <div className="flex justify-between items-center mb-2">
@@ -545,33 +579,40 @@ export default function PatientDetailPage() {
                       {/* プログレスバー */}
                       <div className="mb-2">
                         <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>使用 {cb.used_count} / {cb.total_count} 回</span>
+                          <span>消費 {cb.used_count} / {cb.total_count} 回</span>
                           <span>残り {cb.remaining_count} 回</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div className="h-2.5 rounded-full transition-all" style={{ width: `${usageRate * 100}%`, backgroundColor: barColor }} />
+                          <div className="h-2.5 rounded-full transition-all" style={{ width: `${Math.min(usageRate * 100, 100)}%`, backgroundColor: barColor }} />
                         </div>
                       </div>
+                      {/* 消費ペース */}
+                      {cb.status === 'active' && cb.used_count > 0 && (
+                        <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2 text-xs text-gray-600">
+                          <div className="flex justify-between">
+                            <span>消費ペース: 約{daysPerUse}日に1回</span>
+                            {estimatedDaysLeft && (
+                              <span>残り約{estimatedDaysLeft}日で消費</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex justify-between items-center text-xs text-gray-500">
                         <div>
                           <span>購入: {cb.purchase_date}</span>
+                          {cb.consumption_start_date && cb.consumption_start_date !== cb.purchase_date && (
+                            <span className="ml-2 text-blue-500">開始: {cb.consumption_start_date}</span>
+                          )}
                           {cb.expiry_date && <span className="ml-2">期限: {cb.expiry_date}</span>}
                         </div>
-                        {cb.status === 'active' && cb.remaining_count > 0 && (
-                          <button
-                            onClick={() => handleCouponUse(cb)}
-                            disabled={couponUsing === cb.id}
-                            className="px-3 py-1.5 rounded-lg text-white text-xs font-bold disabled:opacity-50"
-                            style={{ background: '#14252A' }}
-                          >
-                            {couponUsing === cb.id ? '処理中...' : '1回使用'}
-                          </button>
-                        )}
                       </div>
                       {cb.notes && <p className="text-xs text-gray-400 mt-1">{cb.notes}</p>}
                     </div>
                   )
                 })}
+                <p className="text-[10px] text-gray-400 text-center">
+                  ※ 支払方法「回数券」の来院記録から自動計算されます
+                </p>
               </div>
             )}
           </div>
