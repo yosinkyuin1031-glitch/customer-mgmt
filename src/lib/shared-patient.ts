@@ -143,7 +143,15 @@ async function fallbackFindOrCreate(
     return { patient_id: null, is_new: false, match_type: 'no_match' }
   }
 
-  // 新規作成
+  // 新規作成: patient_number を自動採番
+  const { data: maxRes } = await supabase
+    .from('cm_patients')
+    .select('patient_number')
+    .eq('clinic_id', clinicId)
+    .order('patient_number', { ascending: false })
+    .limit(1)
+  const nextNumber = (maxRes?.[0]?.patient_number || 0) + 1
+
   const { data: newPatient } = await supabase
     .from('cm_patients')
     .insert({
@@ -165,6 +173,7 @@ async function fallbackFindOrCreate(
       medical_history: input.medical_history || '',
       notes: '',
       status: 'active',
+      patient_number: nextNumber,
     })
     .select('id')
     .single()

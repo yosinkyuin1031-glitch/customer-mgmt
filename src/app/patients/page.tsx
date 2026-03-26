@@ -107,13 +107,24 @@ export default function PatientsPage() {
   const filtered = useMemo(() => {
     let list = patients
     if (search) {
-      list = list.filter(p =>
-        p.name.includes(search) ||
-        p.furigana?.includes(search) ||
-        p.phone?.includes(search) ||
-        p.chief_complaint?.includes(search) ||
-        p.address?.includes(search)
-      )
+      // 患者番号での検索に対応（P0001, 0001, 1 など）
+      const numMatch = search.replace(/^[Pp]/, '').match(/^\d+$/)
+      const searchNum = numMatch ? parseInt(numMatch[0], 10) : null
+
+      list = list.filter(p => {
+        // 患者番号での検索
+        if (searchNum !== null && p.patient_number === searchNum) return true
+        // 患者番号のP付きフォーマットでの部分一致
+        if (p.patient_number && `P${String(p.patient_number).padStart(4, '0')}`.toLowerCase().includes(search.toLowerCase())) return true
+        // 既存の検索（名前・ふりがな・電話・主訴・住所）
+        return (
+          p.name.includes(search) ||
+          p.furigana?.includes(search) ||
+          p.phone?.includes(search) ||
+          p.chief_complaint?.includes(search) ||
+          p.address?.includes(search)
+        )
+      })
     }
 
     // ソート
@@ -226,7 +237,7 @@ export default function PatientsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="名前・電話・主訴・住所で検索"
+              placeholder="名前・患者番号・電話・主訴・住所で検索"
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] bg-white shadow-sm"
             />
           </div>
