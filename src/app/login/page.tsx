@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -31,7 +31,7 @@ export default function LoginPage() {
     setError('')
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: 'demo@customer-mgmt.app',
+      email: 'demo@clinicapps.jp',
       password: 'demo1234',
     })
 
@@ -50,6 +50,14 @@ export default function LoginPage() {
 
     window.location.href = '/'
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('demo') === 'true') {
+      handleDemoLogin()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #14252A 0%, #1a3a42 100%)' }}>
@@ -103,15 +111,20 @@ export default function LoginPage() {
               アカウントを作成
             </Link>
           </p>
-        </form>
 
-        <button
-          onClick={handleDemoLogin}
-          disabled={demoLoading}
-          className="w-full mt-3 py-3 rounded-2xl text-sm font-bold transition-all disabled:opacity-50 border-2 border-white/30 text-white hover:bg-white/10"
-        >
-          {demoLoading ? 'デモ環境を準備中...' : 'デモアカウントで試す'}
-        </button>
+          <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '24px', paddingTop: '24px', textAlign: 'center' }}>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px' }}>デモ体験はこちら</p>
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              disabled={demoLoading}
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-50"
+              style={{ backgroundColor: '#0ea5e9' }}
+            >
+              {demoLoading ? 'デモログイン中...' : 'デモアカウントでログイン'}
+            </button>
+          </div>
+        </form>
 
         <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400">
           <Link href="/terms" className="hover:text-gray-200 transition-colors">

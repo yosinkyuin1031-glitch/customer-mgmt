@@ -113,7 +113,7 @@ export default function CouponBookDetailPage() {
     if (!error) {
       router.push('/coupon-books')
     } else {
-      alert('削除に失敗しました: ' + error.message)
+      showToast('削除に失敗しました: ' + error.message, 'error')
     }
     setUpdating(false)
   }
