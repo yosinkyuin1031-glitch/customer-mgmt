@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { getClinicIdServer } from '@/lib/clinic-server'
 
-interface Recipient {
+interface RecipientInput {
   id: string
   name: string
-  phone: string
 }
 
 interface SMSRequest {
-  recipients: Recipient[]
+  recipients: RecipientInput[]
   message: string
   templateName: string
+}
+
+function isValidJapanesePhone(phone: string): boolean {
+  const cleaned = phone.replace(/[-\s]/g, '')
+  return /^0[789]0\d{8}$/.test(cleaned)
 }
 
 export async function POST(request: NextRequest) {
@@ -24,16 +30,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'メッセージが空です' }, { status: 400 })
     }
 
-    // 電話番号バリデーション（日本の携帯番号: 070/080/090）
-    const invalidRecipients = recipients.filter(r => {
-      const cleaned = r.phone.replace(/[-\s]/g, '')
-      return !/^0[789]0\d{8}$/.test(cleaned)
-    })
+    // Supabaseから患者の電話番号を安全に取得
+    const supabase = await createClient()
+    const clinicId = await getClinicIdServer()
+    const patientIds = recipients.map(r => r.id)
 
-    if (invalidRecipients.length > 0) {
+    const { data: patientsData, error: dbError } = await supabase
+      .from('cm_patients')
+      .select('id, name, phone')
+      .eq('clinic_id', clinicId)
+      .in('id', patientIds)
+
+    if (dbError || !patientsData) {
+      return NextResponse.json({ success: false, error: '患者データの取得に失敗しました' }, { status: 500 })
+    }
+
+    // IDと電話番号のマップを作成
+    const patientMap = new Map(patientsData.map(p => [p.id, { name: p.name, phone: p.phone }]))
+
+    // 電話番号の検証
+    const resolvedRecipients: { id: string; name: string; phone: string }[] = []
+    const invalidNames: string[] = []
+
+    for (const r of recipients) {
+      const patient = patientMap.get(r.id)
+      if (!patient || !patient.phone || !isValidJapanesePhone(patient.phone)) {
+        invalidNames.push(r.name)
+      } else {
+        resolvedRecipients.push({ id: r.id, name: patient.name, phone: patient.phone })
+      }
+    }
+
+    if (invalidNames.length > 0) {
       return NextResponse.json({
         success: false,
-        error: `無効な電話番号: ${invalidRecipients.map(r => r.name).join(', ')}`,
+        error: `無効な電話番号または患者データなし: ${invalidNames.join(', ')}`,
       }, { status: 400 })
     }
 
@@ -49,7 +80,7 @@ export async function POST(request: NextRequest) {
       // Twilio本番送信
       const twilio = require('twilio')(twilioSid, twilioToken)
 
-      for (const r of recipients) {
+      for (const r of resolvedRecipients) {
         const personalizedMessage = message.replace(/{patient_name}/g, r.name)
         const toNumber = '+81' + r.phone.replace(/[-\s]/g, '').slice(1)
 
@@ -79,17 +110,17 @@ export async function POST(request: NextRequest) {
       })
     } else {
       // モック送信（Twilio未設定時）
-      console.log(`SMS送信（モック）: ${recipients.length}名に送信`)
+      console.log(`SMS送信（モック）: ${resolvedRecipients.length}名に送信`)
       console.log(`テンプレート: ${templateName}`)
-      recipients.forEach(r => {
+      resolvedRecipients.forEach(r => {
         const personalizedMessage = message.replace(/{patient_name}/g, r.name)
-        console.log(`  -> ${r.name} (${r.phone}): ${personalizedMessage}`)
+        console.log(`  -> ${r.name}: ${personalizedMessage}`)
       })
 
       return NextResponse.json({
         success: true,
         mode: 'mock',
-        count: recipients.length,
+        count: resolvedRecipients.length,
         sentAt: new Date().toISOString(),
       })
     }

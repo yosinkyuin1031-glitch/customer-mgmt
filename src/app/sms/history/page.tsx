@@ -10,20 +10,11 @@ interface SMSLog {
   sentAt: string
   count: number
   templateName: string
-  recipients: { name: string; phone: string }[]
+  recipients: { name: string }[]
   message: string
 }
 
 const ITEMS_PER_PAGE = 20
-
-function maskPhone(phone: string): string {
-  if (!phone) return ''
-  const cleaned = phone.replace(/[-\s]/g, '')
-  if (cleaned.length >= 8) {
-    return cleaned.slice(0, 3) + '-' + 'XXXX' + '-' + cleaned.slice(-4)
-  }
-  return phone
-}
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
@@ -189,9 +180,8 @@ export default function SMSHistoryPage() {
                         <p className="text-xs text-gray-400 font-semibold mb-1.5">送信先</p>
                         <div className="space-y-1">
                           {log.recipients.map((r, i) => (
-                            <div key={i} className="flex justify-between text-xs py-1">
+                            <div key={i} className="text-xs py-1">
                               <span className="text-gray-700">{r.name}</span>
-                              <span className="text-gray-400">{maskPhone(r.phone)}</span>
                             </div>
                           ))}
                         </div>

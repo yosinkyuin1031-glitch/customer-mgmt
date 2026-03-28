@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
@@ -231,14 +231,17 @@ export default function PatientsPage() {
   }, [search, statusFilter, genderFilter, referralFilter, sortKey, sortAsc])
 
   // ソートの切り替え
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortAsc(!sortAsc)
-    } else {
-      setSortKey(key)
-      setSortAsc(key === 'name') // 名前は昇順、数値系は降順がデフォルト
-    }
-  }
+  const handleSort = useCallback((key: SortKey) => {
+    setSortKey(prev => {
+      if (prev === key) {
+        setSortAsc(a => !a)
+        return prev
+      } else {
+        setSortAsc(key === 'name') // 名前は昇順、数値系は降順がデフォルト
+        return key
+      }
+    })
+  }, [])
 
   const SortHeader = ({ label, sortId, className = '' }: { label: string; sortId: SortKey; className?: string }) => (
     <th
@@ -317,7 +320,7 @@ export default function PatientsPage() {
     return filtered.slice(start, start + ITEMS_PER_PAGE)
   }, [filtered, currentPage])
 
-  const downloadFile = (csvContent: string, filename: string) => {
+  const downloadFile = useCallback((csvContent: string, filename: string) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -325,14 +328,14 @@ export default function PatientsPage() {
     a.download = filename
     a.click()
     URL.revokeObjectURL(url)
-  }
+  }, [])
 
-  const buildCsv = (headers: string[], rows: string[][]) => {
+  const buildCsv = useCallback((headers: string[], rows: string[][]) => {
     const bom = '\uFEFF'
     return bom + [headers.join(','), ...rows.map(r => r.map(v => `"${(v || '').replace(/"/g, '""')}"`).join(','))].join('\n')
-  }
+  }, [])
 
-  const downloadCsv = () => {
+  const downloadCsv = useCallback(() => {
     const headers = ['氏名', 'ふりがな', '性別', '生年月日', '電話番号', 'メール', '住所', '職業', '来院経路', '主訴', 'ステータス', 'LTV', '来院数', '最終来院']
     const rows = filtered.map(p => [
       p.name, p.furigana, p.gender, p.birth_date || '', p.phone, p.email,
@@ -343,9 +346,9 @@ export default function PatientsPage() {
     ])
     downloadFile(buildCsv(headers, rows), `患者一覧_${new Date().toISOString().split('T')[0]}.csv`)
     setShowCsvModal(false)
-  }
+  }, [filtered, downloadFile, buildCsv])
 
-  const downloadDmCsv = () => {
+  const downloadDmCsv = useCallback(() => {
     const dmPatients = filtered.filter(p =>
       p.is_direct_mail !== false && (p.prefecture || p.city || p.address)
     )
@@ -357,9 +360,12 @@ export default function PatientsPage() {
     ])
     downloadFile(buildCsv(headers, rows), `DM宛名_${new Date().toISOString().split('T')[0]}.csv`)
     setShowCsvModal(false)
-  }
+  }, [filtered, downloadFile, buildCsv])
 
-  const uniqueReferrals = [...new Set(patients.map(p => p.referral_source).filter(Boolean))]
+  const uniqueReferrals = useMemo(() =>
+    [...new Set(patients.map(p => p.referral_source).filter(Boolean))],
+    [patients]
+  )
 
   return (
     <AppShell>
@@ -552,8 +558,9 @@ export default function PatientsPage() {
                       <td className="px-3 py-3 text-xs">{p.calcLastVisit || '-'}</td>
                       <td className="px-3 py-3 text-right text-xs">
                         {p.calcDaysSince !== null ? (
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${p.calcDaysSince > 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince > 30 ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${p.calcDaysSince >= 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince >= 60 ? 'bg-orange-50 text-orange-600' : p.calcDaysSince >= 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600'}`}>
                             {p.calcDaysSince}日
+                            {p.calcDaysSince >= 90 ? ' 離反' : p.calcDaysSince >= 60 ? ' 離反リスク' : p.calcDaysSince >= 30 ? ' 要フォロー' : ''}
                           </span>
                         ) : '-'}
                       </td>
@@ -594,8 +601,9 @@ export default function PatientsPage() {
                       <p className="text-xs font-bold text-blue-600">{p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}</p>
                       <p className="text-xs text-gray-400">{p.calcVisitCount}回</p>
                       {p.calcDaysSince !== null && (
-                        <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${p.calcDaysSince > 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince > 30 ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
+                        <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${p.calcDaysSince >= 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince >= 60 ? 'bg-orange-50 text-orange-600' : p.calcDaysSince >= 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600'}`}>
                           {p.calcDaysSince}日前
+                          {p.calcDaysSince >= 90 ? ' 離反' : p.calcDaysSince >= 60 ? ' 離反リスク' : p.calcDaysSince >= 30 ? ' 要フォロー' : ''}
                         </span>
                       )}
                     </div>

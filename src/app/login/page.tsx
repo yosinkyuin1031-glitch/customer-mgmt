@@ -105,12 +105,14 @@ export default function LoginPage() {
             {loading ? 'ログイン中...' : 'サインイン'}
           </button>
 
-          <p className="text-center text-sm text-gray-500 mt-2">
-            アカウントをお持ちでない方は{' '}
+          <div className="flex items-center justify-between text-sm mt-2">
+            <Link href="/reset-password" className="text-gray-500 hover:underline">
+              パスワードを忘れた方
+            </Link>
             <Link href="/signup" className="text-blue-600 font-medium hover:underline">
               アカウントを作成
             </Link>
-          </p>
+          </div>
 
           <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '24px', paddingTop: '24px', textAlign: 'center' }}>
             <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px' }}>デモ体験はこちら</p>

@@ -28,7 +28,7 @@ interface SMSLog {
   sentAt: string
   count: number
   templateName: string
-  recipients: { name: string; phone: string }[]
+  recipients: { name: string }[]
   message: string
 }
 
@@ -282,7 +282,6 @@ export default function SMSPage() {
       const recipients = selectedPatients.map(p => ({
         id: p.id,
         name: p.name,
-        phone: p.phone,
       }))
 
       const res = await fetch('/api/sms/send', {
@@ -305,7 +304,7 @@ export default function SMSPage() {
           sentAt: new Date().toISOString(),
           count: recipients.length,
           templateName: templates.find(t => t.id === selectedTemplateId)?.name || '不明',
-          recipients: recipients.map(r => ({ name: r.name, phone: r.phone })),
+          recipients: recipients.map(r => ({ name: r.name })),
           message: messageText,
         }
         saveSMSLog(log)

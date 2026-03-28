@@ -11,6 +11,24 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient()
 
+  // 認証チェック
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+  }
+
+  // clinicId所有権検証
+  const { data: membership } = await supabase
+    .from('clinic_members')
+    .select('clinic_id')
+    .eq('user_id', user.id)
+    .eq('clinic_id', clinicId)
+    .single()
+
+  if (!membership) {
+    return NextResponse.json({ error: 'このクリニックへのアクセス権がありません' }, { status: 403 })
+  }
+
   // 1000件制限を回避して全件取得
   const PAGE_SIZE = 1000
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
