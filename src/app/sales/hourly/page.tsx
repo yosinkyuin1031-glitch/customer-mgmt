@@ -155,7 +155,47 @@ export default function HourlyPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-2">
+            <div className="sm:hidden space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 w-24 bg-gray-200 rounded" />
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                  </div>
+                  <div className="flex gap-3 mt-2">
+                    <div className="h-3 w-12 bg-gray-200 rounded" />
+                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                    <div className="h-3 w-10 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">日付</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">施術数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">売上</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">稼働時間</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">時間単価</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 py-2"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-12 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <>
           {/* モバイル: カード表示 */}

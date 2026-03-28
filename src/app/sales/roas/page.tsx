@@ -243,7 +243,58 @@ export default function RoasPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-3">
+            <div className="sm:hidden space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="h-4 w-24 bg-gray-200 rounded" />
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <div key={j} className="flex justify-between">
+                        <div className="h-3 w-12 bg-gray-200 rounded" />
+                        <div className="h-3 w-16 bg-gray-200 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">広告媒体</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">広告費</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">売上</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">ROAS</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">CPA</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">CPO</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">反応率</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">CV率</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">新規</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 py-2"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-12 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : channelData.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center">
             <p className="text-gray-400 mb-3">広告費データがありません</p>

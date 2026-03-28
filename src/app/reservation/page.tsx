@@ -71,6 +71,14 @@ export default function ReservationPage() {
 
   useEffect(() => { loadReservations() }, [loadReservations])
 
+  // Close modal on Escape
+  useEffect(() => {
+    if (!showModal) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowModal(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showModal])
+
   useEffect(() => {
     const loadPatients = async () => {
       const { data } = await supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('name')
@@ -174,7 +182,7 @@ export default function ReservationPage() {
         {/* ヘッダー */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-3">
-            <h2 className="font-bold text-gray-800 text-lg">📅 予約管理</h2>
+            <h2 className="font-bold text-gray-800 text-lg" id="reservation-heading">予約管理</h2>
             <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
               {(['week', 'day', 'list'] as const).map(mode => (
                 <button
@@ -190,9 +198,9 @@ export default function ReservationPage() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
-            <button onClick={() => navigateWeek(-1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">&lt;</button>
-            <button onClick={goToday} className="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50">今日</button>
-            <button onClick={() => navigateWeek(1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">&gt;</button>
+            <button onClick={() => navigateWeek(-1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50" aria-label="前の週">&lt;</button>
+            <button onClick={goToday} className="px-3.5 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50" aria-label="今日の週に移動">今日</button>
+            <button onClick={() => navigateWeek(1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50" aria-label="次の週">&gt;</button>
             <input
               type="date"
               value={currentDate.toISOString().split('T')[0]}
@@ -209,13 +217,59 @@ export default function ReservationPage() {
             onClick={() => openNewReservation()}
             className="px-4 py-2 rounded-lg text-sm font-bold text-white"
             style={{ background: '#14252A' }}
+            aria-label="新規予約を作成"
           >
             + 新規予約
           </button>
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div role="status" aria-label="予約データを読み込み中">
+            {/* Mobile skeleton */}
+            <div className="sm:hidden space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                      <div className="h-3 w-28 bg-gray-200 rounded animate-pulse mt-1" />
+                    </div>
+                    <div className="h-5 w-14 bg-gray-200 rounded-full animate-pulse" />
+                  </div>
+                  <div className="flex gap-3 mt-2">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* PC skeleton - calendar grid */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="flex border-b">
+                <div className="w-16 flex-shrink-0 border-r h-10" />
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className="flex-1 border-r py-2 flex flex-col items-center gap-1">
+                    <div className="h-3 w-4 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-6 w-6 bg-gray-200 rounded-full animate-pulse" />
+                  </div>
+                ))}
+              </div>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex border-b" style={{ minHeight: 50 }}>
+                  <div className="w-16 flex-shrink-0 border-r px-2 pt-1">
+                    <div className="h-3 w-10 bg-gray-200 rounded animate-pulse ml-auto" />
+                  </div>
+                  {Array.from({ length: 7 }).map((_, j) => (
+                    <div key={j} className="flex-1 border-r p-1">
+                      {i % 3 === 0 && j % 2 === 0 && (
+                        <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
         ) : viewMode === 'list' ? (
           <>
             {/* モバイル: カード表示 */}
@@ -380,11 +434,18 @@ export default function ReservationPage() {
 
         {/* 予約モーダル */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+          <div
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservation-modal-title"
+            onKeyDown={e => { if (e.key === 'Escape') setShowModal(false) }}
+          >
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b flex justify-between items-center" style={{ background: 'rgba(20,37,42,0.03)' }}>
-                <h3 className="font-bold text-gray-800 text-lg">{editingReservation ? '予約編集' : '新規予約'}</h3>
-                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                <h3 id="reservation-modal-title" className="font-bold text-gray-800 text-lg">{editingReservation ? '予約編集' : '新規予約'}</h3>
+                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none" aria-label="閉じる">&times;</button>
               </div>
               <div className="p-5 space-y-4">
                 {/* 患者選択 */}

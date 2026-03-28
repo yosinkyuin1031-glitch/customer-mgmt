@@ -172,11 +172,22 @@ export default function LtvPage() {
       .sort((a, b) => b.ltv - a.ltv)
   }, [allSlips, patientData, period, customFrom, customTo])
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 50
+
+  // Reset page when data changes
+  useEffect(() => { setCurrentPage(1) }, [patients.length, sortKey])
+
   const sorted = [...patients].sort((a, b) => {
     if (sortKey === 'ltv') return b.ltv - a.ltv
     if (sortKey === 'visit_count') return b.visitCount - a.visitCount
     return (b.daysSince ?? 0) - (a.daysSince ?? 0)
   })
+
+  const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE)
+  const paginatedSorted = sorted.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, sorted.length)
 
   const totalLTV = patients.reduce((sum, p) => sum + p.ltv, 0)
   const avgLTV = patients.length > 0 ? Math.round(totalLTV / patients.length) : 0
@@ -263,15 +274,66 @@ export default function LtvPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-2">
+            {/* Skeleton: mobile cards */}
+            <div className="sm:hidden space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-1">
+                      <div className="h-3 w-5 bg-gray-200 rounded" />
+                      <div className="h-4 w-20 bg-gray-200 rounded" />
+                    </div>
+                    <div className="h-4 w-24 bg-gray-200 rounded" />
+                  </div>
+                  <div className="flex gap-3 mt-2">
+                    <div className="h-3 w-12 bg-gray-200 rounded" />
+                    <div className="h-3 w-20 bg-gray-200 rounded" />
+                    <div className="h-3 w-24 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Skeleton: desktop table */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">#</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">患者名</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">来院数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">総売上</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">平均単価</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">初回</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">最終</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">経過</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 py-2"><div className="h-4 w-6 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <>
           <div className="sm:hidden space-y-2">
-            {sorted.map((p, i) => (
+            {paginatedSorted.map((p, i) => (
               <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
+                    <span className="text-xs text-gray-400 mr-1">#{startIndex + i}</span>
                     <span className="font-medium text-sm text-blue-600">{p.name}</span>
                   </div>
                   <p className="font-bold text-sm" style={{ color: '#14252A' }}>{p.ltv.toLocaleString()}円</p>
@@ -301,9 +363,9 @@ export default function LtvPage() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((p, i) => (
+                {paginatedSorted.map((p, i) => (
                   <tr key={p.id} className="border-b hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                    <td className="px-3 py-2 text-gray-400">{startIndex + i}</td>
                     <td className="px-3 py-2 font-medium">
                       <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline">{p.name}</Link>
                     </td>
@@ -321,6 +383,24 @@ export default function LtvPage() {
             </table>
             </div>
           </div>
+
+          {/* Pagination */}
+          {sorted.length > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between mt-4 px-1">
+              <p className="text-xs text-gray-500">全{sorted.length}件中 {startIndex}-{endIndex}件</p>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
+                  前へ
+                </button>
+                <span className="px-2 py-1.5 text-xs text-gray-500">{currentPage} / {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
+                  次へ
+                </button>
+              </div>
+            </div>
+          )}
           </>
         )}
       </div>

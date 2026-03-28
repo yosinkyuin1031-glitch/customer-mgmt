@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/Header'
@@ -9,6 +9,192 @@ import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
 import type { Patient, Slip, CouponBook } from '@/lib/types'
 import { REFERRAL_SOURCES, PREFECTURES, COUPON_TYPES } from '@/lib/types'
+
+// ── Confirmation Modal ──
+function ConfirmModal({
+  open,
+  title,
+  message,
+  confirmLabel = '削除',
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: string
+  message: string
+  confirmLabel?: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', handleKey)
+    }
+  }, [open, onCancel])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div
+        className="bg-white rounded-lg shadow-xl w-[90%] max-w-sm mx-4 p-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-gray-800">{title}</h3>
+            <p className="text-sm text-gray-500 mt-0.5">{message}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+            aria-label="キャンセル"
+          >
+            キャンセル
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+            aria-label={confirmLabel}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Undo Toast ──
+function UndoToast({
+  message,
+  onUndo,
+  onDismiss,
+}: {
+  message: string
+  onUndo: () => void
+  onDismiss: () => void
+}) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    timerRef.current = setTimeout(onDismiss, 5000)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [onDismiss])
+
+  return (
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white rounded-lg shadow-lg px-4 py-3 flex items-center gap-3 max-w-sm w-[90%] animate-[slideUp_0.3s_ease-out]">
+      <span className="text-sm flex-1">{message}</span>
+      <button
+        onClick={() => {
+          if (timerRef.current) clearTimeout(timerRef.current)
+          onUndo()
+        }}
+        className="text-sm font-bold text-blue-300 hover:text-blue-200 whitespace-nowrap"
+        aria-label="元に戻す"
+      >
+        元に戻す
+      </button>
+    </div>
+  )
+}
+
+// ── Skeleton components ──
+function SkeletonBlock({ className }: { className?: string }) {
+  return <div className={`animate-pulse bg-gray-200 rounded ${className || ''}`} />
+}
+
+function PatientDetailSkeleton() {
+  return (
+    <AppShell>
+      <Header title="患者詳細" />
+      <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+        {/* Patient info card */}
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex justify-between items-start mb-4">
+            <div className="space-y-2">
+              <SkeletonBlock className="h-7 w-36" />
+              <SkeletonBlock className="h-3 w-24" />
+            </div>
+            <SkeletonBlock className="h-6 w-16 rounded-full" />
+          </div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <SkeletonBlock className="h-4 w-24" />
+              <SkeletonBlock className="h-4 w-20" />
+              <SkeletonBlock className="h-4 w-28" />
+              <SkeletonBlock className="h-4 w-32" />
+            </div>
+            <div className="border-t pt-3 mt-3">
+              <SkeletonBlock className="h-4 w-40" />
+              <SkeletonBlock className="h-4 w-56 mt-2" />
+            </div>
+            <div className="border-t pt-3 mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+              <SkeletonBlock className="h-4 w-24" />
+              <SkeletonBlock className="h-4 w-28" />
+            </div>
+            <SkeletonBlock className="h-16 w-full rounded-lg" />
+            <div className="flex gap-2 mt-3">
+              <SkeletonBlock className="h-9 flex-1 rounded-lg" />
+              <SkeletonBlock className="h-9 w-16 rounded-lg" />
+            </div>
+          </div>
+        </div>
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="bg-white rounded-xl shadow-sm p-4 text-center">
+              <SkeletonBlock className="h-7 w-12 mx-auto" />
+              <SkeletonBlock className="h-3 w-16 mx-auto mt-2" />
+            </div>
+          ))}
+        </div>
+
+        {/* Visit period */}
+        <div className="bg-white rounded-xl shadow-sm p-3">
+          <div className="flex justify-between">
+            <SkeletonBlock className="h-3 w-32" />
+            <SkeletonBlock className="h-3 w-32" />
+          </div>
+        </div>
+
+        {/* Add button */}
+        <SkeletonBlock className="h-12 w-full rounded-xl" />
+
+        {/* Slips table */}
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <SkeletonBlock className="h-5 w-40 mb-3" />
+          <div className="space-y-2">
+            {[0, 1, 2, 3, 4].map(i => (
+              <SkeletonBlock key={i} className="h-8 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  )
+}
 
 export default function PatientDetailPage() {
   const supabase = createClient()
@@ -37,6 +223,28 @@ export default function PatientDetailPage() {
     notes: '',
     use_different_start: false,
   })
+
+  // Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean
+    title: string
+    message: string
+    confirmLabel: string
+    onConfirm: () => void
+  }>({ open: false, title: '', message: '', confirmLabel: '削除', onConfirm: () => {} })
+
+  // Undo toast state
+  const [undoToast, setUndoToast] = useState<{
+    show: boolean
+    message: string
+    deletedSlip: Slip | null
+    previousSlips: Slip[]
+  }>({ show: false, message: '', deletedSlip: null, previousSlips: [] })
+
+  const closeModal = useCallback(() => {
+    setConfirmModal(prev => ({ ...prev, open: false }))
+  }, [])
+
   useEffect(() => {
     const load = async () => {
       const { data: p } = await supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('id', id).single()
@@ -67,10 +275,18 @@ export default function PatientDetailPage() {
     setEditing(false)
   }
 
-  const handleDelete = async () => {
-    if (!confirm('この患者を削除しますか？')) return
-    await supabase.from('cm_patients').delete().eq('id', id)
-    router.push('/patients')
+  const handleDelete = () => {
+    setConfirmModal({
+      open: true,
+      title: '患者を削除',
+      message: 'この患者の情報をすべて削除します。この操作は取り消せません。',
+      confirmLabel: '削除する',
+      onConfirm: async () => {
+        closeModal()
+        await supabase.from('cm_patients').delete().eq('id', id)
+        router.push('/patients')
+      },
+    })
   }
 
   const handleSlipEdit = (slip: Slip) => {
@@ -86,12 +302,47 @@ export default function PatientDetailPage() {
     setEditingSlip(null)
   }
 
-  const handleSlipDelete = async (slipId: string) => {
-    if (!confirm('この伝票を削除しますか？')) return
-    await supabase.from('cm_slips').delete().eq('id', slipId)
-    setSlips(slips.filter(s => s.id !== slipId))
-    setEditingSlip(null)
+  const handleSlipDelete = (slipId: string) => {
+    setConfirmModal({
+      open: true,
+      title: '伝票を削除',
+      message: 'この伝票を削除しますか？削除後5秒以内であれば元に戻せます。',
+      confirmLabel: '削除する',
+      onConfirm: async () => {
+        closeModal()
+        const deletedSlip = slips.find(s => s.id === slipId)
+        if (!deletedSlip) return
+        const previousSlips = [...slips]
+        await supabase.from('cm_slips').delete().eq('id', slipId)
+        setSlips(slips.filter(s => s.id !== slipId))
+        setEditingSlip(null)
+        // Show undo toast
+        setUndoToast({
+          show: true,
+          message: '伝票を削除しました',
+          deletedSlip,
+          previousSlips,
+        })
+      },
+    })
   }
+
+  const handleUndoSlipDelete = async () => {
+    if (!undoToast.deletedSlip) return
+    const slip = undoToast.deletedSlip
+    const { id: _id, created_at: _c, ...insertData } = slip
+    const { data } = await supabase.from('cm_slips').insert(insertData).select().single()
+    if (data) {
+      // Re-insert and re-sort
+      const updated = [...slips, data].sort((a, b) => b.visit_date.localeCompare(a.visit_date))
+      setSlips(updated)
+    }
+    setUndoToast({ show: false, message: '', deletedSlip: null, previousSlips: [] })
+  }
+
+  const dismissUndoToast = useCallback(() => {
+    setUndoToast({ show: false, message: '', deletedSlip: null, previousSlips: [] })
+  }, [])
 
   // 回数券の消費を伝票から自動計算
   // 支払方法が「回数券」の伝票を、消費開始日の古い回数券から順に割り当て
@@ -188,7 +439,7 @@ export default function PatientDetailPage() {
 
   const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
 
-  if (loading) return <AppShell><Header title="患者詳細" /><p className="text-center py-8 text-gray-400">読み込み中...</p></AppShell>
+  if (loading) return <PatientDetailSkeleton />
   if (!patient) return <AppShell><Header title="患者詳細" /><p className="text-center py-8 text-gray-400">患者が見つかりません</p></AppShell>
 
   const age = patient.birth_date
@@ -214,6 +465,25 @@ export default function PatientDetailPage() {
     <AppShell>
       <Header title="患者詳細" />
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+
+        {/* Confirmation Modal */}
+        <ConfirmModal
+          open={confirmModal.open}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={closeModal}
+        />
+
+        {/* Undo Toast */}
+        {undoToast.show && (
+          <UndoToast
+            message={undoToast.message}
+            onUndo={handleUndoSlipDelete}
+            onDismiss={dismissUndoToast}
+          />
+        )}
 
         {/* 患者基本情報 */}
         <div className="bg-white rounded-xl shadow-sm p-4">
@@ -292,8 +562,8 @@ export default function PatientDetailPage() {
               )}
 
               <div className="flex gap-2 mt-3">
-                <button onClick={() => setEditing(true)} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600">編集</button>
-                <button onClick={handleDelete} className="text-sm py-2 px-4 text-red-500 border border-red-200 rounded-lg">削除</button>
+                <button onClick={() => setEditing(true)} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600" aria-label="患者情報を編集">編集</button>
+                <button onClick={handleDelete} className="text-sm py-2 px-4 text-red-500 border border-red-200 rounded-lg" aria-label="この患者を削除">削除</button>
               </div>
             </div>
           ) : (
@@ -390,7 +660,7 @@ export default function PatientDetailPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">ステータス</label>
-                  <select value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value as Patient['status']})} className={inputClass}>
+                  <select value={form.status || 'active'} onChange={e => setForm({...form, status: e.target.value as Patient['status']})} className={inputClass} aria-label="患者ステータスを変更">
                     <option value="active">通院中</option>
                     <option value="inactive">休止</option>
                     <option value="completed">卒業</option>
@@ -414,8 +684,8 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="flex gap-2">
-                <button onClick={handleUpdate} className="flex-1 text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>保存</button>
-                <button onClick={() => { setEditing(false); setForm(patient) }} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600">キャンセル</button>
+                <button onClick={handleUpdate} className="flex-1 text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }} aria-label="変更を保存">保存</button>
+                <button onClick={() => { setEditing(false); setForm(patient) }} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600" aria-label="編集をキャンセル">キャンセル</button>
               </div>
             </div>
           )}
@@ -455,6 +725,7 @@ export default function PatientDetailPage() {
         <Link
           href={`/visits/new?patient_id=${id}`}
           className="block w-full bg-blue-600 text-white text-center py-3 rounded-xl font-bold text-sm"
+          aria-label="この患者の施術記録を新規追加"
         >
           + この患者の施術記録を追加
         </Link>
@@ -470,6 +741,7 @@ export default function PatientDetailPage() {
                 onClick={() => setShowCouponForm(!showCouponForm)}
                 className="text-xs px-3 py-1.5 rounded-lg font-bold text-white"
                 style={{ background: '#14252A' }}
+                aria-label={showCouponForm ? '回数券登録フォームを閉じる' : '回数券を新規登録'}
               >
                 {showCouponForm ? '閉じる' : '+ 回数券を登録'}
               </button>
@@ -541,6 +813,7 @@ export default function PatientDetailPage() {
                     disabled={couponForm.total_count <= 0}
                     className="w-full text-white py-2 rounded-lg text-sm font-bold disabled:opacity-50"
                     style={{ background: '#14252A' }}
+                    aria-label="回数券を保存"
                   >
                     保存
                   </button>
@@ -582,7 +855,7 @@ export default function PatientDetailPage() {
                           <span>消費 {cb.used_count} / {cb.total_count} 回</span>
                           <span>残り {cb.remaining_count} 回</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="w-full bg-gray-200 rounded-full h-2.5" role="progressbar" aria-valuenow={cb.used_count} aria-valuemin={0} aria-valuemax={cb.total_count} aria-label={`回数券消費状況: ${cb.used_count}/${cb.total_count}回`}>
                           <div className="h-2.5 rounded-full transition-all" style={{ width: `${Math.min(usageRate * 100, 100)}%`, backgroundColor: barColor }} />
                         </div>
                       </div>
@@ -685,9 +958,9 @@ export default function PatientDetailPage() {
                   <input value={slipForm.notes || ''} onChange={e => setSlipForm({...slipForm, notes: e.target.value})} className={inputClass} />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleSlipUpdate} className="flex-1 text-white py-2 rounded-lg text-xs font-bold" style={{ background: '#14252A' }}>保存</button>
-                  <button onClick={() => setEditingSlip(null)} className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-600">キャンセル</button>
-                  <button onClick={() => handleSlipDelete(editingSlip)} className="py-2 px-3 text-red-500 border border-red-200 rounded-lg text-xs">削除</button>
+                  <button onClick={handleSlipUpdate} className="flex-1 text-white py-2 rounded-lg text-xs font-bold" style={{ background: '#14252A' }} aria-label="伝票の変更を保存">保存</button>
+                  <button onClick={() => setEditingSlip(null)} className="flex-1 py-2 border border-gray-300 rounded-lg text-xs text-gray-600" aria-label="伝票編集をキャンセル">キャンセル</button>
+                  <button onClick={() => handleSlipDelete(editingSlip)} className="py-2 px-3 text-red-500 border border-red-200 rounded-lg text-xs" aria-label="この伝票を削除">削除</button>
                 </div>
               </div>
             )}
@@ -715,7 +988,7 @@ export default function PatientDetailPage() {
                       <td className="py-2 pr-2 text-right">{s.option_price > 0 ? `￥${s.option_price.toLocaleString()}` : '-'}</td>
                       <td className="py-2 text-right font-bold">{s.total_price > 0 ? `￥${s.total_price.toLocaleString()}` : '￥0'}</td>
                       <td className="py-2 pl-1 text-center">
-                        <button onClick={() => handleSlipEdit(s)} className="text-gray-400 hover:text-blue-600 text-xs">✏️</button>
+                        <button onClick={() => handleSlipEdit(s)} className="text-gray-400 hover:text-blue-600 text-xs" aria-label={`${s.visit_date}の伝票を編集`}>✏️</button>
                       </td>
                     </tr>
                   ))}
@@ -726,6 +999,7 @@ export default function PatientDetailPage() {
               <button
                 onClick={() => setShowAllSlips(true)}
                 className="w-full mt-2 text-xs text-blue-600 py-2 border border-blue-200 rounded-lg"
+                aria-label={`残り${slips.length - 10}件の来院履歴をすべて表示`}
               >
                 すべて表示（残り{slips.length - 10}件）
               </button>
@@ -734,6 +1008,7 @@ export default function PatientDetailPage() {
               <button
                 onClick={() => setShowAllSlips(false)}
                 className="w-full mt-2 text-xs text-gray-500 py-2 border border-gray-200 rounded-lg"
+                aria-label="来院履歴を折りたたむ"
               >
                 折りたたむ
               </button>
@@ -747,6 +1022,20 @@ export default function PatientDetailPage() {
           </div>
         )}
       </div>
+
+      {/* slideUp animation for toast */}
+      <style jsx global>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translate(-50%, 20px);
+          }
+          to {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+        }
+      `}</style>
     </AppShell>
   )
 }

@@ -10,6 +10,67 @@ import type { CouponBook } from '@/lib/types'
 
 type FilterStatus = '' | 'active' | 'low' | 'completed' | 'expired'
 
+const ITEMS_PER_PAGE = 50
+
+function CouponSkeleton() {
+  return (
+    <>
+      {/* PC skeleton */}
+      <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                {['患者名', '券種', '残り/全体', '購入金額', '購入日', '有効期限', 'ステータス'].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-xs text-gray-500 font-semibold text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i} className="border-b">
+                  <td className="px-3 py-3"><div className="h-4 w-20 bg-gray-200 rounded animate-pulse" /></td>
+                  <td className="px-3 py-3"><div className="h-4 w-16 bg-gray-200 rounded animate-pulse" /></td>
+                  <td className="px-3 py-3"><div className="h-2 w-24 bg-gray-200 rounded-full animate-pulse mx-auto" /></td>
+                  <td className="px-3 py-3"><div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto" /></td>
+                  <td className="px-3 py-3"><div className="h-4 w-20 bg-gray-200 rounded animate-pulse" /></td>
+                  <td className="px-3 py-3"><div className="h-4 w-20 bg-gray-200 rounded animate-pulse" /></td>
+                  <td className="px-3 py-3"><div className="h-5 w-14 bg-gray-200 rounded-full animate-pulse mx-auto" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Mobile skeleton */}
+      <div className="md:hidden space-y-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-xl shadow-sm p-3.5 border-l-4 border-l-gray-200">
+            <div className="flex justify-between items-start">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-24 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-4 w-12 bg-gray-200 rounded-full animate-pulse" />
+                </div>
+                <div className="h-3 w-36 bg-gray-200 rounded animate-pulse mt-1.5" />
+              </div>
+              <div className="text-right ml-2 shrink-0">
+                <div className="h-6 w-12 bg-gray-200 rounded animate-pulse" />
+                <div className="h-3 w-10 bg-gray-200 rounded animate-pulse mt-1" />
+              </div>
+            </div>
+            <div className="mt-2 h-2 w-full bg-gray-200 rounded-full animate-pulse" />
+            <div className="flex gap-3 mt-2">
+              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export default function CouponBooksPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
@@ -18,6 +79,7 @@ export default function CouponBooksPage() {
   const [tableError, setTableError] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterStatus>('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const load = async () => {
@@ -75,6 +137,12 @@ export default function CouponBooksPage() {
 
     return list
   }, [coupons, search, filter])
+
+  // Reset page when filter/search changes
+  useEffect(() => { setCurrentPage(1) }, [search, filter])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
+  const paginatedItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
   const getStatusBadge = (c: CouponBook) => {
     if (c.status === 'completed') return { text: '使い切り', cls: 'bg-blue-50 text-blue-700' }
@@ -160,7 +228,7 @@ export default function CouponBooksPage() {
         <p className="text-xs text-gray-500 mb-2">{filtered.length}件の回数券</p>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <CouponSkeleton />
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-400 mb-4">回数券が登録されていません</p>
@@ -190,7 +258,7 @@ export default function CouponBooksPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((c, idx) => {
+                    {paginatedItems.map((c, idx) => {
                       const badge = getStatusBadge(c)
                       const progressPercent = c.total_count > 0 ? ((c.total_count - c.remaining_count) / c.total_count) * 100 : 0
                       return (
@@ -243,7 +311,7 @@ export default function CouponBooksPage() {
 
             {/* モバイル: カード */}
             <div className="md:hidden space-y-2">
-              {filtered.map(c => {
+              {paginatedItems.map(c => {
                 const badge = getStatusBadge(c)
                 const progressPercent = c.total_count > 0 ? ((c.total_count - c.remaining_count) / c.total_count) * 100 : 0
                 return (
@@ -299,6 +367,50 @@ export default function CouponBooksPage() {
                 )
               })}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 mt-4 py-3">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg text-sm border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                  aria-label="前のページ"
+                >
+                  &lt;
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                  .reduce<(number | string)[]>((acc, p, i, arr) => {
+                    if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...')
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((p, i) =>
+                    typeof p === 'string' ? (
+                      <span key={`ellipsis-${i}`} className="text-gray-400 text-sm px-1">...</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === p ? 'bg-[#14252A] text-white' : 'border border-gray-200 hover:bg-gray-50 text-gray-600'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-sm border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                  aria-label="次のページ"
+                >
+                  &gt;
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

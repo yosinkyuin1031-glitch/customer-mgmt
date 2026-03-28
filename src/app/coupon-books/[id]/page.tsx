@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/Header'
@@ -9,6 +9,94 @@ import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
 import { useToast } from '@/lib/toast'
 import type { CouponBook, Slip } from '@/lib/types'
+
+function DetailSkeleton() {
+  return (
+    <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+      <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+      <div className="bg-white rounded-xl shadow-sm p-5">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <div className="h-6 w-28 bg-gray-200 rounded animate-pulse" />
+            <div className="flex gap-2 mt-2">
+              <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
+              <div className="h-4 w-14 bg-gray-200 rounded-full animate-pulse" />
+            </div>
+          </div>
+          <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="flex justify-center py-6">
+          <div className="w-[180px] h-[180px] rounded-full bg-gray-200 animate-pulse" />
+        </div>
+        <div className="h-3 w-full bg-gray-200 rounded-full animate-pulse mb-4" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-gray-50 rounded-lg p-3">
+              <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mb-1" />
+              <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
+        <div className="h-4 w-10 bg-gray-200 rounded animate-pulse" />
+        <div className="h-12 w-full bg-gray-200 rounded-xl animate-pulse" />
+        <div className="h-10 w-full bg-gray-200 rounded-xl animate-pulse" />
+      </div>
+    </div>
+  )
+}
+
+function ConfirmModal({ open, title, message, confirmLabel, onConfirm, onCancel }: {
+  open: boolean
+  title: string
+  message: string
+  confirmLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onCancel])
+
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="font-bold text-gray-800 text-base mb-2">{title}</h3>
+        <p className="text-sm text-gray-600 mb-6">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50">
+            キャンセル
+          </button>
+          <button onClick={onConfirm} className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700">
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UndoToast({ message, onUndo, onClose }: { message: string; onUndo: () => void; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white rounded-lg shadow-lg px-4 py-3 flex items-center gap-3 min-w-[280px]">
+      <span className="text-sm flex-1">{message}</span>
+      <button onClick={onUndo} className="text-yellow-300 text-sm font-bold hover:text-yellow-200 whitespace-nowrap">
+        元に戻す
+      </button>
+      <button onClick={onClose} className="text-gray-400 hover:text-gray-200 text-lg leading-none">&times;</button>
+    </div>
+  )
+}
 
 export default function CouponBookDetailPage() {
   const supabase = createClient()
@@ -23,6 +111,8 @@ export default function CouponBookDetailPage() {
   const [loading, setLoading] = useState(true)
   const [tableError, setTableError] = useState(false)
   const [updating, setUpdating] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [undoInfo, setUndoInfo] = useState<{ message: string; undoFn: () => void } | null>(null)
 
   const loadCoupon = async () => {
     const { data, error } = await supabase
@@ -101,9 +191,12 @@ export default function CouponBookDetailPage() {
     setUpdating(false)
   }
 
-  const handleDelete = async () => {
-    if (!confirm('この回数券を削除しますか？')) return
+  const handleDeleteConfirm = async () => {
+    setShowDeleteModal(false)
     setUpdating(true)
+
+    // Save coupon data for undo
+    const deletedCoupon = { ...coupon }
 
     const { error } = await supabase
       .from('cm_coupon_books')
@@ -111,7 +204,23 @@ export default function CouponBookDetailPage() {
       .eq('id', couponId)
 
     if (!error) {
-      router.push('/coupon-books')
+      setUndoInfo({
+        message: '回数券を削除しました',
+        undoFn: async () => {
+          const { error: restoreError } = await supabase
+            .from('cm_coupon_books')
+            .insert(deletedCoupon)
+          if (!restoreError) {
+            setUndoInfo(null)
+            loadCoupon()
+            showToast('削除を取り消しました', 'success')
+          } else {
+            showToast('復元に失敗しました', 'error')
+          }
+        },
+      })
+      // Navigate after short delay to allow undo
+      setTimeout(() => router.push('/coupon-books'), 5000)
     } else {
       showToast('削除に失敗しました: ' + error.message, 'error')
     }
@@ -142,7 +251,7 @@ export default function CouponBookDetailPage() {
     return (
       <AppShell>
         <Header title="回数券詳細" />
-        <p className="text-gray-400 text-center py-8">読み込み中...</p>
+        <DetailSkeleton />
       </AppShell>
     )
   }
@@ -429,7 +538,7 @@ export default function CouponBookDetailPage() {
         {/* 削除 */}
         <div className="pt-4 pb-8">
           <button
-            onClick={handleDelete}
+            onClick={() => setShowDeleteModal(true)}
             disabled={updating}
             className="w-full py-3 rounded-xl text-sm font-medium text-red-500 border border-red-200 hover:bg-red-50 transition-all"
           >
@@ -437,6 +546,23 @@ export default function CouponBookDetailPage() {
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        open={showDeleteModal}
+        title="回数券を削除"
+        message={`${coupon.patient_name}の回数券（${coupon.coupon_type}）を削除しますか？この操作は取り消せます。`}
+        confirmLabel="削除する"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteModal(false)}
+      />
+
+      {undoInfo && (
+        <UndoToast
+          message={undoInfo.message}
+          onUndo={undoInfo.undoFn}
+          onClose={() => setUndoInfo(null)}
+        />
+      )}
     </AppShell>
   )
 }

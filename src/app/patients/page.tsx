@@ -18,6 +18,148 @@ interface PatientWithStats extends Patient {
 
 type SortKey = 'name' | 'gender' | 'chief_complaint' | 'referral_source' | 'line_count' | 'ltv' | 'last_visit' | 'days_since'
 
+const ITEMS_PER_PAGE = 50
+
+/* ─── Skeleton Components ─── */
+function SkeletonBar({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse bg-gray-200 rounded ${className}`} />
+}
+
+function SkeletonTableRows({ count = 8 }: { count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <tr key={i} className={`border-b ${i % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-12 mx-auto" /></td>
+          <td className="px-3 py-3">
+            <SkeletonBar className="h-4 w-24 mb-1" />
+            <SkeletonBar className="h-3 w-16" />
+          </td>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-8" /></td>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-20" /></td>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-16" /></td>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-10 ml-auto" /></td>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-16 ml-auto" /></td>
+          <td className="px-3 py-3"><SkeletonBar className="h-4 w-20" /></td>
+          <td className="px-3 py-3"><SkeletonBar className="h-5 w-10 ml-auto rounded-full" /></td>
+        </tr>
+      ))}
+    </>
+  )
+}
+
+function SkeletonMobileCards({ count = 8 }: { count?: number }) {
+  return (
+    <div className="md:hidden space-y-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white rounded-xl shadow-sm p-3.5 border-l-4 border-l-gray-200">
+          <div className="flex justify-between items-start">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <SkeletonBar className="h-3 w-10" />
+                <SkeletonBar className="h-4 w-20" />
+                <SkeletonBar className="h-4 w-12 rounded-full" />
+              </div>
+              <div className="flex gap-3 mt-1.5">
+                <SkeletonBar className="h-3 w-8" />
+                <SkeletonBar className="h-3 w-24" />
+              </div>
+            </div>
+            <div className="text-right ml-2 shrink-0 space-y-1">
+              <SkeletonBar className="h-3 w-16 ml-auto" />
+              <SkeletonBar className="h-3 w-8 ml-auto" />
+              <SkeletonBar className="h-4 w-12 ml-auto rounded-full" />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <SkeletonBar className="h-3 w-16" />
+            <SkeletonBar className="h-3 w-20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ─── Pagination Component ─── */
+function Pagination({
+  totalItems,
+  currentPage,
+  itemsPerPage,
+  onPageChange,
+}: {
+  totalItems: number
+  currentPage: number
+  itemsPerPage: number
+  onPageChange: (page: number) => void
+}) {
+  const totalPages = Math.ceil(totalItems / itemsPerPage)
+  if (totalPages <= 1) return null
+
+  const start = (currentPage - 1) * itemsPerPage + 1
+  const end = Math.min(currentPage * itemsPerPage, totalItems)
+
+  // Build visible page numbers with ellipsis
+  const pages: (number | '...')[] = []
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (currentPage > 3) pages.push('...')
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      pages.push(i)
+    }
+    if (currentPage < totalPages - 2) pages.push('...')
+    pages.push(totalPages)
+  }
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 px-1">
+      <p className="text-xs text-gray-500">
+        全{totalItems}件中 {start}-{end}件を表示
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          aria-label="前のページ"
+          className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          前へ
+        </button>
+        {pages.map((p, i) =>
+          p === '...' ? (
+            <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-gray-400">...</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              aria-label={`${p}ページ目`}
+              aria-current={currentPage === p ? 'page' : undefined}
+              className={`min-w-[32px] px-2 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                currentPage === p
+                  ? 'bg-[#14252A] text-white shadow-sm'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          aria-label="次のページ"
+          className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          次へ
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Main Page ─── */
 export default function PatientsPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
@@ -31,6 +173,7 @@ export default function PatientsPage() {
   const [showCsvModal, setShowCsvModal] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortAsc, setSortAsc] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const load = async () => {
@@ -82,6 +225,11 @@ export default function PatientsPage() {
     load()
   }, [statusFilter, genderFilter, referralFilter])
 
+  // フィルタ・検索変更時にページを1にリセット
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, genderFilter, referralFilter, sortKey, sortAsc])
+
   // ソートの切り替え
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -96,10 +244,11 @@ export default function PatientsPage() {
     <th
       className={`px-3 py-2.5 text-xs text-gray-500 font-semibold cursor-pointer hover:bg-gray-100 select-none ${className}`}
       onClick={() => handleSort(sortId)}
+      aria-label={`${label}で並べ替え`}
     >
       {label}
       {sortKey === sortId && (
-        <span className="ml-1">{sortAsc ? '▲' : '▼'}</span>
+        <span className="ml-1" aria-hidden="true">{sortAsc ? '▲' : '▼'}</span>
       )}
     </th>
   )
@@ -162,6 +311,12 @@ export default function PatientsPage() {
     return list
   }, [patients, search, sortKey, sortAsc])
 
+  // Paginated subset
+  const paginatedList = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(start, start + ITEMS_PER_PAGE)
+  }, [filtered, currentPage])
+
   const downloadFile = (csvContent: string, filename: string) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -212,36 +367,39 @@ export default function PatientsPage() {
       <div className="px-4 py-4 max-w-5xl mx-auto">
         {/* アクションバー */}
         <div className="bg-white rounded-xl shadow-sm p-3 mb-4 flex flex-wrap gap-2 items-center">
-          <Link href="/patients/new" className="text-white rounded-lg px-4 py-2.5 text-center font-bold text-sm shadow-sm hover:opacity-90" style={{ background: '#14252A' }}>
+          <Link href="/patients/new" aria-label="新規患者を登録" className="text-white rounded-lg px-4 py-2.5 text-center font-bold text-sm shadow-sm hover:opacity-90" style={{ background: '#14252A' }}>
             + 新規患者登録
           </Link>
-          <Link href="/patients/import" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
-            📥 CSVインポート
+          <Link href="/patients/import" aria-label="CSVファイルをインポート" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            CSVインポート
           </Link>
-          <Link href="/patients/bulk-edit" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
-            📝 一括編集
+          <Link href="/patients/bulk-edit" aria-label="患者情報を一括編集" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            一括編集
           </Link>
-          <button onClick={() => setShowCsvModal(true)} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
-            📤 CSV出力
+          <button onClick={() => setShowCsvModal(true)} aria-label="CSV形式でデータを出力" className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            CSV出力
           </button>
-          <button onClick={() => setShowAdvanced(!showAdvanced)} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
-            🔍 {showAdvanced ? '検索を閉じる' : '詳細検索'}
+          <button onClick={() => setShowAdvanced(!showAdvanced)} aria-label={showAdvanced ? '詳細検索を閉じる' : '詳細検索を開く'} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300">
+            {showAdvanced ? '検索を閉じる' : '詳細検索'}
           </button>
         </div>
 
         {/* 基本検索 */}
         <div className="flex gap-2 mb-3">
           <div className="flex-1 relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="名前・患者番号・電話・主訴・住所で検索"
+              aria-label="患者を検索"
               className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] bg-white shadow-sm"
             />
           </div>
-          <div className="flex gap-1 items-center">
+          <div className="flex gap-1 items-center" role="group" aria-label="ステータスフィルタ">
             {[
               { value: '', label: '全て' },
               { value: 'active', label: '通院中' },
@@ -251,6 +409,8 @@ export default function PatientsPage() {
               <button
                 key={s.value}
                 onClick={() => setStatusFilter(s.value)}
+                aria-label={`ステータス: ${s.label}`}
+                aria-pressed={statusFilter === s.value}
                 className={`px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
                   statusFilter === s.value
                     ? 'bg-[#14252A] text-white shadow-sm'
@@ -269,6 +429,7 @@ export default function PatientsPage() {
             <div>
               <label className="block text-xs text-gray-500 mb-1">性別</label>
               <select value={genderFilter} onChange={e => setGenderFilter(e.target.value)}
+                aria-label="性別でフィルタ"
                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">全て</option>
                 <option value="男性">男性</option>
@@ -279,6 +440,7 @@ export default function PatientsPage() {
             <div>
               <label className="block text-xs text-gray-500 mb-1">来院経路</label>
               <select value={referralFilter} onChange={e => setReferralFilter(e.target.value)}
+                aria-label="来院経路でフィルタ"
                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">全て</option>
                 {uniqueReferrals.map(r => <option key={r} value={r}>{r}</option>)}
@@ -286,6 +448,7 @@ export default function PatientsPage() {
             </div>
             <div className="col-span-2 flex items-end">
               <button onClick={() => { setGenderFilter(''); setReferralFilter(''); setStatusFilter(''); setSearch('') }}
+                aria-label="すべてのフィルタをリセット"
                 className="px-4 py-1.5 text-xs text-red-500 border border-red-200 rounded hover:bg-red-50">
                 フィルタをリセット
               </button>
@@ -294,7 +457,7 @@ export default function PatientsPage() {
         )}
 
         {/* モバイルソート */}
-        <div className="md:hidden flex gap-1 mb-3 overflow-x-auto pb-1">
+        <div className="md:hidden flex gap-1 mb-3 overflow-x-auto pb-1" role="group" aria-label="並べ替え">
           <span className="text-xs text-gray-400 pt-1.5 shrink-0">並替:</span>
           {([
             { key: 'name' as SortKey, label: '氏名' },
@@ -304,6 +467,8 @@ export default function PatientsPage() {
             { key: 'referral_source' as SortKey, label: '経路' },
           ]).map(s => (
             <button key={s.key} onClick={() => handleSort(s.key)}
+              aria-label={`${s.label}で並べ替え`}
+              aria-pressed={sortKey === s.key}
               className={`px-2 py-1 rounded text-xs whitespace-nowrap ${
                 sortKey === s.key ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'
               }`}>
@@ -315,7 +480,33 @@ export default function PatientsPage() {
         <p className="text-xs text-gray-500 mb-2">{filtered.length}件の患者</p>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <>
+            {/* PC: Skeleton Table */}
+            <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-center w-16">ID</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-left">氏名</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-left">性別</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-left">症状</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-left">来院経路</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-right">LINE</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-right">LTV</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-left">最終来院</th>
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-right">経過</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <SkeletonTableRows count={8} />
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {/* Mobile: Skeleton Cards */}
+            <SkeletonMobileCards count={8} />
+          </>
         ) : filtered.length === 0 ? (
           <p className="text-gray-400 text-center py-8">患者が見つかりません</p>
         ) : (
@@ -331,8 +522,8 @@ export default function PatientsPage() {
                     <SortHeader label="性別" sortId="gender" className="text-left" />
                     <SortHeader label="症状" sortId="chief_complaint" className="text-left" />
                     <SortHeader label="来院経路" sortId="referral_source" className="text-left" />
-                    <th className="px-3 py-2.5 text-xs text-gray-500 text-right cursor-pointer hover:bg-gray-100 select-none" onClick={() => handleSort('line_count')}>
-                      LINE{sortKey === 'line_count' && <span className="ml-1">{sortAsc ? '▲' : '▼'}</span>}
+                    <th className="px-3 py-2.5 text-xs text-gray-500 text-right cursor-pointer hover:bg-gray-100 select-none" onClick={() => handleSort('line_count')} aria-label="LINE回数で並べ替え">
+                      LINE{sortKey === 'line_count' && <span className="ml-1" aria-hidden="true">{sortAsc ? '▲' : '▼'}</span>}
                     </th>
                     <SortHeader label="LTV" sortId="ltv" className="text-right" />
                     <SortHeader label="最終来院" sortId="last_visit" className="text-left" />
@@ -340,7 +531,7 @@ export default function PatientsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p, idx) => (
+                  {paginatedList.map((p, idx) => (
                     <tr key={p.id} className={`border-b hover:bg-blue-50/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
                       <td className="px-3 py-3 text-center text-xs text-gray-400 font-mono">
                         {p.patient_number ? `P${String(p.patient_number).padStart(4, '0')}` : '-'}
@@ -375,8 +566,8 @@ export default function PatientsPage() {
 
             {/* モバイル: カード */}
             <div className="md:hidden space-y-2">
-              {filtered.map(p => (
-                <Link key={p.id} href={`/patients/${p.id}`} className={`block bg-white rounded-xl shadow-sm p-3.5 hover:shadow-md transition-shadow border-l-4 ${
+              {paginatedList.map(p => (
+                <Link key={p.id} href={`/patients/${p.id}`} aria-label={`${p.name}の詳細を表示`} className={`block bg-white rounded-xl shadow-sm p-3.5 hover:shadow-md transition-shadow border-l-4 ${
                   p.status === 'active' ? 'border-l-green-500' :
                   p.status === 'completed' ? 'border-l-blue-500' :
                   'border-l-gray-300'
@@ -412,23 +603,31 @@ export default function PatientsPage() {
                   <div className="flex gap-3 mt-2 text-xs text-gray-400">
                     {p.referral_source && <span>{p.referral_source}</span>}
                     {p.line_count > 0 && <span>LINE:{p.line_count}回</span>}
-                    {p.phone && <a className="text-blue-500 underline">TEL:{p.phone}</a>}
+                    {p.phone && <span className="text-blue-500">TEL:{p.phone}</span>}
                   </div>
                 </Link>
               ))}
             </div>
+
+            {/* Pagination */}
+            <Pagination
+              totalItems={filtered.length}
+              currentPage={currentPage}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+            />
           </>
         )}
 
         {/* CSV出力モーダル */}
         {showCsvModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCsvModal(false)}>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="データ出力" onClick={() => setShowCsvModal(false)}>
             <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
               <h3 className="font-bold text-gray-800 mb-4">データ出力</h3>
               <div className="border border-gray-200 rounded-xl p-4 mb-3">
                 <p className="font-bold text-sm text-gray-800 mb-1">患者データCSV</p>
                 <p className="text-xs text-gray-500 mb-3">全項目を含む一覧データ（{filtered.length}件）</p>
-                <button onClick={downloadCsv} className="w-full text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>
+                <button onClick={downloadCsv} aria-label="患者データCSVをダウンロード" className="w-full text-white py-2 rounded-lg text-sm font-bold" style={{ background: '#14252A' }}>
                   ダウンロード
                 </button>
               </div>
@@ -438,11 +637,11 @@ export default function PatientsPage() {
                 <p className="text-xs text-gray-400 mb-3">
                   DM送付可＋住所ありの患者（{filtered.filter(p => p.is_direct_mail !== false && (p.prefecture || p.city || p.address)).length}件）
                 </p>
-                <button onClick={downloadDmCsv} className="w-full py-2 rounded-lg text-sm font-bold text-white bg-orange-500 hover:bg-orange-600">
+                <button onClick={downloadDmCsv} aria-label="はがき用CSVをダウンロード" className="w-full py-2 rounded-lg text-sm font-bold text-white bg-orange-500 hover:bg-orange-600">
                   はがき用CSVをダウンロード
                 </button>
               </div>
-              <button onClick={() => setShowCsvModal(false)} className="w-full py-2 border border-gray-300 rounded-lg text-sm text-gray-600">
+              <button onClick={() => setShowCsvModal(false)} aria-label="モーダルを閉じる" className="w-full py-2 border border-gray-300 rounded-lg text-sm text-gray-600">
                 閉じる
               </button>
             </div>

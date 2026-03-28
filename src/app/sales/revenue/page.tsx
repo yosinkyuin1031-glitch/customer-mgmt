@@ -129,7 +129,52 @@ export default function RevenuePage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-3">
+            {/* Skeleton: metric cards */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center animate-pulse">
+                  <div className="h-6 sm:h-8 w-24 bg-gray-200 rounded mx-auto mb-1" />
+                  <div className="h-3 w-16 bg-gray-200 rounded mx-auto" />
+                </div>
+              ))}
+            </div>
+            {/* Skeleton: breakdown card */}
+            <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 animate-pulse">
+              <div className="h-4 w-12 bg-gray-200 rounded mb-3" />
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="bg-gray-50 rounded-lg p-2 text-center">
+                    <div className="h-5 w-12 bg-gray-200 rounded mx-auto mb-1" />
+                    <div className="h-3 w-14 bg-gray-200 rounded mx-auto mb-1" />
+                    <div className="h-3 w-16 bg-gray-200 rounded mx-auto" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Skeleton: daily table */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b"><div className="h-4 w-20 bg-gray-200 rounded animate-pulse" /></div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 sm:px-4 py-2 text-xs text-gray-500">日付</th>
+                    <th className="text-right px-3 sm:px-4 py-2 text-xs text-gray-500">施術数</th>
+                    <th className="text-right px-3 sm:px-4 py-2 text-xs text-gray-500">売上</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 sm:px-4 py-2"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+                      <td className="px-3 sm:px-4 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 sm:px-4 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <>
             {/* メイン指標 */}

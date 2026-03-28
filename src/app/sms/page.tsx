@@ -129,6 +129,9 @@ export default function SMSPage() {
   const [sent, setSent] = useState(false)
   const [sentMode, setSentMode] = useState<'live' | 'mock'>('mock')
 
+  // Validation
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
   // テンプレート読み込み
   useEffect(() => {
     const custom = getCustomTemplates()
@@ -455,7 +458,24 @@ export default function SMSPage() {
 
             {/* 患者リスト */}
             {loading ? (
-              <p className="text-gray-400 text-center py-8">読み込み中...</p>
+              <div className="space-y-2 mb-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl shadow-sm p-3.5 border-l-4 border-l-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded border-2 border-gray-200 bg-gray-100 shrink-0 animate-pulse" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                        </div>
+                        <div className="flex gap-3 mt-1">
+                          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+                          <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : filtered.length === 0 ? (
               <p className="text-gray-400 text-center py-8">該当する患者がいません</p>
             ) : (
@@ -573,11 +593,21 @@ export default function SMSPage() {
               )}
               <textarea
                 value={messageText}
-                onChange={e => setMessageText(e.target.value)}
+                onChange={e => {
+                  setMessageText(e.target.value)
+                  if (e.target.value.trim()) {
+                    setValidationErrors(prev => { const next = { ...prev }; delete next.message; return next })
+                  }
+                }}
                 rows={6}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] resize-none"
+                className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] resize-none ${
+                  validationErrors.message ? 'border-red-400 bg-red-50/30' : 'border-gray-200'
+                }`}
                 placeholder="メッセージを入力..."
               />
+              {validationErrors.message && (
+                <p className="text-xs text-red-500 mt-1">{validationErrors.message}</p>
+              )}
 
               {/* 差し込み変数 */}
               <div className="mt-3">
@@ -621,7 +651,16 @@ export default function SMSPage() {
                   &larr; 戻る
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => {
+                    const errors: Record<string, string> = {}
+                    if (!messageText.trim()) errors.message = 'メッセージを入力してください'
+                    if (Object.keys(errors).length > 0) {
+                      setValidationErrors(errors)
+                      return
+                    }
+                    setValidationErrors({})
+                    setStep(3)
+                  }}
                   disabled={!messageText.trim()}
                   className={`flex-[2] py-3 rounded-xl text-sm font-bold transition-all ${
                     messageText.trim()

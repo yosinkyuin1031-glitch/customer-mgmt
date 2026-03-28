@@ -55,7 +55,17 @@ export default function SlipsPage() {
     load()
   }, [period, selectedMonth, selectedYear, startDate, endDate])
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 50
+
   const totalAmount = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
+  const totalPages = Math.ceil(slips.length / ITEMS_PER_PAGE)
+  const paginatedSlips = slips.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, slips.length)
+
+  // Reset to page 1 when data changes
+  useEffect(() => { setCurrentPage(1) }, [slips.length])
 
   const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i))
 
@@ -121,13 +131,56 @@ export default function SlipsPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-2">
+            {/* Skeleton: mobile cards */}
+            <div className="sm:hidden space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="h-4 w-24 bg-gray-200 rounded" />
+                      <div className="h-3 w-16 bg-gray-200 rounded mt-1.5" />
+                    </div>
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                  </div>
+                  <div className="h-3 w-28 bg-gray-200 rounded mt-2" />
+                </div>
+              ))}
+            </div>
+            {/* Skeleton: desktop table */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">日付</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">患者名</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">基本</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">オプション</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">合計</th>
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">担当</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 py-2"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-14 bg-gray-200 rounded" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <>
           <div className="sm:hidden space-y-2">
             {slips.length === 0 ? (
               <p className="text-center py-8 text-gray-400">データがありません</p>
-            ) : slips.map(s => (
+            ) : paginatedSlips.map(s => (
               <div key={s.id} className="bg-white rounded-xl shadow-sm p-3">
                 <div className="flex justify-between items-start">
                   <div>
@@ -162,7 +215,7 @@ export default function SlipsPage() {
                 <tbody>
                   {slips.length === 0 ? (
                     <tr><td colSpan={6} className="text-center py-8 text-gray-400">データがありません</td></tr>
-                  ) : slips.map(s => (
+                  ) : paginatedSlips.map(s => (
                     <tr key={s.id} className="border-b hover:bg-gray-50">
                       <td className="px-3 py-2 whitespace-nowrap">
                         {new Date(s.visit_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
@@ -178,6 +231,24 @@ export default function SlipsPage() {
               </table>
             </div>
           </div>
+
+          {/* Pagination */}
+          {slips.length > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between mt-4 px-1">
+              <p className="text-xs text-gray-500">全{slips.length}件中 {startIndex}-{endIndex}件</p>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
+                  前へ
+                </button>
+                <span className="px-2 py-1.5 text-xs text-gray-500">{currentPage} / {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">
+                  次へ
+                </button>
+              </div>
+            </div>
+          )}
           </>
         )}
       </div>

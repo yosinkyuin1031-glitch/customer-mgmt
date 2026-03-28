@@ -137,7 +137,48 @@ export default function AdCostsPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-3">
+            <div className="sm:hidden space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
+                  <div className="h-4 w-28 bg-gray-200 rounded mb-2" />
+                  <div className="grid grid-cols-2 gap-2">
+                    {Array.from({ length: 6 }).map((_, j) => (
+                      <div key={j}>
+                        <div className="h-2.5 w-16 bg-gray-200 rounded mb-1" />
+                        <div className="h-8 w-full bg-gray-200 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">広告媒体</th>
+                    <th className="text-right px-2 py-2 text-xs text-gray-500">広告費(円)</th>
+                    <th className="text-right px-2 py-2 text-xs text-gray-500">表示回数</th>
+                    <th className="text-right px-2 py-2 text-xs text-gray-500">クリック</th>
+                    <th className="text-right px-2 py-2 text-xs text-gray-500">問合せ</th>
+                    <th className="text-right px-2 py-2 text-xs text-gray-500">新規患者</th>
+                    <th className="text-right px-2 py-2 text-xs text-gray-500">CV数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 py-1.5"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <td key={j} className="px-1 py-1"><div className="h-8 w-full bg-gray-200 rounded" /></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <>
           {/* モバイル: カード入力 */}

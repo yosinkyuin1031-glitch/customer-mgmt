@@ -352,24 +352,59 @@ export default function StatsPage() {
       <div className="px-4 py-4 max-w-4xl mx-auto space-y-4">
 
         {/* Year selector */}
-        <div className="flex gap-2 items-center flex-wrap">
+        <nav aria-label="年度選択" className="flex gap-2 items-center flex-wrap" role="tablist">
           {years.map(y => (
             <button key={y} onClick={() => setViewYear(y)}
+              role="tab"
+              aria-selected={viewYear === y}
+              aria-label={`${y}年の統計を表示`}
               className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
                 viewYear === y ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500 bg-white'
               }`}
             >{y}年</button>
           ))}
-        </div>
+        </nav>
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-4" role="status" aria-label="統計データを読み込み中">
+            {/* Summary card skeletons */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-t-gray-200">
+                  <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mx-auto mb-2" />
+                  <div className="h-6 w-24 bg-gray-200 rounded animate-pulse mx-auto" />
+                </div>
+              ))}
+            </div>
+            {/* Chart skeleton */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-4" />
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="h-3 w-8 bg-gray-200 rounded animate-pulse" />
+                    <div className="flex-1 h-4 bg-gray-200 rounded-full animate-pulse" style={{ width: `${80 - i * 10}%` }} />
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Table skeleton */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-3" />
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
         ) : currentYearData.length === 0 ? (
           <p className="text-gray-400 text-center py-8">{viewYear}年のデータがありません</p>
         ) : (
           <>
             {/* Summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" role="region" aria-label="年間サマリー">
               <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4" style={{ borderTopColor: '#14252A' }}>
                 <p className="text-xs text-gray-400 mb-1">年間売上</p>
                 <p className="text-xl font-bold" style={{ color: '#14252A' }}>{fmt(totalRevenue)}<span className="text-xs font-normal text-gray-400 ml-0.5">円</span></p>
@@ -413,7 +448,7 @@ export default function StatsPage() {
             </div>
 
             {/* Revenue bar chart */}
-            <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="bg-white rounded-xl shadow-sm p-4" role="img" aria-label="月別売上推移グラフ">
               <h3 className="font-bold text-gray-800 text-sm mb-3">月別売上推移</h3>
               <div className="space-y-2">
                 {currentYearData.map(d => {

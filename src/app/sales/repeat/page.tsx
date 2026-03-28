@@ -295,7 +295,54 @@ export default function RepeatPage() {
         )}
 
         {loading ? (
-          <p className="text-gray-400 text-center py-8">読み込み中...</p>
+          <div className="space-y-2">
+            {/* Skeleton: mobile cards */}
+            <div className="sm:hidden space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                    <div className="h-4 w-12 bg-gray-200 rounded" />
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="h-3 w-16 bg-gray-200 rounded" />
+                    <div className="h-3 w-24 bg-gray-200 rounded" />
+                    <div className="h-3 w-24 bg-gray-200 rounded" />
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2 mt-2" />
+                </div>
+              ))}
+            </div>
+            {/* Skeleton: desktop table */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="text-left px-3 py-2 text-xs text-gray-500">月</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">総来院数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">新規人数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">新規回数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">既存人数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">既存回数</th>
+                    <th className="text-right px-3 py-2 text-xs text-gray-500">リピート率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i} className="border-b animate-pulse">
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
+                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : viewMode === 'patient' ? (
           <>
           {/* 患者別リピート一覧 */}
