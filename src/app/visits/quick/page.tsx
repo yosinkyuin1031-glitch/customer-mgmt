@@ -191,7 +191,14 @@ export default function QuickInputPage() {
     const { error: insertError } = await supabase.from('cm_slips').insert(toInsert)
 
     if (insertError) {
-      setError('保存に失敗しました: ' + insertError.message)
+      console.error('slip insert error:', insertError)
+      if (insertError.code === '23505') {
+        setError('このデータは既に登録されています')
+      } else if (insertError.code === '42501' || insertError.message?.includes('RLS')) {
+        setError('アクセス権がありません')
+      } else {
+        setError('データの保存に失敗しました')
+      }
     } else {
       // 患者のupdated_atを更新
       const patientIds = [...new Set(records.map(r => r.patient_id).filter(Boolean))]

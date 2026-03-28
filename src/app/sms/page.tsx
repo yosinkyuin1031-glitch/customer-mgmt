@@ -525,7 +525,7 @@ export default function SMSPage() {
                                 {p.calcDaysSince}日経過
                               </span>
                             )}
-                            {p.chief_complaint && <span className="truncate">{p.chief_complaint}</span>}
+                            {p.chief_complaint && <span className="truncate" title={p.chief_complaint}>{p.chief_complaint}</span>}
                           </div>
                         </div>
                       </div>

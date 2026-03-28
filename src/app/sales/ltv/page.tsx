@@ -348,8 +348,8 @@ export default function LtvPage() {
           </div>
 
           <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto scroll-hint">
+            <table className="w-full text-sm sticky-header">
               <thead>
                 <tr className="bg-gray-50 border-b">
                   <th className="text-left px-3 py-2 text-xs text-gray-500">#</th>

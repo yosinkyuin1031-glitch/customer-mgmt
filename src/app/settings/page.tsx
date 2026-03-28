@@ -85,7 +85,7 @@ export default function SettingsPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        showToast(data.error || 'エラーが発生しました', 'error')
+        showToast('決済処理でエラーが発生しました。再度お試しください', 'error')
       }
     } catch {
       showToast('ネットワークエラーが発生しました', 'error')
@@ -106,7 +106,7 @@ export default function SettingsPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        showToast(data.error || 'エラーが発生しました', 'error')
+        showToast('決済処理でエラーが発生しました。再度お試しください', 'error')
       }
     } catch {
       showToast('ネットワークエラーが発生しました', 'error')

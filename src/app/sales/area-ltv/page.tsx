@@ -145,7 +145,7 @@ export default function AreaLtvPage() {
             <p className="text-[10px] sm:text-xs text-gray-500">全体平均LTV</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-sm sm:text-base font-bold text-orange-500 truncate">{bestAvgArea?.area || '-'}</p>
+            <p className="text-sm sm:text-base font-bold text-orange-500 truncate" title={bestAvgArea?.area || ''}>{bestAvgArea?.area || '-'}</p>
             <p className="text-[10px] sm:text-xs text-gray-500">最高平均LTVエリア</p>
           </div>
         </div>
@@ -249,7 +249,7 @@ export default function AreaLtvPage() {
                   return (
                     <div key={a.area} className="flex items-center gap-2">
                       <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
-                      <span className="text-xs font-medium w-20 sm:w-28 truncate">{a.area}</span>
+                      <span className="text-xs font-medium w-20 sm:w-28 truncate" title={a.area}>{a.area}</span>
                       <div className="flex-1 h-6 bg-gray-100 rounded overflow-hidden">
                         <div
                           className="h-full rounded flex items-center px-2"

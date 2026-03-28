@@ -392,7 +392,7 @@ export default function HomePage() {
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <Link href={`/patients/${p.id}`} className="font-bold text-sm hover:underline truncate">
+                                <Link href={`/patients/${p.id}`} className="font-bold text-sm hover:underline truncate" title={p.name}>
                                   {p.name}
                                 </Link>
                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${style.badge}`}>

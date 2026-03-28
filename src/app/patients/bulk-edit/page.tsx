@@ -369,8 +369,8 @@ export default function BulkEditPage() {
 
             {/* PC: テーブル */}
             <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto scroll-hint">
+                <table className="w-full text-xs sticky-header">
                   <thead>
                     <tr className="bg-gray-50 border-b">
                       {!showAll && <th className="px-2 py-2 w-8"><input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={toggleSelectAll} /></th>}

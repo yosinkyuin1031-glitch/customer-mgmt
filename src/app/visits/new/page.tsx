@@ -200,6 +200,7 @@ function VisitForm() {
 
   const handleSave = async () => {
     if (!form.patient_id || !form.visit_date) return
+    if (form.total_price < 0) return
     setSaving(true)
 
     const patientName = selectedPatient?.name || ''
@@ -441,10 +442,12 @@ function VisitForm() {
           <input
             type="number"
             value={form.total_price || ''}
-            onChange={(e) => update('total_price', parseInt(e.target.value) || 0)}
+            onChange={(e) => update('total_price', Math.max(0, parseInt(e.target.value) || 0))}
             placeholder="8000"
             className={inputClass}
+            min="0"
           />
+          {form.total_price < 0 && <p className="text-xs text-red-500 mt-1">金額は0以上で入力してください</p>}
         </div>
 
         <div>
@@ -522,7 +525,7 @@ function VisitForm() {
       {/* 保存ボタン */}
       <button
         onClick={handleSave}
-        disabled={saving || !form.patient_id || form.total_price <= 0}
+        disabled={saving || !form.patient_id || form.total_price < 0}
         className="w-full text-white py-4 rounded-xl font-bold text-base disabled:opacity-50 shadow-lg transition-all active:scale-95"
         style={{ background: '#14252A' }}
       >

@@ -9,6 +9,24 @@ import { getClinicId } from '@/lib/clinic'
 import { useToast } from '@/lib/toast'
 import { REFERRAL_SOURCES, PREFECTURES } from '@/lib/types'
 
+// バリデーション関数
+function validateEmail(email: string): boolean {
+  if (!email) return true // 空は許可
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function validatePhone(phone: string): boolean {
+  if (!phone) return true // 空は許可
+  const normalized = phone.replace(/[-\s\u3000()（）ー－]/g, '')
+  return /^\d{10,11}$/.test(normalized)
+}
+
+function validateZipcode(zipcode: string): boolean {
+  if (!zipcode) return true // 空は許可
+  const normalized = zipcode.replace(/[-ー－]/g, '')
+  return /^\d{7}$/.test(normalized)
+}
+
 export default function NewPatientPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
@@ -21,6 +39,8 @@ export default function NewPatientPage() {
   const [listening, setListening] = useState(false)
   const [parseError, setParseError] = useState('')
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [duplicateWarning, setDuplicateWarning] = useState<string>('')
   const [form, setForm] = useState({
     name: '', furigana: '', birth_date: '', gender: '男性',
     phone: '', email: '',
@@ -31,7 +51,48 @@ export default function NewPatientPage() {
     is_direct_mail: true, is_enabled: true,
   })
 
-  const update = (key: string, value: string | boolean) => setForm(prev => ({ ...prev, [key]: value }))
+  const update = (key: string, value: string | boolean) => {
+    setForm(prev => ({ ...prev, [key]: value }))
+    // フィールド変更時にそのフィールドのエラーをクリア
+    if (errors[key]) {
+      setErrors(prev => { const next = { ...prev }; delete next[key]; return next })
+    }
+  }
+
+  // 電話番号の重複チェック
+  const checkDuplicatePhone = async (phone: string) => {
+    if (!phone) { setDuplicateWarning(''); return }
+    const normalized = phone.replace(/[-\s\u3000()（）ー－]/g, '')
+    if (normalized.length < 10) { setDuplicateWarning(''); return }
+    const { data } = await supabase
+      .from('cm_patients')
+      .select('name, phone')
+      .eq('clinic_id', clinicId)
+    if (data) {
+      const match = data.find(p => p.phone && p.phone.replace(/[-\s\u3000()（）ー－]/g, '') === normalized)
+      if (match) {
+        setDuplicateWarning(`同じ電話番号の患者「${match.name}」が既に登録されています`)
+      } else {
+        setDuplicateWarning('')
+      }
+    }
+  }
+
+  // フォーム全体のバリデーション
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {}
+    if (!validateEmail(form.email)) {
+      newErrors.email = 'メールアドレスの形式が正しくありません'
+    }
+    if (!validatePhone(form.phone)) {
+      newErrors.phone = '電話番号は10〜11桁で入力してください'
+    }
+    if (!validateZipcode(form.zipcode)) {
+      newErrors.zipcode = '郵便番号は7桁で入力してください'
+    }
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   // 音声入力
   const toggleVoice = useCallback(() => {
@@ -116,6 +177,7 @@ export default function NewPatientPage() {
 
   const handleSave = async () => {
     if (!form.name) return
+    if (!validateForm()) return
     setSaving(true)
 
     // 患者番号を自動採番（clinic_id内の最大値+1）
@@ -136,6 +198,15 @@ export default function NewPatientPage() {
     if (!error) {
       setSaved(true)
       setTimeout(() => router.push('/patients'), 800)
+    } else {
+      console.error('patient insert error:', error)
+      if (error.code === '23505') {
+        showToast('このデータは既に登録されています', 'error')
+      } else if (error.code === '42501' || error.message?.includes('RLS')) {
+        showToast('アクセス権がありません', 'error')
+      } else {
+        showToast('データの保存に失敗しました', 'error')
+      }
     }
     setSaving(false)
   }
@@ -238,11 +309,14 @@ export default function NewPatientPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1">電話番号</label>
-              <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} className={inputClass} placeholder="090-1234-5678" />
+              <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} onBlur={() => checkDuplicatePhone(form.phone)} className={`${inputClass} ${errors.phone ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="090-1234-5678" />
+              {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+              {duplicateWarning && <p className="text-xs text-orange-600 mt-1 bg-orange-50 rounded px-2 py-1">{duplicateWarning}</p>}
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">メールアドレス</label>
-              <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className={inputClass} placeholder="example@email.com" />
+              <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className={`${inputClass} ${errors.email ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="example@email.com" />
+              {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
           </div>
         </div>
@@ -254,7 +328,8 @@ export default function NewPatientPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1">郵便番号</label>
-              <input type="text" value={form.zipcode} onChange={(e) => update('zipcode', e.target.value)} className={inputClass} placeholder="000-0000" />
+              <input type="text" value={form.zipcode} onChange={(e) => update('zipcode', e.target.value)} className={`${inputClass} ${errors.zipcode ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="000-0000" />
+              {errors.zipcode && <p className="text-xs text-red-500 mt-1">{errors.zipcode}</p>}
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">都道府県</label>

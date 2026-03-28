@@ -283,7 +283,8 @@ export default function SlipImportPage() {
     const batchSize = 50
     for (let i = 0; i < importRows.length; i += batchSize) {
       const batch = importRows.slice(i, i + batchSize)
-      const records = batch.map(r => {
+      const recordsWithMeta = batch.map(r => {
+        const csvRowNum = r.rowIndex + 2 // +2: ヘッダー行+0始まり
         const record: SlipRecord = {
           clinic_id: clinicId,
           patient_id: r.matchedPatient?.id || null,
@@ -327,15 +328,20 @@ export default function SlipImportPage() {
           record.base_price = record.total_price
         }
 
-        return record
+        return { record, csvRowNum }
       })
+
+      const formatError = (rec: SlipRecord, csvRowNum: number, error: { code?: string; message?: string }) => {
+        const reason = error.code === '23505' ? 'データが重複しています' : error.code === '42501' ? 'アクセス権がありません' : 'データの保存に失敗しました'
+        return `${csvRowNum}行目 ${rec.patient_name} (${rec.visit_date}): ${reason}`
+      }
 
       // 重複更新の場合
       if (duplicateMode === 'update') {
-        for (const rec of records) {
+        for (const { record: rec, csvRowNum } of recordsWithMeta) {
           if (!rec.patient_id) {
             const { error } = await supabase.from('cm_slips').insert(rec)
-            if (error) { errors++; console.error('slip insert error:', error.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
+            if (error) { errors++; console.error('slip insert error:', error.message); errorMessages.push(formatError(rec, csvRowNum, error)) }
             else success++
           } else {
             // 既存チェック
@@ -349,23 +355,24 @@ export default function SlipImportPage() {
 
             if (existing && existing.length > 0) {
               const { error } = await supabase.from('cm_slips').update(rec).eq('id', existing[0].id)
-              if (error) { errors++; console.error('slip update error:', error.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
+              if (error) { errors++; console.error('slip update error:', error.message); errorMessages.push(formatError(rec, csvRowNum, error)) }
               else success++
             } else {
               const { error } = await supabase.from('cm_slips').insert(rec)
-              if (error) { errors++; console.error('slip insert error:', error.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
+              if (error) { errors++; console.error('slip insert error:', error.message); errorMessages.push(formatError(rec, csvRowNum, error)) }
               else success++
             }
           }
         }
       } else {
         // 一括insert
+        const records = recordsWithMeta.map(item => item.record)
         const { error, data } = await supabase.from('cm_slips').insert(records).select('id')
         if (error) {
           // 個別にリトライ
-          for (const rec of records) {
+          for (const { record: rec, csvRowNum } of recordsWithMeta) {
             const { error: e2 } = await supabase.from('cm_slips').insert(rec)
-            if (e2) { errors++; console.error('slip insert error:', e2.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
+            if (e2) { errors++; console.error('slip insert error:', e2.message); errorMessages.push(formatError(rec, csvRowNum, e2)) }
             else success++
           }
         } else {
@@ -511,8 +518,8 @@ export default function SlipImportPage() {
                 return (
                   <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{h}</p>
-                      <p className="text-xs text-gray-400 truncate">例: {rows[0]?.[i] || '(空)'}</p>
+                      <p className="text-sm font-medium truncate" title={h}>{h}</p>
+                      <p className="text-xs text-gray-400 truncate" title={`例: ${rows[0]?.[i] || '(空)'}`}>例: {rows[0]?.[i] || '(空)'}</p>
                     </div>
                     <span className="text-gray-400 text-sm">→</span>
                     <select
@@ -677,7 +684,7 @@ export default function SlipImportPage() {
                       </td>
                       <td className="px-2 py-1.5">{r.visitDate || '-'}</td>
                       <td className="px-2 py-1.5 text-right">{r.totalPrice > 0 ? `${r.totalPrice.toLocaleString()}円` : '-'}</td>
-                      <td className="px-2 py-1.5 truncate max-w-[120px]">{getVal(r.csvRow, 'menu_name')}</td>
+                      <td className="px-2 py-1.5 truncate max-w-[120px]" title={getVal(r.csvRow, 'menu_name')}>{getVal(r.csvRow, 'menu_name')}</td>
                     </tr>
                   ))}
                 </tbody>

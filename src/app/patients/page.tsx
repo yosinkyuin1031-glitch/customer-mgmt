@@ -7,6 +7,7 @@ import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
 import { fetchAllSlips } from '@/lib/fetchAll'
+import { useLoadingTimeout } from '@/lib/useLoadingTimeout'
 import type { Patient } from '@/lib/types'
 
 interface PatientWithStats extends Patient {
@@ -170,6 +171,7 @@ export default function PatientsPage() {
   const [referralFilter, setReferralFilter] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [loading, setLoading] = useState(true)
+  const isTimedOut = useLoadingTimeout(loading)
   const [showCsvModal, setShowCsvModal] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortAsc, setSortAsc] = useState(true)
@@ -487,6 +489,11 @@ export default function PatientsPage() {
 
         {loading ? (
           <>
+            {isTimedOut && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3 text-sm text-yellow-700">
+                通信に時間がかかっています。ネットワーク接続を確認してください
+              </div>
+            )}
             {/* PC: Skeleton Table */}
             <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
@@ -519,8 +526,8 @@ export default function PatientsPage() {
           <>
             {/* PC: テーブル（ソート対応ヘッダー） */}
             <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto scroll-hint">
+              <table className="w-full text-sm sticky-header">
                 <thead>
                   <tr className="bg-gray-50 border-b">
                     <th className="px-3 py-2.5 text-xs text-gray-500 text-center w-16">ID</th>
@@ -549,7 +556,7 @@ export default function PatientsPage() {
                         {p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
                       </td>
                       <td className="px-3 py-3 text-xs">{p.gender}</td>
-                      <td className="px-3 py-3 text-xs text-gray-600 truncate max-w-[120px]">{p.chief_complaint || '-'}</td>
+                      <td className="px-3 py-3 text-xs text-gray-600 truncate max-w-[120px]" title={p.chief_complaint || ''}>{p.chief_complaint || '-'}</td>
                       <td className="px-3 py-3 text-xs">{p.referral_source || '-'}</td>
                       <td className="px-3 py-3 text-right text-xs">{p.line_count > 0 ? `${p.line_count}回` : '-'}</td>
                       <td className="px-3 py-3 text-right text-xs font-medium text-blue-600">
@@ -594,7 +601,7 @@ export default function PatientsPage() {
                       </div>
                       <div className="flex gap-3 mt-1 text-xs text-gray-500">
                         <span>{p.gender}</span>
-                        {p.chief_complaint && <span className="truncate">{p.chief_complaint}</span>}
+                        {p.chief_complaint && <span className="truncate" title={p.chief_complaint}>{p.chief_complaint}</span>}
                       </div>
                     </div>
                     <div className="text-right ml-2 shrink-0">

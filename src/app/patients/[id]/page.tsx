@@ -10,6 +10,24 @@ import { getClinicId } from '@/lib/clinic'
 import type { Patient, Slip, CouponBook } from '@/lib/types'
 import { REFERRAL_SOURCES, PREFECTURES, COUPON_TYPES } from '@/lib/types'
 
+// バリデーション関数
+function validateEmail(email: string): boolean {
+  if (!email) return true
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function validatePhone(phone: string): boolean {
+  if (!phone) return true
+  const normalized = phone.replace(/[-\s\u3000()（）ー－]/g, '')
+  return /^\d{10,11}$/.test(normalized)
+}
+
+function validateZipcode(zipcode: string): boolean {
+  if (!zipcode) return true
+  const normalized = zipcode.replace(/[-ー－]/g, '')
+  return /^\d{7}$/.test(normalized)
+}
+
 // ── Confirmation Modal ──
 function ConfirmModal({
   open,
@@ -210,6 +228,8 @@ export default function PatientDetailPage() {
   const [showAllSlips, setShowAllSlips] = useState(false)
   const [editingSlip, setEditingSlip] = useState<string | null>(null)
   const [slipForm, setSlipForm] = useState<Partial<Slip>>({})
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({})
+  const [slipErrors, setSlipErrors] = useState<Record<string, string>>({})
   const [couponBooks, setCouponBooks] = useState<CouponBook[]>([])
   const [couponLoaded, setCouponLoaded] = useState(false)
   const [showCouponForm, setShowCouponForm] = useState(false)
@@ -270,9 +290,24 @@ export default function PatientDetailPage() {
   }, [id])
 
   const handleUpdate = async () => {
+    // バリデーション
+    const newErrors: Record<string, string> = {}
+    if (form.email && !validateEmail(form.email)) {
+      newErrors.email = 'メールアドレスの形式が正しくありません'
+    }
+    if (form.phone && !validatePhone(form.phone)) {
+      newErrors.phone = '電話番号は10〜11桁で入力してください'
+    }
+    if (form.zipcode && !validateZipcode(form.zipcode)) {
+      newErrors.zipcode = '郵便番号は7桁で入力してください'
+    }
+    setEditErrors(newErrors)
+    if (Object.keys(newErrors).length > 0) return
+
     await supabase.from('cm_patients').update(form).eq('id', id)
     setPatient({ ...patient!, ...form })
     setEditing(false)
+    setEditErrors({})
   }
 
   const handleDelete = () => {
@@ -296,10 +331,25 @@ export default function PatientDetailPage() {
 
   const handleSlipUpdate = async () => {
     if (!editingSlip) return
+    // 金額バリデーション
+    const newSlipErrors: Record<string, string> = {}
+    if ((slipForm.total_price ?? 0) < 0) {
+      newSlipErrors.total_price = '金額は0以上で入力してください'
+    }
+    if ((slipForm.base_price ?? 0) < 0) {
+      newSlipErrors.base_price = '金額は0以上で入力してください'
+    }
+    if ((slipForm.option_price ?? 0) < 0) {
+      newSlipErrors.option_price = '金額は0以上で入力してください'
+    }
+    setSlipErrors(newSlipErrors)
+    if (Object.keys(newSlipErrors).length > 0) return
+
     const { id: _id, created_at: _c, ...updateData } = slipForm as Slip
     await supabase.from('cm_slips').update(updateData).eq('id', editingSlip)
     setSlips(slips.map(s => s.id === editingSlip ? { ...s, ...slipForm } : s))
     setEditingSlip(null)
+    setSlipErrors({})
   }
 
   const handleSlipDelete = (slipId: string) => {
@@ -597,11 +647,13 @@ export default function PatientDetailPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">電話番号</label>
-                  <input value={form.phone || ''} onChange={e => setForm({...form, phone: e.target.value})} className={inputClass} />
+                  <input value={form.phone || ''} onChange={e => { setForm({...form, phone: e.target.value}); setEditErrors(prev => { const n = {...prev}; delete n.phone; return n }) }} className={`${inputClass} ${editErrors.phone ? 'border-red-400 focus:ring-red-400' : ''}`} />
+                  {editErrors.phone && <p className="text-xs text-red-500 mt-1">{editErrors.phone}</p>}
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">メール</label>
-                  <input value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} className={inputClass} />
+                  <input value={form.email || ''} onChange={e => { setForm({...form, email: e.target.value}); setEditErrors(prev => { const n = {...prev}; delete n.email; return n }) }} className={`${inputClass} ${editErrors.email ? 'border-red-400 focus:ring-red-400' : ''}`} />
+                  {editErrors.email && <p className="text-xs text-red-500 mt-1">{editErrors.email}</p>}
                 </div>
               </div>
 
@@ -610,7 +662,8 @@ export default function PatientDetailPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">郵便番号</label>
-                    <input value={form.zipcode || ''} onChange={e => setForm({...form, zipcode: e.target.value})} placeholder="000-0000" className={inputClass} />
+                    <input value={form.zipcode || ''} onChange={e => { setForm({...form, zipcode: e.target.value}); setEditErrors(prev => { const n = {...prev}; delete n.zipcode; return n }) }} placeholder="000-0000" className={`${inputClass} ${editErrors.zipcode ? 'border-red-400 focus:ring-red-400' : ''}`} />
+                    {editErrors.zipcode && <p className="text-xs text-red-500 mt-1">{editErrors.zipcode}</p>}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">都道府県</label>
@@ -700,6 +753,7 @@ export default function PatientDetailPage() {
           <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-t-blue-500">
             <p className="text-2xl font-bold text-blue-600">{ltvValue.toLocaleString()}</p>
             <p className="text-xs text-gray-500 mt-1">LTV(円)</p>
+            <p className="text-[10px] text-gray-400">(自動計算)</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-t-green-500">
             <p className="text-2xl font-bold text-green-600">{avgPrice.toLocaleString()}</p>
@@ -940,7 +994,8 @@ export default function PatientDetailPage() {
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">合計金額</label>
-                    <input type="number" value={slipForm.total_price ?? 0} onChange={e => setSlipForm({...slipForm, total_price: parseInt(e.target.value) || 0})} className={inputClass} />
+                    <input type="number" value={slipForm.total_price ?? 0} onChange={e => { setSlipForm({...slipForm, total_price: parseInt(e.target.value) || 0}); setSlipErrors(prev => { const n = {...prev}; delete n.total_price; return n }) }} className={`${inputClass} ${slipErrors.total_price ? 'border-red-400 focus:ring-red-400' : ''}`} min="0" />
+                    {slipErrors.total_price && <p className="text-xs text-red-500 mt-1">{slipErrors.total_price}</p>}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">支払方法</label>

@@ -67,3 +67,33 @@ tbody tr {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+/* Sticky table headers */
+.sticky-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: inherit;
+}
+.sticky-header thead tr {
+  background: #f9fafb; /* bg-gray-50 */
+}
+
+/* Horizontal scroll indicator for mobile tables */
+.scroll-hint {
+  position: relative;
+}
+.scroll-hint::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.9));
+  pointer-events: none;
+  z-index: 5;
+}
+.scroll-hint.scrolled-end::after {
+  display: none;
+}

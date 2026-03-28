@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { getClinicIdClient } from '@/lib/clinic'
+import { useLoadingTimeout } from '@/lib/useLoadingTimeout'
 
 // 認証不要パス（ClinicProviderでプリロード不要）
 const PUBLIC_PATHS = ['/login', '/signup']
@@ -16,6 +17,7 @@ export default function ClinicProvider({ children }: { children: React.ReactNode
   const [ready, setReady] = useState(false)
   const pathname = usePathname()
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))
+  const isTimedOut = useLoadingTimeout(!ready && !isPublic)
 
   useEffect(() => {
     if (isPublic) {
@@ -31,6 +33,9 @@ export default function ClinicProvider({ children }: { children: React.ReactNode
         <div className="text-center">
           <div className="animate-spin w-8 h-8 border-3 border-gray-300 border-t-[#14252A] rounded-full mx-auto mb-3" />
           <p className="text-sm text-gray-400">読み込み中...</p>
+          {isTimedOut && (
+            <p className="text-xs text-yellow-600 mt-2">通信に時間がかかっています。ネットワーク接続を確認してください</p>
+          )}
         </div>
       </div>
     )

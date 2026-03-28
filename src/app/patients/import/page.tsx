@@ -342,13 +342,14 @@ export default function ImportPage() {
     const batchSize = 50
     for (let i = 0; i < rows.length; i += batchSize) {
       const batch = rows.slice(i, i + batchSize)
-      const records = batch.map(buildRecord).filter(r => r.name)
+      const batchWithIndex = batch.map((row, idx) => ({ record: buildRecord(row), csvRowNum: i + idx + 2 })) // +2: ヘッダー行+0始まり
+        .filter(item => item.record.name)
 
-      if (records.length === 0) continue
+      if (batchWithIndex.length === 0) continue
 
       if (duplicateMode === 'update') {
         // 1件ずつupsert（名前+電話番号で重複チェック）
-        for (const rec of records) {
+        for (const { record: rec, csvRowNum } of batchWithIndex) {
           const phoneForMatch = normalizePhone((rec.phone as string) || '')
           const { data: existing } = await supabase
             .from('cm_patients')
@@ -365,7 +366,9 @@ export default function ImportPage() {
               .eq('id', existing[0].id)
             if (error) {
               errors++
-              console.error(error); errorMessages.push(`${rec.name}: 登録に失敗しました`)
+              console.error(error)
+              const reason = error.code === '23505' ? 'データが重複しています' : error.code === '42501' ? 'アクセス権がありません' : 'データの保存に失敗しました'
+              errorMessages.push(`${csvRowNum}行目 ${rec.name}: ${reason}`)
             } else {
               success++
             }
@@ -373,7 +376,9 @@ export default function ImportPage() {
             const { error } = await supabase.from('cm_patients').insert(rec)
             if (error) {
               errors++
-              console.error(error); errorMessages.push(`${rec.name}: 登録に失敗しました`)
+              console.error(error)
+              const reason = error.code === '23505' ? 'データが重複しています' : error.code === '42501' ? 'アクセス権がありません' : 'データの保存に失敗しました'
+              errorMessages.push(`${csvRowNum}行目 ${rec.name}: ${reason}`)
             } else {
               success++
             }
@@ -381,14 +386,17 @@ export default function ImportPage() {
         }
       } else {
         // skip: 重複は無視して新規のみinsert
+        const records = batchWithIndex.map(item => item.record)
         const { error, data } = await supabase.from('cm_patients').insert(records).select('id')
         if (error) {
           // 個別に試す
-          for (const rec of records) {
+          for (const { record: rec, csvRowNum } of batchWithIndex) {
             const { error: e2 } = await supabase.from('cm_patients').insert(rec)
             if (e2) {
               errors++
-              console.error(e2); errorMessages.push(`${rec.name}: 登録に失敗しました`)
+              console.error(e2)
+              const reason = e2.code === '23505' ? 'データが重複しています' : e2.code === '42501' ? 'アクセス権がありません' : 'データの保存に失敗しました'
+              errorMessages.push(`${csvRowNum}行目 ${rec.name}: ${reason}`)
             } else {
               success++
             }
@@ -546,8 +554,8 @@ export default function ImportPage() {
                 return (
                   <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{h}</p>
-                      <p className="text-xs text-gray-400 truncate">例: {rows[0]?.[i] || '(空)'}</p>
+                      <p className="text-sm font-medium truncate" title={h}>{h}</p>
+                      <p className="text-xs text-gray-400 truncate" title={`例: ${rows[0]?.[i] || '(空)'}`}>例: {rows[0]?.[i] || '(空)'}</p>
                     </div>
                     <span className="text-gray-400 text-sm">→</span>
                     <select

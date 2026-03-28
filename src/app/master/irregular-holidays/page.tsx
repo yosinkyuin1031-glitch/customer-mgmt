@@ -10,6 +10,7 @@ export default function IrregularHolidaysPage() {
   const [holidays, setHolidays] = useState<{ id: string; holiday_date: string; reason: string }[]>([])
   const [newDate, setNewDate] = useState('')
   const [newReason, setNewReason] = useState('')
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -29,9 +30,11 @@ export default function IrregularHolidaysPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    await supabase.from('cm_irregular_holidays').delete().eq('id', id)
-    setHolidays(holidays.filter(h => h.id !== id))
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return
+    await supabase.from('cm_irregular_holidays').delete().eq('id', deleteTargetId)
+    setHolidays(holidays.filter(h => h.id !== deleteTargetId))
+    setDeleteTargetId(null)
   }
 
   const inputClass = "px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A]"
@@ -58,9 +61,27 @@ export default function IrregularHolidaysPage() {
                 </span>
                 {h.reason && <span className="text-xs text-gray-400 ml-2">{h.reason}</span>}
               </div>
-              <button onClick={() => handleDelete(h.id)} className="text-xs text-red-400">削除</button>
+              <button onClick={() => setDeleteTargetId(h.id)} className="text-xs text-red-400">削除</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 削除確認モーダル */}
+      {deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setDeleteTargetId(null)}>
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative bg-white rounded-xl shadow-xl p-6 w-80 text-center" onClick={e => e.stopPropagation()}>
+            <p className="text-sm text-gray-800 font-medium mb-5">この休日を削除しますか？</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setDeleteTargetId(null)} className="px-4 py-2 text-sm rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
+                キャンセル
+              </button>
+              <button onClick={handleDeleteConfirm} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700">
+                削除する
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

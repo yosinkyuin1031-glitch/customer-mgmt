@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Reservation, Patient } from '@/lib/types'
 import { RESERVATION_STATUSES } from '@/lib/types'
 import { getClinicId } from '@/lib/clinic'
+import { useLoadingTimeout } from '@/lib/useLoadingTimeout'
 
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 9) // 9:00 ~ 21:00
 const SLOT_HEIGHT = 60
@@ -33,7 +34,9 @@ export default function ReservationPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
+  const isTimedOut = useLoadingTimeout(loading)
   const [showModal, setShowModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null)
   const [patients, setPatients] = useState<Patient[]>([])
   const [patientSearch, setPatientSearch] = useState('')
@@ -145,8 +148,14 @@ export default function ReservationPage() {
     loadReservations()
   }
 
-  const handleDelete = async () => {
+  const handleDeleteRequest = () => {
     if (!editingReservation) return
+    setShowDeleteConfirm(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!editingReservation) return
+    setShowDeleteConfirm(false)
     await supabase.from('cm_reservations').delete().eq('id', editingReservation.id)
     setShowModal(false)
     loadReservations()
@@ -225,6 +234,11 @@ export default function ReservationPage() {
 
         {loading ? (
           <div role="status" aria-label="予約データを読み込み中">
+            {isTimedOut && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3 text-sm text-yellow-700">
+                通信に時間がかかっています。ネットワーク接続を確認してください
+              </div>
+            )}
             {/* Mobile skeleton */}
             <div className="sm:hidden space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -417,6 +431,7 @@ export default function ReservationPage() {
                             key={r.id}
                             onClick={(e) => { e.stopPropagation(); openEditReservation(r) }}
                             className={`text-xs p-1 rounded border mb-0.5 cursor-pointer truncate ${statusColor(r.status)}`}
+                            title={`${r.patient_name} ${r.start_time.slice(0, 5)}-${r.end_time.slice(0, 5)}`}
                           >
                             <div className="font-medium truncate">{r.patient_name}</div>
                             <div className="text-[10px] opacity-75">{r.start_time.slice(0, 5)}-{r.end_time.slice(0, 5)}</div>
@@ -531,9 +546,30 @@ export default function ReservationPage() {
                     {editingReservation ? '更新' : '予約登録'}
                   </button>
                   {editingReservation && (
-                    <button onClick={handleDelete} className="px-4 py-2 text-red-500 border border-red-200 rounded-lg text-sm">削除</button>
+                    <button onClick={handleDeleteRequest} className="px-4 py-2 text-red-500 border border-red-200 rounded-lg text-sm">削除</button>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 削除確認モーダル */}
+        {showDeleteConfirm && (
+          <div
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-800 text-base mb-2">予約を削除</h3>
+              <p className="text-sm text-gray-600 mb-6">この予約を削除しますか？この操作は取り消せません。</p>
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50">
+                  キャンセル
+                </button>
+                <button onClick={handleDeleteConfirm} className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-red-600 hover:bg-red-700">
+                  削除する
+                </button>
               </div>
             </div>
           </div>

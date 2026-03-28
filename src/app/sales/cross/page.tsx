@@ -412,7 +412,7 @@ export default function CrossPage() {
                       if (!cell || getCellNumber(cell) === 0) return null
                       return (
                         <div key={col} className="bg-gray-50 rounded px-2 py-1 flex justify-between">
-                          <span className="text-[10px] text-gray-500 truncate">{col}</span>
+                          <span className="text-[10px] text-gray-500 truncate" title={col}>{col}</span>
                           <span className="text-[10px] font-medium ml-1">{getCellValue(cell)}</span>
                         </div>
                       )

@@ -37,8 +37,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <Link
                 href="/help"
-                className={`text-sm flex items-center gap-1 transition-colors ${
-                  activeTab === 'help' ? 'text-white font-bold' : 'text-gray-300 hover:text-white'
+                className={`text-sm flex items-center gap-1 transition-colors px-2 py-1 rounded-lg ${
+                  activeTab === 'help'
+                    ? 'text-white font-bold bg-white/20'
+                    : 'text-gray-200 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <span>📘</span>
@@ -46,11 +48,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
               <Link
                 href="/settings"
-                className={`text-sm flex items-center gap-1 transition-colors ${
-                  pathname.startsWith('/settings') ? 'text-white font-bold' : 'text-gray-300 hover:text-white'
+                className={`text-sm flex items-center gap-1 transition-colors px-2 py-1 rounded-lg ${
+                  pathname.startsWith('/settings')
+                    ? 'text-white font-bold bg-white/20'
+                    : 'text-gray-200 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <span>⚙️</span>
+                <span className="text-lg">⚙️</span>
                 <span className="hidden sm:inline">設定</span>
               </Link>
               <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white text-xl">☰</button>

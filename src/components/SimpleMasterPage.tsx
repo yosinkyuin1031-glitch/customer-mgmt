@@ -202,7 +202,18 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
     })
     newItem.sort_order = items.length + 1
     newItem.clinic_id = clinicId
-    const { data } = await supabase.from(tableName).insert(newItem).select().single()
+    const { data, error } = await supabase.from(tableName).insert(newItem).select().single()
+    if (error) {
+      console.error('master add error:', error)
+      if (error.code === '23505') {
+        alert('このデータは既に登録されています')
+      } else if (error.code === '42501' || error.message?.includes('RLS')) {
+        alert('アクセス権がありません')
+      } else {
+        alert('データの保存に失敗しました')
+      }
+      return
+    }
     if (data) {
       setItems([...items, data])
       setEditingId(data.id as string)
@@ -214,7 +225,18 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
   const handleSave = async () => {
     if (!editingId) return
     if (!validateForm()) return
-    await supabase.from(tableName).update(form).eq('id', editingId)
+    const { error } = await supabase.from(tableName).update(form).eq('id', editingId)
+    if (error) {
+      console.error('master save error:', error)
+      if (error.code === '23505') {
+        alert('このデータは既に登録されています')
+      } else if (error.code === '42501' || error.message?.includes('RLS')) {
+        alert('アクセス権がありません')
+      } else {
+        alert('データの保存に失敗しました')
+      }
+      return
+    }
     await load()
     setEditingId(null)
     setForm({})

@@ -335,7 +335,7 @@ export default function StatsPage() {
       <div className="space-y-1.5">
         {sorted.map(([label, count]) => (
           <div key={label} className="flex items-center gap-2">
-            <span className="text-xs text-gray-600 w-20 truncate text-right">{label}</span>
+            <span className="text-xs text-gray-600 w-20 truncate text-right" title={label}>{label}</span>
             <div className="flex-1 bg-gray-100 rounded-full h-3">
               <div className="h-3 rounded-full transition-all" style={{ width: `${(count / max) * 100}%`, background: color }} />
             </div>
@@ -655,9 +655,9 @@ export default function StatsPage() {
                                               <td className="px-2 py-1.5 text-center">{p.age !== null ? `${p.age}歳` : '-'}</td>
                                               <td className="px-2 py-1.5 text-center">{p.gender}</td>
                                               <td className="px-2 py-1.5">{p.referral || '-'}</td>
-                                              <td className="px-2 py-1.5 max-w-[120px] truncate">{p.complaint || '-'}</td>
+                                              <td className="px-2 py-1.5 max-w-[120px] truncate" title={p.complaint || ''}>{p.complaint || '-'}</td>
                                               <td className="px-2 py-1.5">{p.occupation || '-'}</td>
-                                              <td className="px-2 py-1.5 max-w-[100px] truncate">{p.motive || '-'}</td>
+                                              <td className="px-2 py-1.5 max-w-[100px] truncate" title={p.motive || ''}>{p.motive || '-'}</td>
                                               <td className="px-2 py-1.5 text-right font-medium">{fmt(p.revenue)}円</td>
                                             </tr>
                                           ))}
@@ -711,7 +711,7 @@ export default function StatsPage() {
                                               <td className="px-2 py-1.5 font-medium">{p.name}</td>
                                               <td className="px-2 py-1.5 text-center">{p.age !== null ? `${p.age}歳` : '-'}</td>
                                               <td className="px-2 py-1.5 text-center">{p.gender}</td>
-                                              <td className="px-2 py-1.5 max-w-[150px] truncate">{p.complaint || '-'}</td>
+                                              <td className="px-2 py-1.5 max-w-[150px] truncate" title={p.complaint || ''}>{p.complaint || '-'}</td>
                                               <td className="px-2 py-1.5 text-right">{p.visits}回</td>
                                               <td className="px-2 py-1.5 text-right font-medium">{fmt(p.revenue)}円</td>
                                             </tr>
