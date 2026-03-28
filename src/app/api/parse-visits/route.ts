@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { findBestMatch } from '@/lib/nameMatch'
 import { getClinicIdServer } from '@/lib/clinic-server'
@@ -9,6 +10,13 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export async function POST(req: NextRequest) {
   try {
+    // 認証チェック
+    const authClient = await createServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+    }
+
     const { text } = await req.json()
     if (!text || typeof text !== 'string') {
       return NextResponse.json({ error: 'テキストが必要です' }, { status: 400 })
@@ -91,7 +99,7 @@ ${text}`
 
     const jsonMatch = content.text.match(/\[[\s\S]*\]/)
     if (!jsonMatch) {
-      return NextResponse.json({ error: '解析結果を読み取れませんでした', raw: content.text }, { status: 500 })
+      return NextResponse.json({ error: '解析結果を読み取れませんでした' }, { status: 500 })
     }
 
     const parsed = JSON.parse(jsonMatch[0])

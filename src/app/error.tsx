@@ -27,14 +27,8 @@ export default function RootError({
           予期しないエラーが発生しました。
         </p>
         <p className="text-sm text-gray-500 mb-6">
-          問題が続く場合はページを再読み込みしてください。
+          エラーが発生しました。ページを再読み込みしてください。
         </p>
-        {error.message && (
-          <div className="bg-gray-50 rounded-lg p-3 mb-6 text-left">
-            <p className="text-xs text-gray-400 mb-1">エラー詳細</p>
-            <p className="text-xs text-gray-600 font-mono break-all">{error.message}</p>
-          </div>
-        )}
         <div className="flex gap-3">
           <button
             onClick={reset}

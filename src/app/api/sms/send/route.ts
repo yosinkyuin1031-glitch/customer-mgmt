@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
           })
           results.push({ name: r.name, success: true })
         } catch (err: unknown) {
-          const errMsg = err instanceof Error ? err.message : '送信失敗'
-          results.push({ name: r.name, success: false, error: errMsg })
+          console.error('Twilio送信エラー:', err)
+          results.push({ name: r.name, success: false, error: 'SMS送信に失敗しました' })
         }
       }
 

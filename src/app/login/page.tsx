@@ -30,9 +30,17 @@ export default function LoginPage() {
     setDemoLoading(true)
     setError('')
 
+    const demoEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL
+    const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD
+    if (!demoEmail || !demoPassword) {
+      setError('デモアカウントが設定されていません。')
+      setDemoLoading(false)
+      return
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email: 'demo@clinicapps.jp',
-      password: 'demo1234',
+      email: demoEmail,
+      password: demoPassword,
     })
 
     if (error) {

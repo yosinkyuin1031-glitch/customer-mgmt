@@ -5,9 +5,6 @@
 
 import { createClient } from '@/lib/supabase/client'
 
-// デフォルトのclinic_id（フォールバック用）
-const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001'
-
 // クライアント側キャッシュ
 let cachedClinicId: string | null = null
 let fetchPromise: Promise<string> | null = null
@@ -28,8 +25,11 @@ export async function getClinicIdClient(): Promise<string> {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        // 未ログインの場合はデフォルト値を返す（ミドルウェアでリダイレクトされるはず）
-        return DEFAULT_CLINIC_ID
+        // 未ログイン → ログインページへリダイレクト
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
+        return ''
       }
 
       const { data: membership } = await supabase
@@ -48,9 +48,9 @@ export async function getClinicIdClient(): Promise<string> {
       if (typeof window !== 'undefined') {
         window.location.href = '/signup?reason=no_clinic'
       }
-      return DEFAULT_CLINIC_ID
+      return ''
     } catch {
-      return DEFAULT_CLINIC_ID
+      return ''
     } finally {
       fetchPromise = null
     }
@@ -65,7 +65,7 @@ export async function getClinicIdClient(): Promise<string> {
 
 /**
  * 後方互換性のため: 同期的にclinic_idを返す
- * ※ キャッシュがない場合はDEFAULT_CLINIC_IDを返し、
+ * ※ キャッシュがない場合は空文字を返し、
  *    バックグラウンドでフェッチを開始する
  *
  * @deprecated getClinicIdClient() を使ってください
@@ -78,7 +78,7 @@ export function getClinicId(): string {
     getClinicIdClient()
   }
 
-  return process.env.NEXT_PUBLIC_CLINIC_ID || DEFAULT_CLINIC_ID
+  return process.env.NEXT_PUBLIC_CLINIC_ID || ''
 }
 
 /**
