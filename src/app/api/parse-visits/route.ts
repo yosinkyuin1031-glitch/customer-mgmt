@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { findBestMatch } from '@/lib/nameMatch'
 import { getClinicIdServer } from '@/lib/clinic-server'
-import { callWithRetry, AnthropicApiError } from '@/lib/anthropic'
+import { callWithRetry } from '@/lib/anthropic'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -123,11 +123,7 @@ ${text}`
 
     return NextResponse.json({ records: verified })
   } catch (error) {
-    if (error instanceof AnthropicApiError) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    const errMsg = error instanceof Error ? error.message : String(error)
-    console.error('Parse error:', errMsg)
+    console.error('Parse error:', error)
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }
 }

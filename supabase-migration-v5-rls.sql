@@ -265,3 +265,21 @@ CREATE POLICY "clinic_data_isolation" ON cm_irregular_holidays
   FOR ALL USING (
     clinic_id IN (SELECT clinic_id FROM clinic_members WHERE user_id = auth.uid())
   );
+
+-- ============================================
+-- 20. cm_coupon_books テーブル
+-- ============================================
+-- RLSを有効化（まだ有効でない場合）
+ALTER TABLE cm_coupon_books ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'cm_coupon_books') THEN
+    DROP POLICY IF EXISTS "認証ユーザーはcm_coupon_booksを操作可能" ON cm_coupon_books;
+    DROP POLICY IF EXISTS "clinic_data_isolation" ON cm_coupon_books;
+  END IF;
+END $$;
+
+CREATE POLICY "clinic_data_isolation" ON cm_coupon_books
+  FOR ALL USING (
+    clinic_id IN (SELECT clinic_id FROM clinic_members WHERE user_id = auth.uid())
+  );

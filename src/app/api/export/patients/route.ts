@@ -31,8 +31,7 @@ export async function GET(request: NextRequest) {
 
   // 1000件制限を回避して全件取得
   const PAGE_SIZE = 1000
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let allPatients: any[] = []
+  let allPatients: Record<string, unknown>[] = []
   let offset = 0
   let hasMore = true
 
@@ -45,7 +44,8 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + PAGE_SIZE - 1)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('患者データ取得エラー:', error)
+      return NextResponse.json({ error: '患者データの取得に失敗しました' }, { status: 500 })
     }
     if (!data) break
 
@@ -79,25 +79,25 @@ export async function GET(request: NextRequest) {
   }
 
   // CSV 行を生成
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = allPatients.map((p: any) => {
+  const rows = allPatients.map((p: Record<string, unknown>) => {
     const address = [p.prefecture, p.city, p.address, p.building]
       .filter(Boolean)
       .join(' ')
 
+    const status = typeof p.status === 'string' ? p.status : ''
     return [
-      p.name ?? '',
-      p.furigana ?? '',
-      p.gender ?? '',
-      p.phone ?? '',
-      p.email ?? '',
+      (p.name as string) ?? '',
+      (p.furigana as string) ?? '',
+      (p.gender as string) ?? '',
+      (p.phone as string) ?? '',
+      (p.email as string) ?? '',
       address,
-      p.birth_date ?? '',
-      p.chief_complaint ?? '',
-      p.referral_source ?? '',
-      statusMap[p.status] ?? p.status ?? '',
-      p.first_visit_date ?? '',
-      p.last_visit_date ?? '',
+      (p.birth_date as string) ?? '',
+      (p.chief_complaint as string) ?? '',
+      (p.referral_source as string) ?? '',
+      statusMap[status] ?? status,
+      (p.first_visit_date as string) ?? '',
+      (p.last_visit_date as string) ?? '',
       String(p.visit_count ?? 0),
       String(p.ltv ?? 0),
     ]

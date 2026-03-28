@@ -16,13 +16,15 @@ export async function GET() {
     const { error } = await supabase
       .from('cm_patients')
       .select('id', { count: 'exact', head: true })
+    if (error) console.error('Health check Supabase error:', error)
     services.supabase = error
-      ? { status: 'error', error: error.message, latency: Date.now() - supabaseStart }
+      ? { status: 'error', error: '接続エラー', latency: Date.now() - supabaseStart }
       : { status: 'ok', latency: Date.now() - supabaseStart }
   } catch (e) {
+    console.error('Health check Supabase error:', e)
     services.supabase = {
       status: 'error',
-      error: e instanceof Error ? e.message : 'Unknown',
+      error: '接続エラー',
       latency: Date.now() - supabaseStart,
     }
   }
@@ -31,7 +33,7 @@ export async function GET() {
   const anthropicStart = Date.now()
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
-      services.anthropic = { status: 'error', error: 'API key not set' }
+      services.anthropic = { status: 'error', error: '設定エラー' }
     } else {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       await anthropic.messages.create({
@@ -42,8 +44,8 @@ export async function GET() {
       services.anthropic = { status: 'ok', latency: Date.now() - anthropicStart }
     }
   } catch (e) {
-    const errMsg = e instanceof Error ? e.message : 'Unknown'
-    services.anthropic = { status: 'error', error: errMsg, latency: Date.now() - anthropicStart }
+    console.error('Health check Anthropic error:', e)
+    services.anthropic = { status: 'error', error: '接続エラー', latency: Date.now() - anthropicStart }
   }
 
   const overall = Object.values(services).every((r) => r.status === 'ok')

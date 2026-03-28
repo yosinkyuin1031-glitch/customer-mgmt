@@ -33,8 +33,7 @@ export async function GET(request: NextRequest) {
 
   // 1000件制限を回避して全件取得
   const PAGE_SIZE = 1000
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let allSlips: any[] = []
+  let allSlips: Record<string, unknown>[] = []
   let offset = 0
   let hasMore = true
 
@@ -56,7 +55,8 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('売上データ取得エラー:', error)
+      return NextResponse.json({ error: '売上データの取得に失敗しました' }, { status: 500 })
     }
     if (!data) break
 
@@ -78,16 +78,15 @@ export async function GET(request: NextRequest) {
   ]
 
   // CSV 行を生成
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = allSlips.map((s: any) => [
-    s.visit_date ?? '',
-    s.patient_name ?? '',
-    s.menu_name ?? '',
-    s.option_names ?? '',
+  const rows = allSlips.map((s: Record<string, unknown>) => [
+    (s.visit_date as string) ?? '',
+    (s.patient_name as string) ?? '',
+    (s.menu_name as string) ?? '',
+    (s.option_names as string) ?? '',
     String(s.total_price ?? 0),
-    s.payment_method ?? '',
-    s.staff_name ?? '',
-    s.notes ?? '',
+    (s.payment_method as string) ?? '',
+    (s.staff_name as string) ?? '',
+    (s.notes as string) ?? '',
   ])
 
   // CSV文字列を組み立て

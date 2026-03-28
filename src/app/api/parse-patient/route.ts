@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getClinicIdServer } from '@/lib/clinic-server'
-import { callWithRetry, AnthropicApiError } from '@/lib/anthropic'
+import { callWithRetry } from '@/lib/anthropic'
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,9 +71,6 @@ ${text}`
     const parsed = JSON.parse(jsonMatch[0])
     return NextResponse.json({ patient: parsed })
   } catch (error) {
-    if (error instanceof AnthropicApiError) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
     console.error('Parse error:', error)
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }

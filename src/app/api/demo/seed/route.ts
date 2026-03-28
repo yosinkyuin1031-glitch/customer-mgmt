@@ -140,7 +140,7 @@ export async function POST() {
 
     if (patientError) {
       console.error('患者データ挿入エラー:', patientError)
-      return NextResponse.json({ error: '患者データの生成に失敗しました', detail: patientError.message }, { status: 500 })
+      return NextResponse.json({ error: '患者データの生成に失敗しました' }, { status: 500 })
     }
 
     // 各患者に来院記録（cm_slips）を3〜8件生成
@@ -182,7 +182,7 @@ export async function POST() {
 
     if (slipError) {
       console.error('伝票データ挿入エラー:', slipError)
-      return NextResponse.json({ error: '来院記録の生成に失敗しました', detail: slipError.message }, { status: 500 })
+      return NextResponse.json({ error: '来院記録の生成に失敗しました' }, { status: 500 })
     }
 
     // 患者のvisit_count, ltv, first_visit_date, last_visit_dateを更新
