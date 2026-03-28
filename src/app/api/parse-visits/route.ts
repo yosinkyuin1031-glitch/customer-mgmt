@@ -3,7 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { findBestMatch } from '@/lib/nameMatch'
 import { getClinicIdServer } from '@/lib/clinic-server'
-import { callWithRetry } from '@/lib/anthropic'
+import { callWithRetry, AnthropicApiError } from '@/lib/anthropic'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -132,6 +132,20 @@ ${text}`
     return NextResponse.json({ records: verified })
   } catch (error) {
     console.error('Parse error:', error)
+
+    if (error instanceof AnthropicApiError) {
+      const statusMap: Record<string, number> = {
+        credits: 402,
+        auth: 401,
+        system: 503,
+        unknown: 500,
+      }
+      return NextResponse.json(
+        { error: error.message },
+        { status: statusMap[error.type] || 500 }
+      )
+    }
+
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }
 }

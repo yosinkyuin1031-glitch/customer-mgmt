@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getClinicIdServer } from '@/lib/clinic-server'
-import { callWithRetry } from '@/lib/anthropic'
+import { callWithRetry, AnthropicApiError } from '@/lib/anthropic'
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,6 +80,20 @@ ${text}`
     return NextResponse.json({ patient: parsed })
   } catch (error) {
     console.error('Parse error:', error)
+
+    if (error instanceof AnthropicApiError) {
+      const statusMap: Record<string, number> = {
+        credits: 402,
+        auth: 401,
+        system: 503,
+        unknown: 500,
+      }
+      return NextResponse.json(
+        { error: error.message },
+        { status: statusMap[error.type] || 500 }
+      )
+    }
+
     return NextResponse.json({ error: '解析中にエラーが発生しました' }, { status: 500 })
   }
 }

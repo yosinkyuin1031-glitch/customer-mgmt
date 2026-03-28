@@ -62,6 +62,25 @@ const SLIP_DB_COLUMNS = [
   { key: 'notes', label: '備考' },
 ]
 
+interface SlipRecord {
+  clinic_id: string | null
+  patient_id: string | null
+  patient_name: string
+  visit_date: string | null
+  menu_name?: string
+  base_price?: number
+  option_names?: string
+  option_price?: number
+  total_price?: number
+  payment_method?: string
+  staff_name?: string
+  duration_minutes?: number
+  discount?: number
+  tax?: number
+  notes?: string
+  [key: string]: string | number | null | undefined
+}
+
 type Step = 'upload' | 'mapping' | 'preview' | 'importing' | 'done'
 
 interface MatchedRow {
@@ -265,7 +284,7 @@ export default function SlipImportPage() {
     for (let i = 0; i < importRows.length; i += batchSize) {
       const batch = importRows.slice(i, i + batchSize)
       const records = batch.map(r => {
-        const record: Record<string, unknown> = {
+        const record: SlipRecord = {
           clinic_id: clinicId,
           patient_id: r.matchedPatient?.id || null,
           patient_name: r.patientName,

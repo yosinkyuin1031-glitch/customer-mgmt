@@ -144,7 +144,24 @@ export async function POST() {
     }
 
     // 各患者に来院記録（cm_slips）を3〜8件生成
-    const slipRecords: Array<Record<string, unknown>> = []
+    interface SlipRecord {
+      clinic_id: string
+      patient_id: string
+      patient_name: string
+      visit_date: string
+      staff_name: string
+      menu_name: string
+      base_price: number
+      option_names: string
+      option_price: number
+      total_price: number
+      payment_method: string
+      discount: number
+      tax: number
+      duration_minutes: number
+      notes: string
+    }
+    const slipRecords: SlipRecord[] = []
     for (const patient of patients || []) {
       const visitCount = 3 + Math.floor(Math.random() * 6) // 3〜8件
       const complaint = patient.chief_complaint || '腰痛'
@@ -188,8 +205,8 @@ export async function POST() {
     // 患者のvisit_count, ltv, first_visit_date, last_visit_dateを更新
     for (const patient of patients || []) {
       const patientSlips = slipRecords.filter(s => s.patient_id === patient.id)
-      const dates = patientSlips.map(s => s.visit_date as string).sort()
-      const totalLtv = patientSlips.reduce((sum, s) => sum + (s.total_price as number), 0)
+      const dates = patientSlips.map(s => s.visit_date).sort()
+      const totalLtv = patientSlips.reduce((sum, s) => sum + s.total_price, 0)
 
       await supabase
         .from('cm_patients')
