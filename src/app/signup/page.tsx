@@ -44,7 +44,8 @@ function SignupForm() {
         if (authError.message.includes('already registered')) {
           setError('このメールアドレスは既に登録されています')
         } else {
-          setError(authError.message)
+          console.error('signup error:', authError.message)
+          setError('アカウント作成に失敗しました')
         }
         setLoading(false)
         return
@@ -69,7 +70,8 @@ function SignupForm() {
         .single()
 
       if (clinicError || !clinic) {
-        setError('院の作成に失敗しました: ' + (clinicError?.message || ''))
+        console.error('clinic create error:', clinicError?.message)
+        setError('院の作成に失敗しました')
         setLoading(false)
         return
       }
@@ -84,7 +86,8 @@ function SignupForm() {
         })
 
       if (memberError) {
-        setError('院との紐付けに失敗しました: ' + memberError.message)
+        console.error('member link error:', memberError.message)
+        setError('院との紐付けに失敗しました')
         setLoading(false)
         return
       }

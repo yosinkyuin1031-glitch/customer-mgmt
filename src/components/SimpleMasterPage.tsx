@@ -156,8 +156,7 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
 
     const counts: Record<string, number> = {}
     for (const row of data) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const val = (row as any)[sourceField]
+      const val = (row as unknown as Record<string, unknown>)[sourceField]
       if (!val || typeof val !== 'string') continue
       if (patientCount.partialMatch) {
         const parts = val.split(/[,、\s]+/).map(s => s.trim()).filter(Boolean)

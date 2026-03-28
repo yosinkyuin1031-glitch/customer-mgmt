@@ -42,7 +42,7 @@ export default function RevenuePage() {
         queryEnd = endDate
       }
 
-      const data = await fetchAllSlips(supabase, '*', {
+      const data = await fetchAllSlips<Slip>(supabase, '*', {
         gte: ['visit_date', queryStart],
         lte: ['visit_date', queryEnd],
       })

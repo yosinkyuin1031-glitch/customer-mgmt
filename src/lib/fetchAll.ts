@@ -4,15 +4,13 @@ import { getClinicIdClient } from './clinic'
 /**
  * Supabaseの1000件制限を回避して全件取得する
  */
-export async function fetchAllSlips(
+export async function fetchAllSlips<T = Record<string, unknown>>(
   supabase: SupabaseClient,
   selectColumns: string = '*',
   filters?: { gte?: [string, string]; lte?: [string, string]; eq?: [string, string] }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Promise<any[]> {
+): Promise<T[]> {
   const PAGE_SIZE = 1000
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let allData: any[] = []
+  let allData: T[] = []
   let offset = 0
   let hasMore = true
   const clinicId = await getClinicIdClient()
@@ -32,7 +30,7 @@ export async function fetchAllSlips(
     const { data, error } = await query
     if (error || !data) break
 
-    allData = allData.concat(data)
+    allData = allData.concat(data as T[])
     hasMore = data.length === PAGE_SIZE
     offset += PAGE_SIZE
   }

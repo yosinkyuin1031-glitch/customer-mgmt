@@ -163,9 +163,9 @@ export default function SMSPage() {
       setCouponLowIds(lowIds)
 
       // cm_slipsから最終来院日を取得
-      const slips = await fetchAllSlips(supabase, 'patient_id, visit_date')
+      const slips = await fetchAllSlips<{ patient_id: string; visit_date: string }>(supabase, 'patient_id, visit_date')
       const lastVisitMap: Record<string, string> = {}
-      slips.forEach((s: { patient_id: string; visit_date: string }) => {
+      slips.forEach((s) => {
         if (!s.patient_id) return
         if (!lastVisitMap[s.patient_id] || s.visit_date > lastVisitMap[s.patient_id]) {
           lastVisitMap[s.patient_id] = s.visit_date

@@ -156,8 +156,7 @@ export default function SlipImportPage() {
     const minDate = dates.length > 0 ? dates.reduce((a, b) => a < b ? a : b) : null
     const maxDate = dates.length > 0 ? dates.reduce((a, b) => a > b ? a : b) : null
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let existingSlips: any[] = []
+    let existingSlips: { patient_id: string; visit_date: string; total_price: number }[] = []
     if (minDate && maxDate) {
       const { data } = await supabase
         .from('cm_slips')
@@ -317,7 +316,7 @@ export default function SlipImportPage() {
         for (const rec of records) {
           if (!rec.patient_id) {
             const { error } = await supabase.from('cm_slips').insert(rec)
-            if (error) { errors++; errorMessages.push(`${rec.patient_name} (${rec.visit_date}): ${error.message}`) }
+            if (error) { errors++; console.error('slip insert error:', error.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
             else success++
           } else {
             // 既存チェック
@@ -331,11 +330,11 @@ export default function SlipImportPage() {
 
             if (existing && existing.length > 0) {
               const { error } = await supabase.from('cm_slips').update(rec).eq('id', existing[0].id)
-              if (error) { errors++; errorMessages.push(`${rec.patient_name} (${rec.visit_date}): ${error.message}`) }
+              if (error) { errors++; console.error('slip update error:', error.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
               else success++
             } else {
               const { error } = await supabase.from('cm_slips').insert(rec)
-              if (error) { errors++; errorMessages.push(`${rec.patient_name} (${rec.visit_date}): ${error.message}`) }
+              if (error) { errors++; console.error('slip insert error:', error.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
               else success++
             }
           }
@@ -347,7 +346,7 @@ export default function SlipImportPage() {
           // 個別にリトライ
           for (const rec of records) {
             const { error: e2 } = await supabase.from('cm_slips').insert(rec)
-            if (e2) { errors++; errorMessages.push(`${rec.patient_name} (${rec.visit_date}): ${e2.message}`) }
+            if (e2) { errors++; console.error('slip insert error:', e2.message); errorMessages.push(`${rec.patient_name} (${rec.visit_date}): データの保存に失敗しました`) }
             else success++
           }
         } else {

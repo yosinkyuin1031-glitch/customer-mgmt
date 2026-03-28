@@ -185,11 +185,11 @@ export default function PatientsPage() {
       const { data: patientsData } = await query
 
       // cm_slipsから全件取得してLTV・来院数をリアルタイム計算
-      const slips = await fetchAllSlips(supabase, 'patient_id, visit_date, total_price')
+      const slips = await fetchAllSlips<{ patient_id: string; visit_date: string; total_price: number }>(supabase, 'patient_id, visit_date, total_price')
 
       // 患者ごとに集計
       const statsMap: Record<string, { count: number; revenue: number; lastVisit: string }> = {}
-      slips.forEach((s: { patient_id: string; visit_date: string; total_price: number }) => {
+      slips.forEach((s) => {
         if (!s.patient_id) return
         if (!statsMap[s.patient_id]) {
           statsMap[s.patient_id] = { count: 0, revenue: 0, lastVisit: s.visit_date }
