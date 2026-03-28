@@ -78,7 +78,7 @@ function isValidJapanesePhone(phone: string): boolean {
 function getSMSLogs(): SMSLog[] {
   if (typeof window === 'undefined') return []
   try {
-    return JSON.parse(localStorage.getItem('sms_logs') || '[]')
+    return JSON.parse(sessionStorage.getItem('sms_logs') || '[]')
   } catch {
     return []
   }
@@ -89,13 +89,13 @@ function saveSMSLog(log: SMSLog) {
   logs.unshift(log)
   // 最大100件保持
   if (logs.length > 100) logs.length = 100
-  localStorage.setItem('sms_logs', JSON.stringify(logs))
+  sessionStorage.setItem('sms_logs', JSON.stringify(logs))
 }
 
 function getCustomTemplates(): SMSTemplate[] {
   if (typeof window === 'undefined') return []
   try {
-    return JSON.parse(localStorage.getItem('sms_custom_templates') || '[]')
+    return JSON.parse(sessionStorage.getItem('sms_custom_templates') || '[]')
   } catch {
     return []
   }

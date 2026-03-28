@@ -166,7 +166,7 @@ export default function CouponBookDetailPage() {
     if (!error) {
       await loadCoupon()
     } else {
-      showToast('更新に失敗しました: ' + error.message, 'error')
+      console.error(error); showToast('更新に失敗しました', 'error')
     }
     setUpdating(false)
   }
@@ -186,7 +186,7 @@ export default function CouponBookDetailPage() {
     if (!error) {
       await loadCoupon()
     } else {
-      showToast('更新に失敗しました: ' + error.message, 'error')
+      console.error(error); showToast('更新に失敗しました', 'error')
     }
     setUpdating(false)
   }
@@ -222,7 +222,7 @@ export default function CouponBookDetailPage() {
       // Navigate after short delay to allow undo
       setTimeout(() => router.push('/coupon-books'), 5000)
     } else {
-      showToast('削除に失敗しました: ' + error.message, 'error')
+      console.error(error); showToast('削除に失敗しました', 'error')
     }
     setUpdating(false)
   }

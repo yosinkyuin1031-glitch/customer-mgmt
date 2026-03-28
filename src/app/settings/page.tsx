@@ -121,7 +121,7 @@ export default function SettingsPage() {
     setEmailMsg('')
     const { error } = await supabase.auth.updateUser({ email: newEmail.trim() })
     if (error) {
-      setEmailMsg('変更に失敗しました: ' + error.message)
+      console.error(error); setEmailMsg('メールアドレスの変更に失敗しました')
     } else {
       setEmailMsg('確認メールを送信しました。新しいメールアドレスで確認してください。')
       setNewEmail('')
@@ -142,7 +142,7 @@ export default function SettingsPage() {
     setPwMsg('')
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
-      setPwMsg('変更に失敗しました: ' + error.message)
+      console.error(error); setPwMsg('パスワードの変更に失敗しました')
     } else {
       setPwMsg('パスワードを変更しました')
       setNewPassword('')

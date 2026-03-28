@@ -89,7 +89,7 @@ export default function SMSHistoryPage() {
 
   useEffect(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem('sms_logs') || '[]')
+      const stored = JSON.parse(sessionStorage.getItem('sms_logs') || '[]')
       setLogs(stored)
     } catch {
       setLogs([])
@@ -98,7 +98,7 @@ export default function SMSHistoryPage() {
   }, [])
 
   const handleClearAll = useCallback(() => {
-    localStorage.removeItem('sms_logs')
+    sessionStorage.removeItem('sms_logs')
     setLogs([])
     setShowClearModal(false)
     setCurrentPage(1)

@@ -365,7 +365,7 @@ export default function ImportPage() {
               .eq('id', existing[0].id)
             if (error) {
               errors++
-              errorMessages.push(`${rec.name}: ${error.message}`)
+              console.error(error); errorMessages.push(`${rec.name}: 登録に失敗しました`)
             } else {
               success++
             }
@@ -373,7 +373,7 @@ export default function ImportPage() {
             const { error } = await supabase.from('cm_patients').insert(rec)
             if (error) {
               errors++
-              errorMessages.push(`${rec.name}: ${error.message}`)
+              console.error(error); errorMessages.push(`${rec.name}: 登録に失敗しました`)
             } else {
               success++
             }
@@ -388,7 +388,7 @@ export default function ImportPage() {
             const { error: e2 } = await supabase.from('cm_patients').insert(rec)
             if (e2) {
               errors++
-              errorMessages.push(`${rec.name}: ${e2.message}`)
+              console.error(e2); errorMessages.push(`${rec.name}: 登録に失敗しました`)
             } else {
               success++
             }

@@ -126,7 +126,7 @@ export default function NewCouponBookPage() {
       if (error.code === '42P01' || error.message?.includes('does not exist')) {
         setTableError(true)
       } else {
-        showToast('保存に失敗しました: ' + error.message, 'error')
+        console.error(error); showToast('保存に失敗しました', 'error')
       }
       setSaving(false)
       return
