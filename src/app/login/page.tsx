@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
@@ -10,7 +10,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [demoLoading, setDemoLoading] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,47 +24,6 @@ export default function LoginPage() {
       window.location.href = '/'
     }
   }
-
-  const handleDemoLogin = async () => {
-    setDemoLoading(true)
-    setError('')
-
-    const demoEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL
-    const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD
-    if (!demoEmail || !demoPassword) {
-      setError('デモアカウントが設定されていません。')
-      setDemoLoading(false)
-      return
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: demoEmail,
-      password: demoPassword,
-    })
-
-    if (error) {
-      setError('デモアカウントへのログインに失敗しました。しばらくしてからお試しください。')
-      setDemoLoading(false)
-      return
-    }
-
-    // デモデータ生成APIを呼ぶ
-    try {
-      await fetch('/api/demo/seed', { method: 'POST' })
-    } catch {
-      // シード失敗してもログイン自体は続行
-    }
-
-    window.location.href = '/'
-  }
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('demo') === 'true') {
-      handleDemoLogin()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #14252A 0%, #1a3a42 100%)' }}>
@@ -122,18 +80,6 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '24px', paddingTop: '24px', textAlign: 'center' }}>
-            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '12px' }}>デモ体験はこちら</p>
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={demoLoading}
-              className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-50"
-              style={{ backgroundColor: '#0ea5e9' }}
-            >
-              {demoLoading ? 'デモログイン中...' : 'デモアカウントでログイン'}
-            </button>
-          </div>
         </form>
 
         <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400">
