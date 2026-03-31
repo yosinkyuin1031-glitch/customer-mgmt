@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
     }
 
-    const { text } = await req.json()
-    if (!text || typeof text !== 'string') {
-      return NextResponse.json({ error: 'テキストが必要です' }, { status: 400 })
+    const { text, image } = await req.json()
+    if (!text && !image) {
+      return NextResponse.json({ error: 'テキストまたは画像が必要です' }, { status: 400 })
     }
 
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -23,15 +23,8 @@ export async function POST(req: NextRequest) {
 
     const clinicId = await getClinicIdServer()
 
-    const response = await callWithRetry({
-      clinicId,
-      endpoint: 'parse-patient',
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'user',
-          content: `あなたは整体院の受付アシスタントです。
-以下のテキストから新規患者の情報を抽出してJSONで返してください。
+    const systemPrompt = `あなたは整体院の受付アシスタントです。
+患者の情報を抽出してJSONで返してください。
 
 【抽出する項目】
 - name: 氏名（漢字）
@@ -56,13 +49,58 @@ export async function POST(req: NextRequest) {
 - 昭和元年=1926, 昭和64年=1989
 
 【ルール】
-- テキストに含まれない項目は空文字""にする
-- 推測で埋めない。明確に言及されている情報のみ
-- JSONのみ返す。説明文不要
+- 読み取れない項目は空文字""にする
+- 推測で埋めない。明確に読み取れる情報のみ
+- 手書きの場合も最大限読み取る
+- JSONのみ返す。説明文不要`
 
-【入力テキスト】
-${text}`
-        }
+    // メッセージ構築（テキストのみ or 画像あり）
+    type ContentBlock = { type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/webp'; data: string } }
+    const contentBlocks: ContentBlock[] = []
+
+    if (image) {
+      const mediaType: 'image/jpeg' | 'image/png' | 'image/webp' = image.startsWith('data:image/png') ? 'image/png'
+        : image.startsWith('data:image/webp') ? 'image/webp'
+        : 'image/jpeg'
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '')
+      contentBlocks.push({
+        type: 'image',
+        source: { type: 'base64', media_type: mediaType, data: base64Data },
+      })
+      contentBlocks.push({
+        type: 'text',
+        text: text
+          ? `この画像はカルテ・問診票です。画像と以下の追加情報から患者情報を抽出してください。\n追加情報: ${text}`
+          : 'この画像はカルテ・問診票です。書かれている患者情報を全て読み取ってJSON形式で抽出してください。',
+      })
+    } else {
+      contentBlocks.push({
+        type: 'text',
+        text: `以下のテキストから新規患者の情報を抽出してJSONで返してください。\n\n【入力テキスト】\n${text}`,
+      })
+    }
+
+    // 画像ありの場合: contentBlocksをそのまま使う（systemPromptをテキストブロックの先頭に追加）
+    // テキストのみの場合: 文字列として結合
+    let messageContent: string | ContentBlock[]
+    if (image) {
+      // 画像の場合: systemPrompt + 画像 + 指示テキスト
+      messageContent = [
+        { type: 'text' as const, text: systemPrompt },
+        ...contentBlocks,
+      ]
+    } else {
+      const firstBlock = contentBlocks[0]
+      messageContent = systemPrompt + '\n\n---\n\n' + (firstBlock.type === 'text' ? firstBlock.text : '')
+    }
+
+    const response = await callWithRetry({
+      clinicId,
+      endpoint: image ? 'parse-patient-image' : 'parse-patient',
+      model: image ? 'claude-sonnet-4-6' : undefined,
+      max_tokens: 1500,
+      messages: [
+        { role: 'user' as const, content: messageContent }
       ]
     })
 

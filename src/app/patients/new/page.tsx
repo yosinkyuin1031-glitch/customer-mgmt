@@ -38,7 +38,11 @@ export default function NewPatientPage() {
   const [parsing, setParsing] = useState(false)
   const [listening, setListening] = useState(false)
   const [parseError, setParseError] = useState('')
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageBase64, setImageBase64] = useState<string | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [duplicateWarning, setDuplicateWarning] = useState<string>('')
   const [form, setForm] = useState({
@@ -132,9 +136,31 @@ export default function NewPatientPage() {
     setListening(true)
   }, [listening])
 
-  // AI解析して各項目に自動振り分け
+  // 画像選択処理
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // 5MB制限
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('画像サイズは5MB以下にしてください', 'warning')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string
+      setImagePreview(result)
+      setImageBase64(result)
+    }
+    reader.readAsDataURL(file)
+    // inputをリセット（同じファイル再選択可能に）
+    e.target.value = ''
+  }
+
+  // AI解析して各項目に自動振り分け（テキスト＋画像対応）
   const handleParse = async () => {
-    if (!voiceText.trim()) return
+    if (!voiceText.trim() && !imageBase64) return
     setParsing(true)
     setParseError('')
 
@@ -142,7 +168,7 @@ export default function NewPatientPage() {
       const res = await fetch('/api/parse-patient', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: voiceText }),
+        body: JSON.stringify({ text: voiceText || undefined, image: imageBase64 || undefined }),
       })
       const data = await res.json()
 
@@ -230,17 +256,60 @@ export default function NewPatientPage() {
       <Header title="新規患者登録" />
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
 
-        {/* 音声一括入力エリア */}
+        {/* カルテ読み込み・音声一括入力エリア */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-          <h3 className="font-bold text-gray-800 text-sm">まとめて音声入力</h3>
+          <h3 className="font-bold text-gray-800 text-sm">AI自動入力</h3>
           <p className="text-xs text-gray-500">
-            例:「山田花子さん、やまだはなこ、女性、昭和55年6月10日生まれ、電話番号090-1234-5678、大阪府住吉区長居、腰痛と肩こりで来院、Googleマップで検索して来ました、職業は主婦です」
+            カルテ・問診票の写真を撮るか、音声/テキストで入力するとAIが自動で各項目に振り分けます
           </p>
+
+          {/* カメラ・画像アップロード */}
+          <div className="flex gap-2">
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" />
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 transition-all"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path d="M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4z"/>
+                <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+              </svg>
+              カメラで撮影
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 transition-all"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+              </svg>
+              写真を選択
+            </button>
+          </div>
+
+          {/* 画像プレビュー */}
+          {imagePreview && (
+            <div className="relative">
+              <img src={imagePreview} alt="カルテプレビュー" className="w-full max-h-48 object-contain rounded-lg border border-gray-200" />
+              <button
+                type="button"
+                onClick={() => { setImagePreview(null); setImageBase64(null) }}
+                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow"
+              >
+                x
+              </button>
+            </div>
+          )}
 
           <textarea
             value={voiceText}
             onChange={(e) => setVoiceText(e.target.value)}
-            placeholder="ここにテキスト入力、または音声ボタンで話してください..."
+            placeholder="テキスト入力、音声入力、または上のボタンでカルテ写真を読み込み..."
             className="w-full px-3 py-3 border border-blue-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] min-h-[80px] resize-y bg-white"
             rows={3}
           />
@@ -259,16 +328,16 @@ export default function NewPatientPage() {
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                 <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
               </svg>
-              {listening ? '録音中...' : '音声入力'}
+              {listening ? '録音中...' : '音声'}
             </button>
 
             <button
               onClick={handleParse}
-              disabled={parsing || !voiceText.trim()}
+              disabled={parsing || (!voiceText.trim() && !imageBase64)}
               className="flex-1 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition-all"
               style={{ background: '#14252A' }}
             >
-              {parsing ? '解析中...' : '各項目に自動反映'}
+              {parsing ? (imageBase64 ? 'カルテ解析中...' : '解析中...') : (imageBase64 ? 'カルテを読み取って自動反映' : '各項目に自動反映')}
             </button>
           </div>
 

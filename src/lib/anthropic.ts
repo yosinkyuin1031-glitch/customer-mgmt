@@ -9,7 +9,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 interface CallOptions {
   model?: string
   max_tokens?: number
-  messages: { role: 'user' | 'assistant'; content: string }[]
+  messages: Anthropic.MessageParam[]
   clinicId: string
   endpoint: string
 }
