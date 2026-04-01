@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
@@ -79,6 +79,8 @@ export default function NewPatientPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const [symptomMaster, setSymptomMaster] = useState<{ name: string; category: string }[]>([])
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [duplicateWarning, setDuplicateWarning] = useState<string>('')
   const [form, setForm] = useState({
@@ -90,6 +92,35 @@ export default function NewPatientPage() {
     chief_complaint: '', medical_history: '', notes: '',
     is_direct_mail: true, is_enabled: true,
   })
+
+  // 症状マスター取得
+  useEffect(() => {
+    const fetchSymptoms = async () => {
+      const { data } = await supabase
+        .from('cm_symptoms')
+        .select('name, category')
+        .eq('clinic_id', clinicId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+      if (data) setSymptomMaster(data)
+    }
+    fetchSymptoms()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [customComplaint, setCustomComplaint] = useState('')
+
+  // selectedSymptoms + customComplaint → form.chief_complaint に同期
+  useEffect(() => {
+    const parts = [...selectedSymptoms]
+    if (customComplaint.trim()) parts.push(customComplaint.trim())
+    setForm(prev => ({ ...prev, chief_complaint: parts.join(', ') }))
+  }, [selectedSymptoms, customComplaint])
+
+  const toggleSymptom = (name: string) => {
+    setSelectedSymptoms(prev =>
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]
+    )
+  }
 
   const update = (key: string, value: string | boolean) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -245,9 +276,29 @@ export default function NewPatientPage() {
           building: p.building || prev.building,
           occupation: p.occupation || prev.occupation,
           referral_source: p.referral_source || prev.referral_source,
-          chief_complaint: p.chief_complaint || prev.chief_complaint,
           medical_history: p.medical_history || prev.medical_history,
         }))
+
+        // AI解析の主訴をマスターの症状名にマッチング
+        if (p.chief_complaint && symptomMaster.length > 0) {
+          const rawComplaint = (p.chief_complaint as string)
+          const rawLower = rawComplaint.toLowerCase()
+          const matched = symptomMaster
+            .filter(s => rawLower.includes(s.name.toLowerCase()) || rawLower.includes(s.name.replace(/[・]/g, '').toLowerCase()))
+            .map(s => s.name)
+          if (matched.length > 0) {
+            setSelectedSymptoms(prev => [...new Set([...prev, ...matched])])
+            // マッチした症状名を除いた残りをcustomComplaintに
+            let remaining = rawComplaint
+            matched.forEach(m => { remaining = remaining.replace(new RegExp(m, 'gi'), '').replace(/[、,\s]+/g, ' ').trim() })
+            if (remaining) setCustomComplaint(remaining)
+          } else {
+            // マッチしなかった場合はcustomComplaintに入れる
+            setCustomComplaint(rawComplaint)
+          }
+        } else if (p.chief_complaint) {
+          setCustomComplaint(p.chief_complaint)
+        }
       }
     } catch {
       setParseError('通信エラーが発生しました')
@@ -512,7 +563,50 @@ export default function NewPatientPage() {
 
           <div>
             <label className="block text-xs text-gray-600 mb-1">主訴（お困りの症状）</label>
-            <textarea value={form.chief_complaint} onChange={(e) => update('chief_complaint', e.target.value)} className={inputClass} rows={3} placeholder="腰痛、肩こり、頭痛..." />
+            {symptomMaster.length > 0 ? (
+              <>
+                {/* カテゴリごとにグループ化 */}
+                {(() => {
+                  const categories = [...new Set(symptomMaster.map(s => s.category || '未分類'))]
+                  return categories.map(cat => {
+                    const items = symptomMaster.filter(s => (s.category || '未分類') === cat)
+                    return (
+                      <div key={cat} className="mb-2">
+                        <p className="text-xs text-gray-500 mb-1">{cat}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {items.map(s => (
+                            <button
+                              key={s.name}
+                              type="button"
+                              onClick={() => toggleSymptom(s.name)}
+                              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                                selectedSymptoms.includes(s.name)
+                                  ? 'bg-blue-500 text-white border-blue-500'
+                                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                              }`}
+                            >
+                              {s.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
+                {selectedSymptoms.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-2">選択中: {selectedSymptoms.join(', ')}</p>
+                )}
+                <textarea
+                  value={customComplaint}
+                  onChange={(e) => setCustomComplaint(e.target.value)}
+                  className={`${inputClass} mt-2`}
+                  rows={2}
+                  placeholder="上記にない症状があれば追記..."
+                />
+              </>
+            ) : (
+              <textarea value={form.chief_complaint} onChange={(e) => update('chief_complaint', e.target.value)} className={inputClass} rows={3} placeholder="腰痛、肩こり、頭痛..." />
+            )}
           </div>
 
           <div>
