@@ -428,7 +428,7 @@ export default function HomePage() {
                             <div className="flex gap-1.5 shrink-0">
                               {p.phone && (
                                 <a
-                                  href={`sms:${p.phone}`}
+                                  href={`sms:${p.phone.replace(/[-ー－\s]/g, '')}`}
                                   className="text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-green-500 text-white hover:bg-green-600 whitespace-nowrap"
                                 >
                                   SMS送信
