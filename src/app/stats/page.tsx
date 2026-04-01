@@ -486,9 +486,23 @@ export default function StatsPage() {
               <div>
                 全項目は来院記録から自動集計。各月の行をタップすると内訳が見れます。
               </div>
-              <Link href="/stats/manual" className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-blue-700 font-medium hover:bg-blue-100 transition-colors whitespace-nowrap ml-2">
-                手動入力
-              </Link>
+              <div className="flex gap-2 ml-2">
+                <button
+                  onClick={async () => {
+                    if (!confirm('患者データを来院記録から再計算しますか？')) return
+                    const res = await fetch('/api/sync-patients', { method: 'POST' })
+                    const data = await res.json()
+                    alert(data.message || data.error)
+                    if (res.ok) window.location.reload()
+                  }}
+                  className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-blue-700 font-medium hover:bg-blue-100 transition-colors whitespace-nowrap"
+                >
+                  再計算
+                </button>
+                <Link href="/stats/manual" className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-blue-700 font-medium hover:bg-blue-100 transition-colors whitespace-nowrap">
+                  手動入力
+                </Link>
+              </div>
             </div>
 
             {/* Monthly detail table */}
