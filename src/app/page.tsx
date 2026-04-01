@@ -193,9 +193,12 @@ export default function HomePage() {
   const clinicId = getClinicId()
   const { showToast } = useToast()
   const [todaySlips, setTodaySlips] = useState<TodaySlip[]>([])
+  const [monthSlips, setMonthSlips] = useState<Slip[]>([])
+  const [allPatients, setAllPatients] = useState<Patient[]>([])
   const [recentPatients, setRecentPatients] = useState<Patient[]>([])
   const [stats, setStats] = useState({ totalPatients: 0, monthVisits: 0, todayVisits: 0, todayRevenue: 0 })
   const [loading, setLoading] = useState(true)
+  const [detailModal, setDetailModal] = useState<'total' | 'month' | 'today' | null>(null)
 
   // 離反アラート
   const [churnPatients, setChurnPatients] = useState<ChurnPatient[]>([])
@@ -287,6 +290,8 @@ export default function HomePage() {
 
       setRecentPatients(patientsRes.data || [])
       setTodaySlips(todayRes.data || [])
+      setMonthSlips(thisMonthAllSlips || [])
+      setAllPatients(activePatients)
       const todayRevenue = (todayRes.data || []).reduce((sum: number, s: Slip) => sum + (s.total_price || 0), 0)
       setStats({
         totalPatients: totalPatients || 0,
@@ -359,22 +364,165 @@ export default function HomePage() {
 
         {/* 統計カード */}
         <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 text-center border-l-4" style={{ borderLeftColor: '#14252A' }}>
+          <button onClick={() => setDetailModal('total')} className="bg-white rounded-xl shadow-sm p-3 sm:p-4 text-center border-l-4 hover:shadow-md transition-shadow" style={{ borderLeftColor: '#14252A' }}>
             <div className="text-2xl mb-1">👥</div>
             <p className="text-2xl sm:text-3xl font-bold" style={{ color: '#14252A' }}>{stats.totalPatients}</p>
             <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">総患者数</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 text-center border-l-4 border-l-blue-500">
+          </button>
+          <button onClick={() => setDetailModal('month')} className="bg-white rounded-xl shadow-sm p-3 sm:p-4 text-center border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
             <div className="text-2xl mb-1">📋</div>
             <p className="text-2xl sm:text-3xl font-bold text-blue-600">{stats.monthVisits}</p>
             <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">今月の施術</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 text-center border-l-4 border-l-green-500">
+          </button>
+          <button onClick={() => setDetailModal('today')} className="bg-white rounded-xl shadow-sm p-3 sm:p-4 text-center border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
             <div className="text-2xl mb-1">✅</div>
             <p className="text-2xl sm:text-3xl font-bold text-green-600">{stats.todayVisits}</p>
             <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">本日の施術</p>
-          </div>
+          </button>
         </div>
+
+        {/* 詳細モーダル */}
+        {detailModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={() => setDetailModal(null)}>
+            <div className="bg-white w-full max-w-lg max-h-[80vh] rounded-t-2xl sm:rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b" style={{ background: '#14252A' }}>
+                <h3 className="font-bold text-white text-sm">
+                  {detailModal === 'total' && `総患者数（${stats.totalPatients}名）`}
+                  {detailModal === 'month' && `今月の施術（${stats.monthVisits}件）`}
+                  {detailModal === 'today' && `本日の施術（${stats.todayVisits}件）`}
+                </h3>
+                <button onClick={() => setDetailModal(null)} className="text-white text-xl leading-none">&times;</button>
+              </div>
+              <div className="overflow-y-auto max-h-[70vh] p-4">
+                {detailModal === 'total' && (
+                  <div className="space-y-2">
+                    {allPatients.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">患者データがありません</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-3 mb-3">
+                          <div className="bg-blue-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-blue-600">{allPatients.filter(p => p.gender === '男性').length}</p>
+                            <p className="text-[10px] text-gray-500">男性</p>
+                          </div>
+                          <div className="bg-pink-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-pink-600">{allPatients.filter(p => p.gender === '女性').length}</p>
+                            <p className="text-[10px] text-gray-500">女性</p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-green-600">{allPatients.filter(p => (p.visit_count || 0) >= 2).length}</p>
+                            <p className="text-[10px] text-gray-500">リピーター</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {allPatients
+                            .sort((a, b) => (b.last_visit_date || '').localeCompare(a.last_visit_date || ''))
+                            .slice(0, 50)
+                            .map(p => (
+                            <Link key={p.id} href={`/patients/${p.id}`} onClick={() => setDetailModal(null)}
+                              className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{p.name}</p>
+                                <p className="text-[10px] text-gray-500">
+                                  {p.gender} {p.chief_complaint ? `/ ${p.chief_complaint.slice(0, 15)}` : ''}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-600">{p.visit_count || 0}回</p>
+                                <p className="text-[10px] text-gray-400">{p.last_visit_date || '未来院'}</p>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                        {allPatients.length > 50 && (
+                          <Link href="/patients" onClick={() => setDetailModal(null)}
+                            className="block text-center text-xs text-blue-600 mt-2 py-2">
+                            全{allPatients.length}名を見る →
+                          </Link>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {detailModal === 'month' && (
+                  <div className="space-y-2">
+                    {monthSlips.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">今月の施術データがありません</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-3 mb-3">
+                          <div className="bg-blue-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-blue-600">{new Set(monthSlips.map(s => s.patient_id)).size}</p>
+                            <p className="text-[10px] text-gray-500">カルテ枚数</p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-green-600">{monthSlips.reduce((sum, s) => sum + (s.total_price || 0), 0).toLocaleString()}</p>
+                            <p className="text-[10px] text-gray-500">売上合計</p>
+                          </div>
+                          <div className="bg-purple-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-purple-600">
+                              {monthSlips.length > 0 ? Math.round(monthSlips.reduce((sum, s) => sum + (s.total_price || 0), 0) / monthSlips.length).toLocaleString() : 0}
+                            </p>
+                            <p className="text-[10px] text-gray-500">平均単価</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {monthSlips
+                            .sort((a, b) => b.visit_date.localeCompare(a.visit_date))
+                            .map(s => (
+                            <div key={s.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{s.patient_name || '不明'}</p>
+                                <p className="text-[10px] text-gray-500">{s.visit_date} {s.menu_name ? `/ ${s.menu_name}` : ''}</p>
+                              </div>
+                              <p className="text-sm font-bold text-gray-700">{(s.total_price || 0).toLocaleString()}円</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {detailModal === 'today' && (
+                  <div className="space-y-2">
+                    {todaySlips.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">本日の施術データがありません</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-green-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-green-600">{stats.todayRevenue.toLocaleString()}</p>
+                            <p className="text-[10px] text-gray-500">本日売上</p>
+                          </div>
+                          <div className="bg-purple-50 rounded-lg p-2 text-center">
+                            <p className="text-lg font-bold text-purple-600">
+                              {todaySlips.length > 0 ? Math.round(stats.todayRevenue / todaySlips.length).toLocaleString() : 0}
+                            </p>
+                            <p className="text-[10px] text-gray-500">平均単価</p>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {todaySlips.map(s => (
+                            <Link key={s.id} href={`/patients/${s.patient_id}`} onClick={() => setDetailModal(null)}
+                              className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{s.patient_name || '不明'}</p>
+                                <p className="text-[10px] text-gray-500">{s.menu_name || ''} {s.staff_name ? `(${s.staff_name})` : ''}</p>
+                              </div>
+                              <p className="text-sm font-bold text-gray-700">{(s.total_price || 0).toLocaleString()}円</p>
+                            </Link>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* クイックアクション */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
