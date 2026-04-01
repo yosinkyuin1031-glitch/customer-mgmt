@@ -10,6 +10,7 @@ import { PAYMENT_METHODS } from '@/lib/types'
 import type { Patient } from '@/lib/types'
 import { normalizeName } from '@/lib/nameMatch'
 import { getClinicId } from '@/lib/clinic'
+import { syncPatientStats } from '@/lib/patientSync'
 
 interface BaseMenu {
   id: string
@@ -223,8 +224,8 @@ function VisitForm() {
     })
 
     if (!error) {
-      // 患者のupdated_atを更新
-      await supabase.from('cm_patients').update({ updated_at: new Date().toISOString() }).eq('id', form.patient_id)
+      // 患者の来院統計を再計算
+      await syncPatientStats(supabase, form.patient_id, clinicId)
 
       // 回数券選択時は自動消化（used_count +1）
       if (form.payment_method === '回数券' && selectedCouponId) {

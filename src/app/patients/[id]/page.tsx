@@ -7,6 +7,7 @@ import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { syncPatientStats } from '@/lib/patientSync'
 import type { Patient, Slip, CouponBook } from '@/lib/types'
 import { REFERRAL_SOURCES, PREFECTURES, COUPON_TYPES } from '@/lib/types'
 
@@ -350,6 +351,7 @@ export default function PatientDetailPage() {
     setSlips(slips.map(s => s.id === editingSlip ? { ...s, ...slipForm } : s))
     setEditingSlip(null)
     setSlipErrors({})
+    await syncPatientStats(supabase, patient!.id, clinicId)
   }
 
   const handleSlipDelete = (slipId: string) => {
@@ -366,6 +368,7 @@ export default function PatientDetailPage() {
         await supabase.from('cm_slips').delete().eq('id', slipId)
         setSlips(slips.filter(s => s.id !== slipId))
         setEditingSlip(null)
+        await syncPatientStats(supabase, patient!.id, clinicId)
         // Show undo toast
         setUndoToast({
           show: true,
@@ -386,6 +389,7 @@ export default function PatientDetailPage() {
       // Re-insert and re-sort
       const updated = [...slips, data].sort((a, b) => b.visit_date.localeCompare(a.visit_date))
       setSlips(updated)
+      await syncPatientStats(supabase, patient!.id, clinicId)
     }
     setUndoToast({ show: false, message: '', deletedSlip: null, previousSlips: [] })
   }

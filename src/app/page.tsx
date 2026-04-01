@@ -250,17 +250,35 @@ export default function HomePage() {
       const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       const sixtyDaysAgo = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-      const [patientsRes, todayRes, monthRes, churnRes, lastMonthSlipsRes, allActiveRes] = await Promise.all([
+      const [patientsRes, todayRes, monthRes, allActiveRes, lastMonthSlipsRes] = await Promise.all([
         supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').order('updated_at', { ascending: false }).limit(5),
         supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).eq('visit_date', todayStr).order('created_at', { ascending: false }),
         supabase.from('cm_slips').select('id, total_price', { count: 'exact' }).eq('clinic_id', clinicId).gte('visit_date', monthStart),
-        // 離反アラート: 30〜60日未来院のアクティブ患者（2ヶ月以内のみ）
-        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active').lte('last_visit_date', thirtyDaysAgo).gte('last_visit_date', sixtyDaysAgo).order('last_visit_date', { ascending: true }),
+        // 全アクティブ患者（フォロー判定 + アドバイス用）
+        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active'),
         // 先月の施術データ
         supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).gte('visit_date', lastMonthStart).lte('visit_date', lastMonthEnd),
-        // 全アクティブ患者（アドバイス用）
-        supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).eq('status', 'active'),
       ])
+
+      // 全アクティブ患者の最終来院日をcm_slipsから実データで取得して補正
+      const activePatients = allActiveRes.data || []
+      const patientIds = activePatients.map(p => p.id)
+      const { data: latestSlips } = await supabase
+        .from('cm_slips')
+        .select('patient_id, visit_date')
+        .eq('clinic_id', clinicId)
+        .in('patient_id', patientIds.length > 0 ? patientIds : ['__none__'])
+        .order('visit_date', { ascending: false })
+
+      // 患者ごとの最新来院日マップを構築
+      const lastVisitMap: Record<string, string> = {}
+      if (latestSlips) {
+        for (const s of latestSlips) {
+          if (!lastVisitMap[s.patient_id]) {
+            lastVisitMap[s.patient_id] = s.visit_date
+          }
+        }
+      }
 
       // 今月の全施術データ（アドバイス用）
       const { data: thisMonthAllSlips } = await supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).gte('visit_date', monthStart)
@@ -277,15 +295,18 @@ export default function HomePage() {
         todayRevenue,
       })
 
-      // 離反患者を計算
-      if (churnRes.data) {
-        const churn: ChurnPatient[] = churnRes.data
-          .filter(p => p.last_visit_date)
+      // 離反患者を計算（cm_slipsの実データから判定）
+      {
+        const churn: ChurnPatient[] = activePatients
           .map(p => {
-            const lastVisit = new Date(p.last_visit_date!)
+            const actualLastVisit = lastVisitMap[p.id]
+            if (!actualLastVisit) return null // 来院記録なし → フォロー対象外
+            const lastVisit = new Date(actualLastVisit)
             const diffDays = Math.floor((today.getTime() - lastVisit.getTime()) / (1000 * 60 * 60 * 24))
-            return { ...p, daysSince: diffDays, level: getChurnLevel(diffDays) }
+            if (diffDays < 30 || diffDays > 60) return null // 30〜60日のみ
+            return { ...p, last_visit_date: actualLastVisit, daysSince: diffDays, level: getChurnLevel(diffDays) }
           })
+          .filter((p): p is ChurnPatient => p !== null)
           .sort((a, b) => b.daysSince - a.daysSince)
         setChurnPatients(churn)
 

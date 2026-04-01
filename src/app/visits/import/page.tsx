@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell'
 import Header from '@/components/Header'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
+import { syncPatientStats } from '@/lib/patientSync'
 import { useToast } from '@/lib/toast'
 import { findAllMatches, type PatientCandidate } from '@/lib/nameMatch'
 import {
@@ -382,6 +383,16 @@ export default function SlipImportPage() {
 
       skipped = matchedRows.length - importRows.length
       setProgress({ current: Math.min(i + batchSize, importRows.length), total: importRows.length })
+    }
+
+    // インポートした患者の来院統計を再計算
+    const importedPatientIds = [...new Set(
+      importRows
+        .map(r => r.matchedPatient?.id)
+        .filter(Boolean) as string[]
+    )]
+    for (const pid of importedPatientIds) {
+      await syncPatientStats(supabase, pid, clinicId)
     }
 
     setResult({ success, skipped, errors, errorMessages: errorMessages.slice(0, 20) })

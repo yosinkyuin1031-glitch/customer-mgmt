@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { findBestMatch, findAllMatches } from '@/lib/nameMatch'
 import type { PatientCandidate } from '@/lib/nameMatch'
 import { getClinicId } from '@/lib/clinic'
+import { syncPatientStats } from '@/lib/patientSync'
 import { useToast } from '@/lib/toast'
 
 interface ParsedRecord {
@@ -200,10 +201,10 @@ export default function QuickInputPage() {
         setError('データの保存に失敗しました')
       }
     } else {
-      // 患者のupdated_atを更新
+      // 患者の来院統計を再計算
       const patientIds = [...new Set(records.map(r => r.patient_id).filter(Boolean))]
       for (const pid of patientIds) {
-        await supabase.from('cm_patients').update({ updated_at: new Date().toISOString() }).eq('id', pid)
+        await syncPatientStats(supabase, pid as string, clinicId)
       }
       setSaved(true)
     }
