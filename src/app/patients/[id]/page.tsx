@@ -562,7 +562,7 @@ export default function PatientDetailPage() {
                 {age !== null && <p><span className="text-gray-500">🎂 年齢:</span> {age}歳</p>}
                 {patient.gender && <p><span className="text-gray-500">👤 性別:</span> {patient.gender}</p>}
                 {patient.birth_date && <p><span className="text-gray-500">📅 生年月日:</span> {patient.birth_date}</p>}
-                {patient.phone && <p><span className="text-gray-500">📱 TEL:</span> <a href={`tel:${patient.phone}`} className="text-blue-600 underline">{patient.phone}</a></p>}
+                {patient.phone && <p><span className="text-gray-500">📱 TEL:</span> <a href={`sms:${patient.phone}`} className="text-blue-600 underline">{patient.phone}</a></p>}
                 {patient.email && <p className="col-span-2"><span className="text-gray-500">✉️ Email:</span> <a href={`mailto:${patient.email}`} className="text-blue-600 underline">{patient.email}</a></p>}
               </div>
 

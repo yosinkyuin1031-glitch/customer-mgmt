@@ -407,10 +407,10 @@ export default function HomePage() {
                             <div className="flex gap-1.5 shrink-0">
                               {p.phone && (
                                 <a
-                                  href={`tel:${p.phone}`}
-                                  className="text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap"
+                                  href={`sms:${p.phone}`}
+                                  className="text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-green-500 text-white hover:bg-green-600 whitespace-nowrap"
                                 >
-                                  電話する
+                                  SMS送信
                                 </a>
                               )}
                               <button
