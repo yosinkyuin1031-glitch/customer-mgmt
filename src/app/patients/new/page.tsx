@@ -27,6 +27,42 @@ function validateZipcode(zipcode: string): boolean {
   return /^\d{7}$/.test(normalized)
 }
 
+// 郵便番号から住所を取得
+async function lookupByZipcode(zipcode: string): Promise<{ prefecture: string; city: string; address: string } | null> {
+  const normalized = zipcode.replace(/[-ー－\s]/g, '')
+  if (!/^\d{7}$/.test(normalized)) return null
+  try {
+    const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${normalized}`)
+    const data = await res.json()
+    if (data.results && data.results.length > 0) {
+      const r = data.results[0]
+      return { prefecture: r.address1, city: r.address2 + r.address3, address: '' }
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+// 住所から郵便番号を逆引き（都道府県+市区町村でAPI検索）
+async function reverseLookupZipcode(prefecture: string, city: string): Promise<string> {
+  if (!prefecture || !city) return ''
+  try {
+    // 市区町村の先頭部分（「市」「区」「町」「村」まで）で検索
+    const cityMatch = city.match(/^(.+?[市区町村])/)
+    const searchCity = cityMatch ? cityMatch[1] : city
+    const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?address=${encodeURIComponent(prefecture + searchCity)}`)
+    const data = await res.json()
+    if (data.results && data.results.length > 0) {
+      // 最も一致度の高い結果を返す
+      const fullAddress = prefecture + city
+      const best = data.results.find((r: { address1: string; address2: string; address3: string; zipcode: string }) =>
+        fullAddress.includes(r.address2 + r.address3)
+      ) || data.results[0]
+      return best.zipcode
+    }
+  } catch { /* ignore */ }
+  return ''
+}
+
 export default function NewPatientPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
@@ -176,6 +212,24 @@ export default function NewPatientPage() {
         setParseError(data.error || '解析に失敗しました')
       } else if (data.patient) {
         const p = data.patient
+
+        // 郵便番号が空で住所がある場合、逆引き
+        let zipcode = p.zipcode || ''
+        if (!zipcode && (p.prefecture || p.city)) {
+          zipcode = await reverseLookupZipcode(p.prefecture || '', p.city || '')
+        }
+
+        // 郵便番号があって住所が空の場合、正引き
+        let prefecture = p.prefecture || ''
+        let city = p.city || ''
+        if (zipcode && !prefecture) {
+          const addr = await lookupByZipcode(zipcode)
+          if (addr) {
+            prefecture = addr.prefecture
+            city = city || addr.city
+          }
+        }
+
         setForm(prev => ({
           ...prev,
           name: p.name || prev.name,
@@ -184,9 +238,9 @@ export default function NewPatientPage() {
           gender: p.gender || prev.gender,
           phone: p.phone || prev.phone,
           email: p.email || prev.email,
-          zipcode: p.zipcode || prev.zipcode,
-          prefecture: p.prefecture || prev.prefecture,
-          city: p.city || prev.city,
+          zipcode: zipcode || prev.zipcode,
+          prefecture: prefecture || prev.prefecture,
+          city: city || prev.city,
           address: p.address || prev.address,
           building: p.building || prev.building,
           occupation: p.occupation || prev.occupation,
@@ -397,7 +451,21 @@ export default function NewPatientPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1">郵便番号</label>
-              <input type="text" value={form.zipcode} onChange={(e) => update('zipcode', e.target.value)} className={`${inputClass} ${errors.zipcode ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="000-0000" />
+              <input type="text" value={form.zipcode} onChange={async (e) => {
+                const val = e.target.value
+                update('zipcode', val)
+                const normalized = val.replace(/[-ー－\s]/g, '')
+                if (normalized.length === 7) {
+                  const addr = await lookupByZipcode(val)
+                  if (addr) {
+                    setForm(prev => ({
+                      ...prev,
+                      prefecture: addr.prefecture || prev.prefecture,
+                      city: addr.city || prev.city,
+                    }))
+                  }
+                }
+              }} className={`${inputClass} ${errors.zipcode ? 'border-red-400 focus:ring-red-400' : ''}`} placeholder="000-0000" />
               {errors.zipcode && <p className="text-xs text-red-500 mt-1">{errors.zipcode}</p>}
             </div>
             <div>
