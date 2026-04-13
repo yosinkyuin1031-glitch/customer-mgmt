@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   // service_roleクライアントでRLSをバイパス
   const serviceClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2ZrYXpqeWxya3NwcXJuaG54Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyMjc1NjYyOCwiZXhwIjoyMDM4MzMyNjI4fQ.L2o_CkIoGNmTanVh0Bc-7RS_kStZLHQ8TNCM-TvHqXk'
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
   // clinic_id取得（service_roleで確実に取得）
