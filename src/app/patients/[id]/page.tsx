@@ -248,6 +248,11 @@ export default function PatientDetailPage() {
     use_different_start: false,
   })
 
+  // 症状マスター
+  const [symptomMaster, setSymptomMaster] = useState<{ name: string; category: string }[]>([])
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
+  const [customComplaint, setCustomComplaint] = useState('')
+
   // Modal state
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean
@@ -301,10 +306,56 @@ export default function PatientDetailPage() {
       } catch {
         // テーブルが存在しない場合はスキップ
       }
+      // 症状マスター取得
+      const { data: symptoms } = await supabase
+        .from('cm_symptoms')
+        .select('name, category')
+        .eq('clinic_id', clinicId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+      if (symptoms) setSymptomMaster(symptoms)
+
       setLoading(false)
     }
     load()
   }, [id])
+
+  // selectedSymptoms + customComplaint → form.chief_complaint に同期
+  useEffect(() => {
+    if (!editing) return
+    const parts = [...selectedSymptoms]
+    if (customComplaint.trim()) parts.push(customComplaint.trim())
+    setForm(prev => ({ ...prev, chief_complaint: parts.join(', ') }))
+  }, [selectedSymptoms, customComplaint, editing])
+
+  const toggleSymptom = (name: string) => {
+    setSelectedSymptoms(prev =>
+      prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]
+    )
+  }
+
+  // 編集モード開始時に chief_complaint をマスターの症状名に分解
+  const startEditing = () => {
+    setForm(patient!)
+    setEditing(true)
+    const complaint = patient?.chief_complaint || ''
+    if (complaint && symptomMaster.length > 0) {
+      const masterNames = symptomMaster.map(s => s.name)
+      const matched: string[] = []
+      let remaining = complaint
+      for (const name of masterNames) {
+        if (remaining.includes(name)) {
+          matched.push(name)
+          remaining = remaining.replace(name, '').replace(/[、,\s]+/g, ' ').trim()
+        }
+      }
+      setSelectedSymptoms(matched)
+      setCustomComplaint(remaining.replace(/^[、,\s]+|[、,\s]+$/g, ''))
+    } else {
+      setSelectedSymptoms([])
+      setCustomComplaint(complaint)
+    }
+  }
 
   const handleUpdate = async () => {
     // バリデーション
@@ -632,7 +683,7 @@ export default function PatientDetailPage() {
               )}
 
               <div className="flex gap-2 mt-3">
-                <button onClick={() => setEditing(true)} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600" aria-label="患者情報を編集">編集</button>
+                <button onClick={startEditing} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600" aria-label="患者情報を編集">編集</button>
                 <button onClick={handleDelete} className="text-sm py-2 px-4 text-red-500 border border-red-200 rounded-lg" aria-label="この患者を削除">削除</button>
               </div>
             </div>
@@ -723,7 +774,49 @@ export default function PatientDetailPage() {
 
               <div>
                 <label className="block text-xs text-gray-500 mb-1">主訴</label>
-                <textarea value={form.chief_complaint || ''} onChange={e => setForm({...form, chief_complaint: e.target.value})} className={inputClass} rows={2} />
+                {symptomMaster.length > 0 ? (
+                  <>
+                    {(() => {
+                      const categories = [...new Set(symptomMaster.map(s => s.category || '未分類'))]
+                      return categories.map(cat => {
+                        const items = symptomMaster.filter(s => (s.category || '未分類') === cat)
+                        return (
+                          <div key={cat} className="mb-2">
+                            <p className="text-xs text-gray-500 mb-1">{cat}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {items.map(s => (
+                                <button
+                                  key={s.name}
+                                  type="button"
+                                  onClick={() => toggleSymptom(s.name)}
+                                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                                    selectedSymptoms.includes(s.name)
+                                      ? 'bg-blue-500 text-white border-blue-500'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                                  }`}
+                                >
+                                  {s.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })
+                    })()}
+                    {selectedSymptoms.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">選択中: {selectedSymptoms.join(', ')}</p>
+                    )}
+                    <textarea
+                      value={customComplaint}
+                      onChange={e => setCustomComplaint(e.target.value)}
+                      className={`${inputClass} mt-2`}
+                      rows={2}
+                      placeholder="上記にない症状があれば追記..."
+                    />
+                  </>
+                ) : (
+                  <textarea value={form.chief_complaint || ''} onChange={e => setForm({...form, chief_complaint: e.target.value})} className={inputClass} rows={2} />
+                )}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">既往歴</label>
