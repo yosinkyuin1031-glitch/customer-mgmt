@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   // ログインユーザー確認
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return NextResponse.json({ error: '未認証' }, { status: 401 })
+    return NextResponse.json({ error: '未認証', debug: { serviceKeySet: !!process.env.SUPABASE_SERVICE_ROLE_KEY } }, { status: 401 })
   }
 
   // service_roleクライアントでRLSをバイパス
@@ -26,7 +26,20 @@ export async function POST(request: Request) {
     .single()
 
   if (!membership?.clinic_id) {
-    return NextResponse.json({ error: '所属院が見つかりません' }, { status: 403 })
+    // デバッグ: 全clinic_membersを確認
+    const { data: allMembers } = await serviceClient
+      .from('clinic_members')
+      .select('user_id, clinic_id')
+    return NextResponse.json({
+      error: '所属院が見つかりません',
+      debug: {
+        userId: user.id,
+        email: user.email,
+        serviceKeySet: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        memberCount: allMembers?.length || 0,
+        members: allMembers?.map(m => ({ uid: m.user_id, cid: m.clinic_id }))
+      }
+    }, { status: 403 })
   }
 
   const body = await request.json()

@@ -421,7 +421,8 @@ export default function PatientDetailPage() {
       })
       const result = await res.json()
       if (!res.ok) {
-        alert('保存に失敗しました: ' + (result.error || '不明なエラー'))
+        console.error('API error:', JSON.stringify(result))
+        alert('保存に失敗しました: ' + (result.error || '不明なエラー') + '\n\nデバッグ: ' + JSON.stringify(result.debug || {}))
         return
       }
     } catch (e) {
