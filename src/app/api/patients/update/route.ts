@@ -11,8 +11,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '未認証' }, { status: 401 })
   }
 
-  // clinic_id取得
-  const { data: membership } = await supabase
+  // service_roleクライアントでRLSをバイパス
+  const serviceClient = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2ZrYXpqeWxya3NwcXJuaG54Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyMjc1NjYyOCwiZXhwIjoyMDM4MzMyNjI4fQ.L2o_CkIoGNmTanVh0Bc-7RS_kStZLHQ8TNCM-TvHqXk'
+  )
+
+  // clinic_id取得（service_roleで確実に取得）
+  const { data: membership } = await serviceClient
     .from('clinic_members')
     .select('clinic_id')
     .eq('user_id', user.id)
@@ -29,12 +35,6 @@ export async function POST(request: Request) {
   if (!id) {
     return NextResponse.json({ error: '患者IDが必要です' }, { status: 400 })
   }
-
-  // service_roleクライアントでRLSをバイパスして更新
-  const serviceClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6a2ZrYXpqeWxya3NwcXJuaG54Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcyMjc1NjYyOCwiZXhwIjoyMDM4MzMyNjI4fQ.L2o_CkIoGNmTanVh0Bc-7RS_kStZLHQ8TNCM-TvHqXk'
-  )
 
   // 対象患者がこの院のものか確認
   const { data: patient } = await serviceClient

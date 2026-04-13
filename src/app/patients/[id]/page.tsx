@@ -252,6 +252,7 @@ export default function PatientDetailPage() {
   const [symptomMaster, setSymptomMaster] = useState<{ name: string; category: string }[]>([])
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
   const [customComplaint, setCustomComplaint] = useState('')
+  const [occupationMaster, setOccupationMaster] = useState<string[]>([])
 
   // Modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -314,6 +315,15 @@ export default function PatientDetailPage() {
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
       if (symptoms) setSymptomMaster(symptoms)
+
+      // 職業マスター取得
+      const { data: occupations } = await supabase
+        .from('cm_occupations')
+        .select('name')
+        .eq('clinic_id', clinicId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+      if (occupations) setOccupationMaster(occupations.map(o => o.name))
 
       setLoading(false)
     }
@@ -402,31 +412,32 @@ export default function PatientDetailPage() {
       is_enabled: form.is_enabled,
     }
 
-    const { data: updated, error } = await supabase.from('cm_patients').update(updatePayload).eq('id', id).select()
-    if (error) {
-      console.error('患者更新エラー:', error)
-      alert('保存に失敗しました: ' + error.message)
-      return
-    }
-    if (!updated || updated.length === 0) {
-      // RLSで更新がブロックされた場合、API経由で更新
-      try {
-        const res = await fetch('/api/patients/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, ...updatePayload }),
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          alert('保存に失敗しました: ' + (err.error || '不明なエラー'))
-          return
-        }
-      } catch {
-        alert('保存に失敗しました')
+    // 常にAPIルート経由で更新（RLSバイパス）
+    try {
+      const res = await fetch('/api/patients/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updatePayload }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        alert('保存に失敗しました: ' + (result.error || '不明なエラー'))
         return
       }
+    } catch (e) {
+      console.error('API呼び出しエラー:', e)
+      alert('保存に失敗しました: ネットワークエラー')
+      return
     }
-    setPatient({ ...patient!, ...updatePayload } as Patient)
+
+    // DB から最新データを再取得して確実に反映
+    const { data: refreshed } = await supabase.from('cm_patients').select('*').eq('id', id).single()
+    if (refreshed) {
+      setPatient(refreshed as Patient)
+      setForm(refreshed as Patient)
+    } else {
+      setPatient({ ...patient!, ...updatePayload } as Patient)
+    }
     setEditing(false)
     setEditErrors({})
   }
@@ -639,6 +650,10 @@ export default function PatientDetailPage() {
     <AppShell>
       <Header title="患者詳細" />
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
+        <Link href="/patients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" /></svg>
+          患者一覧に戻る
+        </Link>
 
         {/* Confirmation Modal */}
         <ConfirmModal
@@ -814,7 +829,14 @@ export default function PatientDetailPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">職業</label>
-                  <input value={form.occupation || ''} onChange={e => setForm({...form, occupation: e.target.value})} className={inputClass} />
+                  {occupationMaster.length > 0 ? (
+                    <select value={form.occupation || ''} onChange={e => setForm({...form, occupation: e.target.value})} className={inputClass}>
+                      <option value="">選択</option>
+                      {occupationMaster.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input value={form.occupation || ''} onChange={e => setForm({...form, occupation: e.target.value})} className={inputClass} />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">来院経路</label>

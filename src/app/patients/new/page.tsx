@@ -80,6 +80,7 @@ export default function NewPatientPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const [symptomMaster, setSymptomMaster] = useState<{ name: string; category: string }[]>([])
+  const [occupationMaster, setOccupationMaster] = useState<string[]>([])
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [duplicateWarning, setDuplicateWarning] = useState<string>('')
@@ -93,18 +94,17 @@ export default function NewPatientPage() {
     is_direct_mail: true, is_enabled: true,
   })
 
-  // 症状マスター取得
+  // 症状・職業マスター取得
   useEffect(() => {
-    const fetchSymptoms = async () => {
-      const { data } = await supabase
-        .from('cm_symptoms')
-        .select('name, category')
-        .eq('clinic_id', clinicId)
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-      if (data) setSymptomMaster(data)
+    const fetchMasters = async () => {
+      const [{ data: symptoms }, { data: occupations }] = await Promise.all([
+        supabase.from('cm_symptoms').select('name, category').eq('clinic_id', clinicId).eq('is_active', true).order('sort_order', { ascending: true }),
+        supabase.from('cm_occupations').select('name').eq('clinic_id', clinicId).eq('is_active', true).order('sort_order', { ascending: true }),
+      ])
+      if (symptoms) setSymptomMaster(symptoms)
+      if (occupations) setOccupationMaster(occupations.map(o => o.name))
     }
-    fetchSymptoms()
+    fetchMasters()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [customComplaint, setCustomComplaint] = useState('')
@@ -550,7 +550,11 @@ export default function NewPatientPage() {
 
           <div>
             <label className="block text-xs text-gray-600 mb-1">職業</label>
-            <input type="text" value={form.occupation} onChange={(e) => update('occupation', e.target.value)} className={inputClass} placeholder="会社員" />
+            <select value={form.occupation} onChange={(e) => update('occupation', e.target.value)} className={inputClass}>
+              <option value="">選択してください</option>
+              {occupationMaster.map(o => <option key={o} value={o}>{o}</option>)}
+              <option value="その他">その他</option>
+            </select>
           </div>
 
           <div>
