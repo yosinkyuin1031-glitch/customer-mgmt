@@ -372,8 +372,14 @@ export default function PatientDetailPage() {
     setEditErrors(newErrors)
     if (Object.keys(newErrors).length > 0) return
 
-    await supabase.from('cm_patients').update(form).eq('id', id)
-    setPatient({ ...patient!, ...form })
+    // 症状マスター使用時は selectedSymptoms + customComplaint から確定値を直接生成
+    const parts = [...selectedSymptoms]
+    if (customComplaint.trim()) parts.push(customComplaint.trim())
+    const chiefComplaint = parts.length > 0 ? parts.join(', ') : (form.chief_complaint || '')
+    const updatedForm = { ...form, chief_complaint: chiefComplaint }
+
+    await supabase.from('cm_patients').update(updatedForm).eq('id', id)
+    setPatient({ ...patient!, ...updatedForm })
     setEditing(false)
     setEditErrors({})
   }
