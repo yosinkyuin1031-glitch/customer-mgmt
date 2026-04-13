@@ -29,6 +29,7 @@ const menuCards = [
   { href: '/sales/ad-costs', icon: '💳', title: '広告費入力', desc: '媒体別の広告費用管理' },
   { href: '/visits/new', icon: '📝', title: '施術記録', desc: '施術内容・料金・次回予約の記録' },
   { href: '/visits/import', icon: '📥', title: '来院履歴CSV取込', desc: '他システムからの来院データ移行' },
+  { href: '/sales/simulator', icon: '🧮', title: '売上シミュレーター', desc: '月商目標達成に必要な数字を試算' },
 ]
 
 export default function SalesPage() {
