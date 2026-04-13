@@ -283,79 +283,43 @@ export default function LtvPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-3">LTV（顧客生涯価値）分析</h2>
-
         {/* 期間選択 */}
-        <div className="bg-white rounded-xl shadow-sm p-3 mb-4">
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-gray-500 mr-1">期間:</span>
-            {([
-              { key: 'all' as PeriodKey, label: '全期間' },
-              { key: '1m' as PeriodKey, label: '1ヶ月' },
-              { key: '3m' as PeriodKey, label: '3ヶ月' },
-              { key: '6m' as PeriodKey, label: '6ヶ月' },
-              { key: '1y' as PeriodKey, label: '1年' },
-              { key: 'custom' as PeriodKey, label: 'カスタム' },
-            ]).map(p => (
-              <button key={p.key} onClick={() => setPeriod(p.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  period === p.key ? 'bg-[#14252A] text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >{p.label}</button>
-            ))}
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">集計開始日時</span>
+            <input type="date" value={customFrom || '2021-04-01'} onChange={e => { setCustomFrom(e.target.value); setPeriod('custom') }}
+              className="px-3 py-2 border border-gray-300 rounded text-sm" />
           </div>
-          {period === 'custom' && (
-            <div className="flex gap-2 mt-2 items-center">
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-                className="px-2 py-1.5 border border-gray-300 rounded text-sm" />
-              <span className="text-xs text-gray-400">〜</span>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                className="px-2 py-1.5 border border-gray-300 rounded text-sm" />
-            </div>
-          )}
-          {period !== 'all' && (
-            <p className="text-xs text-gray-400 mt-1.5">{periodLabel}</p>
-          )}
-        </div>
-
-        <PatientFilter filters={filters} onChange={setFilters} filteredCount={patients.length} totalCount={patientData.length} />
-
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{avgLTV.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
-            <p className="text-[10px] sm:text-xs text-gray-500">平均LTV</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-lg sm:text-2xl font-bold text-blue-600">{patients.length}<span className="text-xs sm:text-sm">人</span></p>
-            <p className="text-[10px] sm:text-xs text-gray-500">対象患者数</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-lg sm:text-2xl font-bold text-green-600">{totalLTV.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
-            <p className="text-[10px] sm:text-xs text-gray-500">総LTV</p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">集計終了日時</span>
+            <input type="date" value={customTo || new Date().toISOString().split('T')[0]} onChange={e => { setCustomTo(e.target.value); setPeriod('custom') }}
+              className="px-3 py-2 border border-gray-300 rounded text-sm" />
           </div>
         </div>
 
-        {/* 表示モード切替 */}
-        <div className="flex gap-2 mb-4">
+        {/* タブ（集計テーブル / 患者一覧） */}
+        <div className="flex gap-0 mb-6 border-b">
           <button onClick={() => setViewMode('summary')}
-            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'summary' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
-            集計テーブル
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-all ${viewMode === 'summary' ? 'border-black text-black' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+            LTV
           </button>
           <button onClick={() => setViewMode('list')}
-            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'list' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-all ${viewMode === 'list' ? 'border-black text-black' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
             患者一覧
           </button>
         </div>
 
+        <PatientFilter filters={filters} onChange={setFilters} filteredCount={patients.length} totalCount={patientData.length} />
+
         {loading ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400 text-sm">読み込み中...</div>
+          <div className="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
         ) : viewMode === 'summary' ? (
           /* ===== 集計テーブル (CSS売上集計と同じ形式) ===== */
           <div>
-            <div className="mb-3">
-              <label className="text-xs text-gray-500 mr-2">集計基準</label>
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">集計基準</p>
               <select value={criteria} onChange={e => setCriteria(e.target.value as CriteriaKey)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                className="px-3 py-2 border border-gray-300 rounded text-sm min-w-[160px]">
                 {CRITERIA_OPTIONS.map(o => (
                   <option key={o.key} value={o.key}>{o.label}</option>
                 ))}
@@ -374,7 +338,6 @@ export default function LtvPage() {
                   </div>
                 </div>
               ))}
-              {/* 合計 */}
               <div className="bg-gray-50 rounded-xl shadow-sm p-3 border-t-2 border-gray-300">
                 <p className="font-bold text-sm mb-1">合計</p>
                 <div className="grid grid-cols-3 gap-2 text-xs">
@@ -385,38 +348,38 @@ export default function LtvPage() {
               </div>
             </div>
 
-            {/* デスクトップ: テーブル */}
-            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            {/* デスクトップ: テーブル（CSS売上集計と完全に同じ見た目） */}
+            <div className="hidden sm:block border border-gray-300">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">集計項目</th>
-                    <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">カルテ枚数</th>
-                    <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">売上合計</th>
-                    <th className="text-right px-4 py-3 text-xs text-gray-500 font-medium">平均LTV</th>
+                  <tr className="border-b border-gray-300 bg-white">
+                    <th className="text-left px-4 py-3 font-bold text-gray-800">集計項目</th>
+                    <th className="text-left px-4 py-3 font-bold text-gray-800">カルテ枚数</th>
+                    <th className="text-left px-4 py-3 font-bold text-gray-800">売上合計</th>
+                    <th className="text-left px-4 py-3 font-bold text-gray-800">平均LTV</th>
                   </tr>
                 </thead>
                 <tbody>
                   {summaryData.map(row => (
-                    <tr key={row.label} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-2.5">{row.label}</td>
-                      <td className="px-4 py-2.5 text-right">{row.patients}</td>
-                      <td className="px-4 py-2.5 text-right">&yen;{row.revenue.toLocaleString()}</td>
-                      <td className="px-4 py-2.5 text-right font-medium">&yen;{row.avgLtv.toLocaleString()}</td>
+                    <tr key={row.label} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-gray-700">{row.label}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{row.patients}</td>
+                      <td className="px-4 py-2.5 text-gray-700">&yen;{row.revenue.toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-gray-700">&yen;{row.avgLtv.toLocaleString()}</td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
-                    <td className="px-4 py-2.5">合計</td>
-                    <td className="px-4 py-2.5 text-right">{patients.length}</td>
-                    <td className="px-4 py-2.5 text-right">&yen;{totalLTV.toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-right">&yen;{avgLTV.toLocaleString()}</td>
+                  <tr className="border-t border-gray-300 bg-white">
+                    <td className="px-4 py-2.5 text-gray-700">合計</td>
+                    <td className="px-4 py-2.5 text-gray-700">{patients.length}</td>
+                    <td className="px-4 py-2.5 text-gray-700">&yen;{totalLTV.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-gray-700">&yen;{avgLTV.toLocaleString()}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
         ) : (
-          /* ===== 患者一覧 (既存ビュー) ===== */
+          /* ===== 患者一覧 ===== */
           <>
             <div className="flex gap-2 mb-3">
               <span className="text-xs text-gray-500 pt-1">並び替え:</span>
@@ -450,34 +413,34 @@ export default function LtvPage() {
               ))}
             </div>
 
-            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto scroll-hint">
-              <table className="w-full text-sm sticky-header">
+            <div className="hidden sm:block border border-gray-300">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">#</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">患者名</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">来院数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">総売上</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">平均単価</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">初回</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">最終</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">経過</th>
+                  <tr className="border-b border-gray-300 bg-white">
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">#</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">患者名</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">来院数</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">総売上</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">平均単価</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">初回</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">最終</th>
+                    <th className="text-left px-3 py-2 font-bold text-gray-800">経過</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedSorted.map((p, i) => (
-                    <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <tr key={p.id} className="border-b border-gray-200 hover:bg-gray-50">
                       <td className="px-3 py-2 text-gray-400">{startIndex + i}</td>
-                      <td className="px-3 py-2 font-medium">
-                        <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline">{p.name}</Link>
+                      <td className="px-3 py-2">
+                        <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline font-medium">{p.name}</Link>
                       </td>
-                      <td className="px-3 py-2 text-right">{p.visitCount}回</td>
-                      <td className="px-3 py-2 text-right font-medium">{p.ltv.toLocaleString()}円</td>
-                      <td className="px-3 py-2 text-right">{p.avgPrice.toLocaleString()}円</td>
+                      <td className="px-3 py-2">{p.visitCount}回</td>
+                      <td className="px-3 py-2 font-medium">{p.ltv.toLocaleString()}円</td>
+                      <td className="px-3 py-2">{p.avgPrice.toLocaleString()}円</td>
                       <td className="px-3 py-2 text-xs text-gray-500">{p.firstVisit}</td>
                       <td className="px-3 py-2 text-xs text-gray-500">{p.lastVisit}</td>
-                      <td className="px-3 py-2 text-right text-xs">
+                      <td className="px-3 py-2 text-xs">
                         {p.daysSince !== null ? `${p.daysSince}日` : '-'}
                       </td>
                     </tr>

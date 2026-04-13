@@ -296,94 +296,47 @@ export default function RepeatPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-4">リピート分析</h2>
-
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {[
-            { key: 'day', label: '本日' },
-            { key: 'month', label: '月別' },
-            { key: 'year', label: '年間' },
-            { key: 'custom', label: '期間指定' },
-          ].map(p => (
-            <button key={p.key} onClick={() => setPeriod(p.key)}
-              className={`px-4 py-2 rounded-lg text-xs font-medium border transition-all ${
-                period === p.key ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500'
-              }`}>{p.label}</button>
-          ))}
-        </div>
-
-        <div className="mb-4">
-          {period === 'month' && (
-            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
-          )}
-          {period === 'year' && (
-            <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm">
-              {years.map(y => <option key={y} value={y}>{y}年</option>)}
-            </select>
-          )}
-          {period === 'custom' && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
-              <span className="text-gray-400 text-sm">〜</span>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                className="px-3 py-1 border border-gray-300 rounded-lg text-sm" />
-            </div>
-          )}
-        </div>
-
-        <PatientFilter filters={filters} onChange={setFilters} filteredCount={filteredPatientRepeats.length} totalCount={patientRepeats.length} />
-
-        {/* サマリー */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-xl sm:text-3xl font-bold" style={{ color: '#14252A' }}>{avgRepeatRate}<span className="text-xs sm:text-sm">%</span></p>
-            <p className="text-[10px] sm:text-xs text-gray-500">平均リピート率</p>
+        {/* 期間選択（CSS売上集計と同じレイアウト） */}
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">集計開始日時</span>
+            <input type="date" value={startDate || '2021-04-01'} onChange={e => { setStartDate(e.target.value); setPeriod('custom') }}
+              className="px-3 py-2 border border-gray-300 rounded text-sm" />
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-xl sm:text-3xl font-bold text-blue-600">{filteredPatientRepeats.length}<span className="text-xs sm:text-sm">人</span></p>
-            <p className="text-[10px] sm:text-xs text-gray-500">総患者数</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-xl sm:text-3xl font-bold text-green-600">{filteredPatientRepeats.filter(p => p.visitCount >= 2).length}<span className="text-xs sm:text-sm">人</span></p>
-            <p className="text-[10px] sm:text-xs text-gray-500">リピーター(2回+)</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-xl sm:text-3xl font-bold text-orange-600">
-              {filteredPatientRepeats.length > 0 ? (filteredPatientRepeats.reduce((s, p) => s + p.visitCount, 0) / filteredPatientRepeats.length).toFixed(1) : 0}
-              <span className="text-xs sm:text-sm">回</span>
-            </p>
-            <p className="text-[10px] sm:text-xs text-gray-500">平均来院回数</p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">集計終了日時</span>
+            <input type="date" value={endDate || new Date().toISOString().split('T')[0]} onChange={e => { setEndDate(e.target.value); setPeriod('custom') }}
+              className="px-3 py-2 border border-gray-300 rounded text-sm" />
           </div>
         </div>
 
-        {/* 表示モード切替 */}
-        <div className="flex gap-2 mb-4">
+        {/* タブ（リピート / 月別推移 / 回数別） */}
+        <div className="flex gap-0 mb-6 border-b">
           <button onClick={() => setViewMode('summary')}
-            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'summary' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
-            集計テーブル
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-all ${viewMode === 'summary' ? 'border-black text-black' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+            リピート
           </button>
           <button onClick={() => setViewMode('monthly')}
-            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'monthly' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-all ${viewMode === 'monthly' ? 'border-black text-black' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
             月別推移
           </button>
           <button onClick={() => setViewMode('patient')}
-            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'patient' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-all ${viewMode === 'patient' ? 'border-black text-black' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
             回数別
           </button>
         </div>
 
+        <PatientFilter filters={filters} onChange={setFilters} filteredCount={filteredPatientRepeats.length} totalCount={patientRepeats.length} />
+
         {loading ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400 text-sm">読み込み中...</div>
+          <div className="p-8 text-center text-gray-400 text-sm">読み込み中...</div>
         ) : viewMode === 'summary' ? (
-          /* ===== 集計テーブル (CSS売上集計リピートタブと同じ形式) ===== */
+          /* ===== 集計テーブル (CSS売上集計リピートタブと完全に同じ形式) ===== */
           <div>
-            <div className="mb-3">
-              <label className="text-xs text-gray-500 mr-2">集計基準</label>
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">集計基準</p>
               <select value={criteria} onChange={e => setCriteria(e.target.value as CriteriaKey)}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                className="px-3 py-2 border border-gray-300 rounded text-sm min-w-[160px]">
                 {CRITERIA_OPTIONS.map(o => (
                   <option key={o.key} value={o.key}>{o.label}</option>
                 ))}
@@ -403,7 +356,7 @@ export default function RepeatPage() {
                   <div className="flex flex-wrap gap-1 text-[10px]">
                     {row.retentions.map((r, i) => (
                       <span key={i} className={`px-1.5 py-0.5 rounded ${r >= 70 ? 'bg-green-100 text-green-700' : r >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {i + 2}回目:{r}%
+                        {i + 2}回目:{r > 0 ? `${r.toFixed(1)}%` : '-'}
                       </span>
                     ))}
                   </div>
@@ -418,48 +371,48 @@ export default function RepeatPage() {
                 </div>
                 <div className="flex flex-wrap gap-1 text-[10px]">
                   {totalSummary.retentions.map((r, i) => (
-                    <span key={i} className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 font-bold">{i + 2}回目:{r}%</span>
+                    <span key={i} className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 font-bold">{i + 2}回目:{r.toFixed(1)}%</span>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* デスクトップ: テーブル */}
-            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+            {/* デスクトップ: テーブル（CSS売上集計と完全に同じ見た目） */}
+            <div className="hidden sm:block border border-gray-300">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm whitespace-nowrap">
                   <thead>
-                    <tr className="bg-gray-50 border-b">
-                      <th className="text-left px-3 py-3 text-xs text-gray-500 font-medium sticky left-0 bg-gray-50">集計項目</th>
-                      <th className="text-right px-3 py-3 text-xs text-gray-500 font-medium">施術回数</th>
-                      <th className="text-right px-3 py-3 text-xs text-gray-500 font-medium">カルテ枚数</th>
-                      <th className="text-right px-3 py-3 text-xs text-gray-500 font-medium">平均リピート数</th>
+                    <tr className="border-b border-gray-300 bg-white">
+                      <th className="text-left px-3 py-3 font-bold text-gray-800 sticky left-0 bg-white">集計項目</th>
+                      <th className="text-left px-3 py-3 font-bold text-gray-800">施術回数</th>
+                      <th className="text-left px-3 py-3 font-bold text-gray-800">カルテ枚数</th>
+                      <th className="text-left px-3 py-3 font-bold text-gray-800">平均リピート数</th>
                       {Array.from({ length: 9 }, (_, i) => (
-                        <th key={i} className="text-right px-3 py-3 text-xs text-gray-500 font-medium">{i + 2}回目</th>
+                        <th key={i} className="text-left px-3 py-3 font-bold text-gray-800">{i + 2}回目</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {summaryData.map(row => (
-                      <tr key={row.label} className="border-b hover:bg-gray-50">
-                        <td className="px-3 py-2.5 sticky left-0 bg-white">{row.label}</td>
-                        <td className="px-3 py-2.5 text-right">{row.totalVisits}</td>
-                        <td className="px-3 py-2.5 text-right">{row.patients}</td>
-                        <td className="px-3 py-2.5 text-right font-medium">{row.avgRepeat}</td>
+                      <tr key={row.label} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="px-3 py-2.5 text-gray-700 sticky left-0 bg-white">{row.label}</td>
+                        <td className="px-3 py-2.5 text-gray-700">{row.totalVisits}</td>
+                        <td className="px-3 py-2.5 text-gray-700">{row.patients}</td>
+                        <td className="px-3 py-2.5 text-gray-700">{row.avgRepeat}</td>
                         {row.retentions.map((r, i) => (
-                          <td key={i} className="px-3 py-2.5 text-right">
+                          <td key={i} className="px-3 py-2.5 text-gray-700">
                             {r > 0 ? `${r.toFixed(1)}%` : '-'}
                           </td>
                         ))}
                       </tr>
                     ))}
-                    <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
-                      <td className="px-3 py-2.5 sticky left-0 bg-gray-50">合計</td>
-                      <td className="px-3 py-2.5 text-right">{totalSummary.totalVisits}</td>
-                      <td className="px-3 py-2.5 text-right">{totalSummary.patients}</td>
-                      <td className="px-3 py-2.5 text-right">{totalSummary.avgRepeat}</td>
+                    <tr className="border-t border-gray-300 bg-white">
+                      <td className="px-3 py-2.5 text-gray-700 sticky left-0 bg-white">合計</td>
+                      <td className="px-3 py-2.5 text-gray-700">{totalSummary.totalVisits}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{totalSummary.patients}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{totalSummary.avgRepeat}</td>
                       {totalSummary.retentions.map((r, i) => (
-                        <td key={i} className="px-3 py-2.5 text-right">{r.toFixed(1)}%</td>
+                        <td key={i} className="px-3 py-2.5 text-gray-700">{r.toFixed(1)}%</td>
                       ))}
                     </tr>
                   </tbody>
