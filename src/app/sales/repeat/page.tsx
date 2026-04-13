@@ -28,20 +28,70 @@ interface PatientRepeat {
   lastVisit: string
 }
 
+interface PatientFullRow {
+  id: string
+  name: string
+  gender: string | null
+  birth_date: string | null
+  visit_motive: string | null
+  occupation: string | null
+  chief_complaint: string | null
+  referral_source: string | null
+  prefecture: string | null
+  visit_count: number | null
+}
+
+type CriteriaKey = 'referral_source' | 'occupation' | 'chief_complaint' | 'gender' | 'age' | 'prefecture'
+
+const CRITERIA_OPTIONS: { key: CriteriaKey; label: string }[] = [
+  { key: 'referral_source', label: '来店動機' },
+  { key: 'occupation', label: '職業' },
+  { key: 'chief_complaint', label: '症状' },
+  { key: 'gender', label: '性別' },
+  { key: 'age', label: '年代' },
+  { key: 'prefecture', label: '地域' },
+]
+
+function getAge(birthDate: string | null): string {
+  if (!birthDate) return '未設定'
+  const age = Math.floor((Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+  if (age < 20) return '10代以下'
+  if (age < 30) return '20代'
+  if (age < 40) return '30代'
+  if (age < 50) return '40代'
+  if (age < 60) return '50代'
+  if (age < 70) return '60代'
+  if (age < 80) return '70代'
+  return '80代以上'
+}
+
+function getCriteriaValue(p: PatientFullRow, criteria: CriteriaKey): string {
+  switch (criteria) {
+    case 'referral_source': return p.referral_source || p.visit_motive || '未設定'
+    case 'occupation': return p.occupation || '未設定'
+    case 'chief_complaint': return p.chief_complaint || '未設定'
+    case 'gender': return p.gender || '未設定'
+    case 'age': return getAge(p.birth_date)
+    case 'prefecture': return p.prefecture || '未設定'
+  }
+}
+
 export default function RepeatPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
   const [data, setData] = useState<RepeatData[]>([])
   const [patientRepeats, setPatientRepeats] = useState<PatientRepeat[]>([])
-  const [viewMode, setViewMode] = useState<'monthly' | 'patient'>('monthly')
+  const [viewMode, setViewMode] = useState<'summary' | 'monthly' | 'patient'>('summary')
   const [period, setPeriod] = useState('month')
   const { filters, setFilters } = usePatientFilter()
   const [patientRawData, setPatientRawData] = useState<PatientForFilter[]>([])
+  const [patientFullData, setPatientFullData] = useState<PatientFullRow[]>([])
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
+  const [criteria, setCriteria] = useState<CriteriaKey>('referral_source')
 
   const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i))
 
@@ -69,17 +119,15 @@ export default function RepeatPage() {
         queryEnd = endDate
       }
 
-      // 全期間のvisitsを取得（初回来院判定のため）
       const allVisits = await fetchAllSlips(supabase, 'patient_id, visit_date, total_price') as { patient_id: string; visit_date: string; total_price: number }[]
 
       const { data: patients } = await supabase
         .from('cm_patients')
-        .select('id, name, gender, birth_date, visit_motive, occupation, chief_complaint')
+        .select('id, name, gender, birth_date, visit_motive, occupation, chief_complaint, referral_source, prefecture, visit_count')
         .eq('clinic_id', clinicId)
 
       if (!allVisits || allVisits.length === 0 || !patients) { setData([]); setPatientRepeats([]); setLoading(false); return }
 
-      // フィルタ用データを保存
       setPatientRawData(patients.map(p => ({
         id: p.id,
         gender: p.gender || undefined,
@@ -88,11 +136,11 @@ export default function RepeatPage() {
         occupation: p.occupation || undefined,
         chief_complaint: p.chief_complaint || undefined,
       })))
+      setPatientFullData(patients)
 
       const patientNameMap: Record<string, string> = {}
       patients.forEach(p => { patientNameMap[p.id] = p.name })
 
-      // 初回来院月を全期間から取得
       const firstVisitMonth: Record<string, string> = {}
       allVisits.forEach(v => {
         const month = v.visit_date.slice(0, 7)
@@ -101,10 +149,8 @@ export default function RepeatPage() {
         }
       })
 
-      // フィルタ対象のvisitsを抽出
       const filteredVisits = allVisits.filter(v => v.visit_date >= queryStart && v.visit_date <= queryEnd)
 
-      // 月別集計
       const monthMap: Record<string, { patients: Set<string>, newPatients: Set<string>, totalVisits: number, newVisits: number, repeatVisits: number }> = {}
 
       filteredVisits.forEach(v => {
@@ -139,7 +185,6 @@ export default function RepeatPage() {
 
       setData(result)
 
-      // 患者別リピート回数集計（フィルタ期間内）
       const patMap: Record<string, { count: number, revenue: number, first: string, last: string }> = {}
       filteredVisits.forEach(v => {
         if (!patMap[v.patient_id]) patMap[v.patient_id] = { count: 0, revenue: 0, first: v.visit_date, last: v.visit_date }
@@ -166,41 +211,75 @@ export default function RepeatPage() {
     load()
   }, [period, selectedMonth, selectedYear, startDate, endDate])
 
-  // フィルタ適用
   const allowedIds = useMemo(() => {
     return filterPatientIds(patientRawData, filters)
   }, [patientRawData, filters])
 
-  // フィルタ適用後のデータ
   const filteredPatientRepeats = useMemo(() => {
     return patientRepeats.filter(p => allowedIds.has(p.id))
   }, [patientRepeats, allowedIds])
+
+  // === 集計テーブルデータ（CSS売上集計のリピートタブと同じ形式） ===
+  const summaryData = useMemo(() => {
+    // patient_id → visit_count マップ（filteredPatientRepeatsから）
+    const visitMap: Record<string, number> = {}
+    filteredPatientRepeats.forEach(p => { visitMap[p.id] = p.visitCount })
+
+    // patient_id → full row マップ
+    const fullMap: Record<string, PatientFullRow> = {}
+    patientFullData.forEach(p => { fullMap[p.id] = p })
+
+    // グルーピング
+    const groups: Record<string, { patientIds: string[]; totalVisits: number }> = {}
+    for (const p of filteredPatientRepeats) {
+      const raw = fullMap[p.id]
+      if (!raw) continue
+      const key = getCriteriaValue(raw, criteria)
+      if (!groups[key]) groups[key] = { patientIds: [], totalVisits: 0 }
+      groups[key].patientIds.push(p.id)
+      groups[key].totalVisits += p.visitCount
+    }
+
+    return Object.entries(groups)
+      .map(([label, g]) => {
+        const count = g.patientIds.length
+        const avgRepeat = count > 0 ? +(g.totalVisits / count).toFixed(1) : 0
+        // N回目のリテンション率: visit_count >= N の患者数 / count
+        const retentions: number[] = []
+        for (let n = 2; n <= 10; n++) {
+          const retained = g.patientIds.filter(id => (visitMap[id] || 0) >= n).length
+          retentions.push(count > 0 ? Math.round((retained / count) * 1000) / 10 : 0)
+        }
+        return { label, totalVisits: g.totalVisits, patients: count, avgRepeat, retentions }
+      })
+      .sort((a, b) => b.avgRepeat - a.avgRepeat)
+  }, [filteredPatientRepeats, patientFullData, criteria])
+
+  // 全体のリテンション率（合計行用）
+  const totalSummary = useMemo(() => {
+    const total = filteredPatientRepeats.length
+    const totalVisits = filteredPatientRepeats.reduce((s, p) => s + p.visitCount, 0)
+    const avgRepeat = total > 0 ? +(totalVisits / total).toFixed(1) : 0
+    const retentions: number[] = []
+    for (let n = 2; n <= 10; n++) {
+      const retained = filteredPatientRepeats.filter(p => p.visitCount >= n).length
+      retentions.push(total > 0 ? Math.round((retained / total) * 1000) / 10 : 0)
+    }
+    return { totalVisits, patients: total, avgRepeat, retentions }
+  }, [filteredPatientRepeats])
 
   const avgRepeatRate = data.length > 0
     ? Math.round(data.reduce((sum, d) => sum + d.repeatRate, 0) / data.length)
     : 0
 
-  // 来院回数分布（1回, 2回, 3回, 4回, 5回, 6〜9回, 10回以上）
   const distBuckets = [
-    { key: 1, label: '1回' },
-    { key: 2, label: '2回' },
-    { key: 3, label: '3回' },
-    { key: 4, label: '4回' },
-    { key: 5, label: '5回' },
-    { key: 6, label: '6〜9回' },
-    { key: 10, label: '10回以上' },
+    { key: 1, label: '1回' }, { key: 2, label: '2回' }, { key: 3, label: '3回' },
+    { key: 4, label: '4回' }, { key: 5, label: '5回' }, { key: 6, label: '6〜9回' }, { key: 10, label: '10回以上' },
   ]
 
   const countDist: Record<number, number> = {}
   filteredPatientRepeats.forEach(p => {
-    let bucket: number
-    if (p.visitCount <= 5) {
-      bucket = p.visitCount
-    } else if (p.visitCount <= 9) {
-      bucket = 6
-    } else {
-      bucket = 10
-    }
+    const bucket = p.visitCount <= 5 ? p.visitCount : p.visitCount <= 9 ? 6 : 10
     countDist[bucket] = (countDist[bucket] || 0) + 1
   })
 
@@ -233,7 +312,6 @@ export default function RepeatPage() {
           ))}
         </div>
 
-        {/* 期間選択UI */}
         <div className="mb-4">
           {period === 'month' && (
             <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
@@ -256,26 +334,7 @@ export default function RepeatPage() {
           )}
         </div>
 
-        {/* 絞り込みフィルタ */}
-        <PatientFilter
-          filters={filters}
-          onChange={setFilters}
-          filteredCount={filteredPatientRepeats.length}
-          totalCount={patientRepeats.length}
-        />
-
-        <div className="flex items-center justify-end mb-4">
-          <div className="flex gap-1">
-            <button onClick={() => setViewMode('monthly')}
-              className={`px-3 py-1 rounded text-xs font-medium ${viewMode === 'monthly' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
-              月別推移
-            </button>
-            <button onClick={() => setViewMode('patient')}
-              className={`px-3 py-1 rounded text-xs font-medium ${viewMode === 'patient' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
-              回数別
-            </button>
-          </div>
-        </div>
+        <PatientFilter filters={filters} onChange={setFilters} filteredCount={filteredPatientRepeats.length} totalCount={patientRepeats.length} />
 
         {/* サマリー */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
@@ -300,83 +359,140 @@ export default function RepeatPage() {
           </div>
         </div>
 
-        {/* 来院回数分布 */}
-        {viewMode === 'patient' && filteredPatientRepeats.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-            <h3 className="font-bold text-gray-800 text-sm mb-3">来院回数分布</h3>
-            <div className="space-y-2">
-              {distBuckets.map(b => {
-                const count = countDist[b.key] || 0
-                const maxCount = Math.max(...Object.values(countDist), 1)
-                return (
-                  <div key={b.key} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 w-16 text-right">{b.label}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
-                      <div className="h-5 rounded-full flex items-center px-2"
-                        style={{ width: `${maxCount > 0 ? (count / maxCount * 100) : 0}%`, background: '#14252A', minWidth: count > 0 ? '24px' : '0' }}>
-                        {count > 0 && <span className="text-white text-[10px] font-bold">{count}</span>}
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-400 w-8">{count}人</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* 表示モード切替 */}
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setViewMode('summary')}
+            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'summary' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+            集計テーブル
+          </button>
+          <button onClick={() => setViewMode('monthly')}
+            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'monthly' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+            月別推移
+          </button>
+          <button onClick={() => setViewMode('patient')}
+            className={`px-4 py-2 rounded-lg text-xs font-medium ${viewMode === 'patient' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}>
+            回数別
+          </button>
+        </div>
 
         {loading ? (
-          <div className="space-y-2">
-            {/* Skeleton: mobile cards */}
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400 text-sm">読み込み中...</div>
+        ) : viewMode === 'summary' ? (
+          /* ===== 集計テーブル (CSS売上集計リピートタブと同じ形式) ===== */
+          <div>
+            <div className="mb-3">
+              <label className="text-xs text-gray-500 mr-2">集計基準</label>
+              <select value={criteria} onChange={e => setCriteria(e.target.value as CriteriaKey)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                {CRITERIA_OPTIONS.map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* モバイル: カード */}
             <div className="sm:hidden space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="h-4 w-20 bg-gray-200 rounded" />
-                    <div className="h-4 w-12 bg-gray-200 rounded" />
+              {summaryData.map(row => (
+                <div key={row.label} className="bg-white rounded-xl shadow-sm p-3">
+                  <p className="font-medium text-sm mb-2">{row.label}</p>
+                  <div className="grid grid-cols-3 gap-2 text-xs mb-2">
+                    <div><span className="text-gray-400">施術回数</span><br/><span className="font-bold">{row.totalVisits}</span></div>
+                    <div><span className="text-gray-400">カルテ枚数</span><br/><span className="font-bold">{row.patients}</span></div>
+                    <div><span className="text-gray-400">平均リピート</span><br/><span className="font-bold">{row.avgRepeat}</span></div>
                   </div>
-                  <div className="flex gap-3">
-                    <div className="h-3 w-16 bg-gray-200 rounded" />
-                    <div className="h-3 w-24 bg-gray-200 rounded" />
-                    <div className="h-3 w-24 bg-gray-200 rounded" />
+                  <div className="flex flex-wrap gap-1 text-[10px]">
+                    {row.retentions.map((r, i) => (
+                      <span key={i} className={`px-1.5 py-0.5 rounded ${r >= 70 ? 'bg-green-100 text-green-700' : r >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {i + 2}回目:{r}%
+                      </span>
+                    ))}
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2 mt-2" />
                 </div>
               ))}
-            </div>
-            {/* Skeleton: desktop table */}
-            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">月</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">総来院数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">新規人数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">新規回数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">既存人数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">既存回数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">リピート率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i} className="border-b animate-pulse">
-                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
-                    </tr>
+              <div className="bg-gray-50 rounded-xl shadow-sm p-3 border-t-2 border-gray-300">
+                <p className="font-bold text-sm mb-2">合計</p>
+                <div className="grid grid-cols-3 gap-2 text-xs mb-2">
+                  <div><span className="text-gray-400">施術回数</span><br/><span className="font-bold">{totalSummary.totalVisits}</span></div>
+                  <div><span className="text-gray-400">カルテ枚数</span><br/><span className="font-bold">{totalSummary.patients}</span></div>
+                  <div><span className="text-gray-400">平均リピート</span><br/><span className="font-bold">{totalSummary.avgRepeat}</span></div>
+                </div>
+                <div className="flex flex-wrap gap-1 text-[10px]">
+                  {totalSummary.retentions.map((r, i) => (
+                    <span key={i} className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 font-bold">{i + 2}回目:{r}%</span>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </div>
+            </div>
+
+            {/* デスクトップ: テーブル */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="text-left px-3 py-3 text-xs text-gray-500 font-medium sticky left-0 bg-gray-50">集計項目</th>
+                      <th className="text-right px-3 py-3 text-xs text-gray-500 font-medium">施術回数</th>
+                      <th className="text-right px-3 py-3 text-xs text-gray-500 font-medium">カルテ枚数</th>
+                      <th className="text-right px-3 py-3 text-xs text-gray-500 font-medium">平均リピート数</th>
+                      {Array.from({ length: 9 }, (_, i) => (
+                        <th key={i} className="text-right px-3 py-3 text-xs text-gray-500 font-medium">{i + 2}回目</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summaryData.map(row => (
+                      <tr key={row.label} className="border-b hover:bg-gray-50">
+                        <td className="px-3 py-2.5 sticky left-0 bg-white">{row.label}</td>
+                        <td className="px-3 py-2.5 text-right">{row.totalVisits}</td>
+                        <td className="px-3 py-2.5 text-right">{row.patients}</td>
+                        <td className="px-3 py-2.5 text-right font-medium">{row.avgRepeat}</td>
+                        {row.retentions.map((r, i) => (
+                          <td key={i} className="px-3 py-2.5 text-right">
+                            {r > 0 ? `${r.toFixed(1)}%` : '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
+                      <td className="px-3 py-2.5 sticky left-0 bg-gray-50">合計</td>
+                      <td className="px-3 py-2.5 text-right">{totalSummary.totalVisits}</td>
+                      <td className="px-3 py-2.5 text-right">{totalSummary.patients}</td>
+                      <td className="px-3 py-2.5 text-right">{totalSummary.avgRepeat}</td>
+                      {totalSummary.retentions.map((r, i) => (
+                        <td key={i} className="px-3 py-2.5 text-right">{r.toFixed(1)}%</td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         ) : viewMode === 'patient' ? (
           <>
-          {/* 患者別リピート一覧 */}
+          {/* 来院回数分布 */}
+          {filteredPatientRepeats.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+              <h3 className="font-bold text-gray-800 text-sm mb-3">来院回数分布</h3>
+              <div className="space-y-2">
+                {distBuckets.map(b => {
+                  const count = countDist[b.key] || 0
+                  const maxCount = Math.max(...Object.values(countDist), 1)
+                  return (
+                    <div key={b.key} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 w-16 text-right">{b.label}</span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-5 relative">
+                        <div className="h-5 rounded-full flex items-center px-2"
+                          style={{ width: `${maxCount > 0 ? (count / maxCount * 100) : 0}%`, background: '#14252A', minWidth: count > 0 ? '24px' : '0' }}>
+                          {count > 0 && <span className="text-white text-[10px] font-bold">{count}</span>}
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-400 w-8">{count}人</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <div className="sm:hidden space-y-2">
             {filteredPatientRepeats.map((p, i) => (
               <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3">
