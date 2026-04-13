@@ -376,10 +376,39 @@ export default function PatientDetailPage() {
     const parts = [...selectedSymptoms]
     if (customComplaint.trim()) parts.push(customComplaint.trim())
     const chiefComplaint = parts.length > 0 ? parts.join(', ') : (form.chief_complaint || '')
-    const updatedForm = { ...form, chief_complaint: chiefComplaint }
 
-    await supabase.from('cm_patients').update(updatedForm).eq('id', id)
-    setPatient({ ...patient!, ...updatedForm })
+    // 更新対象フィールドだけ送る（id, clinic_id, created_at等を除外）
+    const updatePayload = {
+      name: form.name,
+      furigana: form.furigana,
+      birth_date: form.birth_date,
+      gender: form.gender,
+      phone: form.phone,
+      email: form.email,
+      zipcode: form.zipcode,
+      prefecture: form.prefecture,
+      city: form.city,
+      address: form.address,
+      building: form.building,
+      occupation: form.occupation,
+      referral_source: form.referral_source,
+      visit_motive: form.visit_motive,
+      customer_category: form.customer_category,
+      chief_complaint: chiefComplaint,
+      medical_history: form.medical_history,
+      notes: form.notes,
+      status: form.status,
+      is_direct_mail: form.is_direct_mail,
+      is_enabled: form.is_enabled,
+    }
+
+    const { error } = await supabase.from('cm_patients').update(updatePayload).eq('id', id)
+    if (error) {
+      console.error('患者更新エラー:', error)
+      alert('保存に失敗しました: ' + error.message)
+      return
+    }
+    setPatient({ ...patient!, ...updatePayload } as Patient)
     setEditing(false)
     setEditErrors({})
   }
