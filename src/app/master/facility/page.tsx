@@ -8,7 +8,7 @@ export default function FacilityPage() {
   const supabase = createClient()
   const clinicId = getClinicId()
   const [form, setForm] = useState({
-    facility_name: '', address: '', phone: '', email: '', owner_name: '', business_hours: ''
+    facility_name: '', zipcode: '', address: '', phone: '', email: '', owner_name: '', business_hours: ''
   })
   const [id, setId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -43,6 +43,10 @@ export default function FacilityPage() {
       <div>
         <label className="block text-xs text-gray-600 mb-1">施設名</label>
         <input value={form.facility_name} onChange={e => setForm({...form, facility_name: e.target.value})} className={inputClass} placeholder="例：○○整骨院" />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-600 mb-1">郵便番号</label>
+        <input value={form.zipcode} onChange={e => setForm({...form, zipcode: e.target.value})} className={inputClass} placeholder="〒000-0000" />
       </div>
       <div>
         <label className="block text-xs text-gray-600 mb-1">住所</label>

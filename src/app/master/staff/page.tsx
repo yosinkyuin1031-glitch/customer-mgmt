@@ -2,7 +2,7 @@
 import SimpleMasterPage from '@/components/SimpleMasterPage'
 
 export default function Page() {
-  return <SimpleMasterPage title="使用者管理" tableName="cm_staff" sortField="created_at" columns={[
+  return <SimpleMasterPage title="使用者管理" tableName="cm_staff" sortField="created_at" hideAddButton columns={[
     { key: 'name', label: '氏名' },
     { key: 'role', label: '役割', type: 'select', options: ['admin', 'staff'], width: '100px' },
     { key: 'email', label: 'メール' },

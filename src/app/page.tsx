@@ -8,6 +8,7 @@ import SetupWizard from '@/components/SetupWizard'
 import { createClient } from '@/lib/supabase/client'
 import { getClinicId } from '@/lib/clinic'
 import { useToast } from '@/lib/toast'
+import { fetchAllSlips } from '@/lib/fetchAll'
 import type { Patient, Slip, CouponBook } from '@/lib/types'
 
 interface TodaySlip extends Slip {
@@ -195,6 +196,7 @@ export default function HomePage() {
   const [todaySlips, setTodaySlips] = useState<TodaySlip[]>([])
   const [monthSlips, setMonthSlips] = useState<Slip[]>([])
   const [allPatients, setAllPatients] = useState<Patient[]>([])
+  const [lastVisitMapState, setLastVisitMapState] = useState<Record<string, string>>({})
   const [recentPatients, setRecentPatients] = useState<Patient[]>([])
   const [stats, setStats] = useState({ totalPatients: 0, monthVisits: 0, todayVisits: 0, todayRevenue: 0 })
   const [loading, setLoading] = useState(true)
@@ -212,6 +214,7 @@ export default function HomePage() {
 
   // 回数券アラート
   const [couponAlerts, setCouponAlerts] = useState<{ low: CouponBook[]; expiring: CouponBook[] }>({ low: [], expiring: [] })
+
 
   const saveMemo = useCallback(async (patientId: string, currentNotes: string) => {
     if (!memoText.trim()) return
@@ -263,22 +266,23 @@ export default function HomePage() {
         supabase.from('cm_slips').select('*').eq('clinic_id', clinicId).gte('visit_date', lastMonthStart).lte('visit_date', lastMonthEnd),
       ])
 
-      // 全アクティブ患者の最終来院日をcm_slipsから実データで取得して補正
+      // 全アクティブ患者の最終来院日をcm_slipsから実データで取得（1000件制限回避）
       const activePatients = allActiveRes.data || []
-      const patientIds = activePatients.map(p => p.id)
-      const { data: latestSlips } = await supabase
-        .from('cm_slips')
-        .select('patient_id, visit_date')
-        .eq('clinic_id', clinicId)
-        .in('patient_id', patientIds.length > 0 ? patientIds : ['__none__'])
-        .order('visit_date', { ascending: false })
+      const allSlipsForMap = await fetchAllSlips<{ patient_id: string; visit_date: string }>(supabase, 'patient_id, visit_date')
 
-      // 患者ごとの最新来院日マップを構築
+      // 患者ごとの最新来院日マップを構築（cm_slips + cm_patients.last_visit_dateの両方を考慮）
       const lastVisitMap: Record<string, string> = {}
-      if (latestSlips) {
-        for (const s of latestSlips) {
-          if (!lastVisitMap[s.patient_id]) {
-            lastVisitMap[s.patient_id] = s.visit_date
+      for (const s of allSlipsForMap) {
+        if (!s.patient_id) continue
+        if (!lastVisitMap[s.patient_id] || s.visit_date > lastVisitMap[s.patient_id]) {
+          lastVisitMap[s.patient_id] = s.visit_date
+        }
+      }
+      // cm_patients.last_visit_date も考慮（CSVインポートなどで伝票なしの場合）
+      for (const p of activePatients) {
+        if (p.last_visit_date) {
+          if (!lastVisitMap[p.id] || p.last_visit_date > lastVisitMap[p.id]) {
+            lastVisitMap[p.id] = p.last_visit_date
           }
         }
       }
@@ -292,6 +296,7 @@ export default function HomePage() {
       setTodaySlips(todayRes.data || [])
       setMonthSlips(thisMonthAllSlips || [])
       setAllPatients(activePatients)
+      setLastVisitMapState(lastVisitMap)
       const todayRevenue = (todayRes.data || []).reduce((sum: number, s: Slip) => sum + (s.total_price || 0), 0)
       setStats({
         totalPatients: totalPatients || 0,
@@ -356,9 +361,29 @@ export default function HomePage() {
 
   const displayedChurn = showAllChurn ? churnPatients : churnPatients.slice(0, 10)
 
+  // 今月が誕生月の通院中患者を抽出（直近90日以内に来院している人のみ）
+  const currentMonth = new Date().getMonth() + 1 // 1-12
+  const ninetyDaysAgoMs = Date.now() - 90 * 24 * 60 * 60 * 1000
+  const birthdayPatients = allPatients
+    .filter(p => {
+      if (!p.birth_date) return false
+      const m = new Date(p.birth_date).getMonth() + 1
+      if (m !== currentMonth) return false
+      // 直近90日以内に来院している人のみ
+      const lastVisit = lastVisitMapState[p.id]
+      if (!lastVisit) return false
+      return new Date(lastVisit).getTime() >= ninetyDaysAgoMs
+    })
+    .map(p => ({
+      ...p,
+      birthDay: new Date(p.birth_date!).getDate(),
+      age: Math.floor((Date.now() - new Date(p.birth_date!).getTime()) / (365.25 * 24 * 60 * 60 * 1000)),
+    }))
+    .sort((a, b) => a.birthDay - b.birthDay)
+
   return (
     <AppShell>
-      <Header title="顧客管理シート" />
+      <Header title="Clinic Core" />
       <SetupWizard />
       <div className="px-4 py-5 max-w-lg mx-auto">
 
@@ -641,6 +666,47 @@ export default function HomePage() {
               )}
             </div>
 
+            {/* 今月のお誕生日 */}
+            <div className="bg-white rounded-xl shadow-sm p-5 mb-5">
+              <h2 className="font-bold text-gray-800 text-base mb-3">
+                🎂 今月のお誕生日{birthdayPatients.length > 0 && `（${birthdayPatients.length}名）`}
+              </h2>
+              {birthdayPatients.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">今月が誕生月の通院中患者はいません</p>
+              ) : (
+                <div className="space-y-2">
+                  {birthdayPatients.map(p => (
+                    <div key={p.id} className="bg-pink-50 border border-pink-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Link href={`/patients/${p.id}`} className="font-bold text-sm hover:underline truncate" title={p.name}>
+                              {p.name}
+                            </Link>
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-pink-100 text-pink-700">
+                              {currentMonth}/{p.birthDay}
+                            </span>
+                            <span className="text-[10px] text-gray-500">{p.age}歳</span>
+                          </div>
+                          {p.chief_complaint && (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{p.chief_complaint}</p>
+                          )}
+                        </div>
+                        {p.phone && (
+                          <a
+                            href={`sms:${p.phone.replace(/[-ー－\s]/g, '')}`}
+                            className="text-[10px] font-medium px-2.5 py-1.5 rounded-md bg-pink-500 text-white hover:bg-pink-600 whitespace-nowrap shrink-0"
+                          >
+                            SMS送信
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* AIアドバイス */}
             <div className="bg-blue-50 rounded-xl shadow-sm p-5 mb-5 border border-blue-200">
               <h2 className="font-bold text-blue-900 text-base mb-3">💡 今月のアドバイス</h2>
@@ -743,7 +809,14 @@ export default function HomePage() {
                         <div className="flex items-center gap-2.5">
                           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.status === 'active' ? 'bg-green-500' : p.status === 'completed' ? 'bg-blue-500' : 'bg-gray-300'}`} />
                           <div>
-                            <p className="font-bold text-sm">{p.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-sm">{p.name}</p>
+                              {p.birth_date && (
+                                <span className="text-[10px] text-gray-400">
+                                  {Math.floor((Date.now() - new Date(p.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))}歳
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-500 mt-0.5">{p.chief_complaint?.slice(0, 20)}</p>
                           </div>
                         </div>

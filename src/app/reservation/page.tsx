@@ -61,7 +61,7 @@ export default function ReservationPage() {
     const endDate = weekDates[6].toISOString().split('T')[0]
 
     const { data } = await supabase
-      .from('cm_reservations')
+      .from('cm_reservations_unified')
       .select('*')
       .eq('clinic_id', clinicId)
       .gte('reservation_date', startDate)
@@ -140,9 +140,9 @@ export default function ReservationPage() {
       end_time: form.end_time + ':00',
     }
     if (editingReservation) {
-      await supabase.from('cm_reservations').update(payload).eq('id', editingReservation.id)
+      await supabase.from('rv_reservations').update(payload).eq('id', editingReservation.id)
     } else {
-      await supabase.from('cm_reservations').insert(payload)
+      await supabase.from('rv_reservations').insert(payload)
     }
     setShowModal(false)
     loadReservations()
@@ -156,7 +156,7 @@ export default function ReservationPage() {
   const handleDeleteConfirm = async () => {
     if (!editingReservation) return
     setShowDeleteConfirm(false)
-    await supabase.from('cm_reservations').delete().eq('id', editingReservation.id)
+    await supabase.from('rv_reservations').delete().eq('id', editingReservation.id)
     setShowModal(false)
     loadReservations()
   }

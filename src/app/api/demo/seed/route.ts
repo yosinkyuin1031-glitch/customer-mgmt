@@ -73,7 +73,7 @@ export async function POST() {
         name: 'デモ整体院',
         code: 'demo-clinic',
         owner_name: 'デモユーザー',
-        plan: 'pro',
+        plan: 'basic',
       })
     }
 

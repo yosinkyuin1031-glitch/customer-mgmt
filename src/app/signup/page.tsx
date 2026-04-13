@@ -1,201 +1,48 @@
 'use client'
 
-import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { Suspense } from 'react'
 
-function SignupForm() {
-  const supabase = createClient()
-  const searchParams = useSearchParams()
-  const reason = searchParams.get('reason')
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [clinicName, setClinicName] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    if (!clinicName.trim()) {
-      setError('院名を入力してください')
-      setLoading(false)
-      return
-    }
-
-    if (password.length < 6) {
-      setError('パスワードは6文字以上で入力してください')
-      setLoading(false)
-      return
-    }
-
-    try {
-      // 1. Supabase Auth でユーザー作成
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-      if (authError) {
-        if (authError.message.includes('already registered')) {
-          setError('このメールアドレスは既に登録されています')
-        } else {
-          console.error('signup error:', authError.message)
-          setError('アカウント作成に失敗しました')
-        }
-        setLoading(false)
-        return
-      }
-
-      const userId = authData.user?.id
-      if (!userId) {
-        setError('ユーザー作成に失敗しました')
-        setLoading(false)
-        return
-      }
-
-      // 2. clinics テーブルに新しい院を作成
-      const { data: clinic, error: clinicError } = await supabase
-        .from('clinics')
-        .insert({
-          name: clinicName.trim(),
-          plan: 'free',
-          is_active: true,
-        })
-        .select('id')
-        .single()
-
-      if (clinicError || !clinic) {
-        console.error('clinic create error:', clinicError?.message)
-        setError('院の作成に失敗しました')
-        setLoading(false)
-        return
-      }
-
-      // 3. clinic_members テーブルにowner権限で紐付け
-      const { error: memberError } = await supabase
-        .from('clinic_members')
-        .insert({
-          clinic_id: clinic.id,
-          user_id: userId,
-          role: 'owner',
-        })
-
-      if (memberError) {
-        console.error('member link error:', memberError.message)
-        setError('院との紐付けに失敗しました')
-        setLoading(false)
-        return
-      }
-
-      // 4. 成功後リダイレクト
-      window.location.href = '/'
-    } catch (err) {
-      setError('予期しないエラーが発生しました')
-      console.error(err)
-      setLoading(false)
-    }
-  }
-
+export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #14252A 0%, #1a3a42 100%)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white">顧客管理シート</h1>
-          <p className="text-gray-300 text-sm mt-1">アカウントを作成</p>
+          <h1 className="text-2xl font-bold text-white">Clinic Core</h1>
+          <p className="text-gray-300 text-sm mt-1">治療院向け顧客管理システム</p>
         </div>
 
-        {reason === 'no_clinic' && (
-          <div className="bg-yellow-50 text-yellow-700 text-sm p-3 rounded-lg mb-4">
-            所属する院が見つかりませんでした。新しい院を登録してください。
-          </div>
-        )}
-
-        <form onSubmit={handleSignup} className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
-          {error && (
-            <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">{error}</div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">院名 *</label>
-            <input
-              type="text"
-              value={clinicName}
-              onChange={(e) => setClinicName(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
-              placeholder="例：○○整骨院"
-              required
-            />
+        <div className="bg-white rounded-2xl shadow-xl p-6 text-center space-y-4">
+          <div className="py-4">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <p className="text-gray-700 text-sm leading-relaxed">
+              このサービスはアカウント発行制です。<br />
+              ご利用希望の方は管理者にお問い合わせください。
+            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
-              placeholder="example@email.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
-              placeholder="6文字以上"
-              required
-              minLength={6}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all disabled:opacity-50"
+          <Link
+            href="/login"
+            className="block w-full py-3 rounded-xl text-white font-bold text-sm transition-all"
             style={{ background: '#14252A' }}
           >
-            {loading ? 'アカウント作成中...' : 'アカウントを作成'}
-          </button>
-
-          <p className="text-center text-sm text-gray-500">
-            既にアカウントをお持ちの方は{' '}
-            <Link href="/login" className="text-blue-600 font-medium hover:underline">
-              ログイン
-            </Link>
-          </p>
-        </form>
+            ログインはこちら
+          </Link>
+        </div>
 
         <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400">
-          <Link href="/terms" className="hover:text-gray-200 transition-colors">
+          <a href="https://kensa-sheet-app.vercel.app/terms/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 transition-colors">
             利用規約
-          </Link>
+          </a>
           <span>|</span>
-          <Link href="/privacy" className="hover:text-gray-200 transition-colors">
+          <a href="https://kensa-sheet-app.vercel.app/privacy/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 transition-colors">
             プライバシーポリシー
-          </Link>
+          </a>
         </div>
       </div>
     </div>
-  )
-}
-
-export default function SignupPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #14252A 0%, #1a3a42 100%)' }}>
-        <p className="text-white">読み込み中...</p>
-      </div>
-    }>
-      <SignupForm />
-    </Suspense>
   )
 }

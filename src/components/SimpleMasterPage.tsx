@@ -29,6 +29,7 @@ interface Props {
   defaultValues?: Record<string, unknown>
   sortField?: string
   patientCount?: PatientCountConfig
+  hideAddButton?: boolean
 }
 
 // --- Skeleton Row ---
@@ -118,7 +119,7 @@ function UndoToast({ onUndo, onDismiss }: { onUndo: () => void; onDismiss: () =>
   )
 }
 
-export default function SimpleMasterPage({ title, tableName, columns, defaultValues = {}, sortField = 'sort_order', patientCount }: Props) {
+export default function SimpleMasterPage({ title, tableName, columns, defaultValues = {}, sortField = 'sort_order', patientCount, hideAddButton }: Props) {
   const supabase = createClient()
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
@@ -295,14 +296,16 @@ export default function SimpleMasterPage({ title, tableName, columns, defaultVal
     <div className="bg-white rounded-xl shadow-sm">
       <div className="flex justify-between items-center p-4 border-b">
         <h2 className="font-bold text-gray-800">{title}</h2>
-        <button
-          onClick={handleAdd}
-          className="text-white text-sm px-4 py-2 rounded-lg font-medium"
-          style={{ background: '#14252A' }}
-          aria-label={`${title}を追加`}
-        >
-          + 追加
-        </button>
+        {!hideAddButton && (
+          <button
+            onClick={handleAdd}
+            className="text-white text-sm px-4 py-2 rounded-lg font-medium"
+            style={{ background: '#14252A' }}
+            aria-label={`${title}を追加`}
+          >
+            + 追加
+          </button>
+        )}
       </div>
 
       {loading ? (

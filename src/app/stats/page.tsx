@@ -85,6 +85,7 @@ export default function StatsPage() {
   const [editingSlots, setEditingSlots] = useState<{ month: number; value: string } | null>(null)
   const [editingTarget, setEditingTarget] = useState<{ month: number; value: string } | null>(null)
   const [savingSlots, setSavingSlots] = useState(false)
+  const [chartScaleAdjusted, setChartScaleAdjusted] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -315,7 +316,9 @@ export default function StatsPage() {
   const fmt = (n: number | null | undefined) => n != null ? n.toLocaleString() : '-'
   const fmtPct = (n: number | null | undefined) => n != null ? `${Math.round(n * 100)}%` : '-'
 
-  const maxRevenue = Math.max(...currentYearData.map(d => d.revenue), 1)
+  const rawMaxRevenue = Math.max(...currentYearData.map(d => d.revenue), 1)
+  const avgRevenue = currentYearData.length > 0 ? currentYearData.reduce((s, d) => s + d.revenue, 0) / currentYearData.length : rawMaxRevenue
+  const maxRevenue = chartScaleAdjusted ? Math.min(rawMaxRevenue, avgRevenue * 2) : rawMaxRevenue
 
   // Year-level breakdowns (aggregate all months)
   const yearReferralCounts: Record<string, number> = {}
@@ -352,18 +355,20 @@ export default function StatsPage() {
       <div className="px-4 py-4 max-w-4xl mx-auto space-y-4">
 
         {/* Year selector */}
-        <nav aria-label="年度選択" className="flex gap-2 items-center flex-wrap" role="tablist">
-          {years.map(y => (
-            <button key={y} onClick={() => setViewYear(y)}
-              role="tab"
-              aria-selected={viewYear === y}
-              aria-label={`${y}年の統計を表示`}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                viewYear === y ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500 bg-white'
-              }`}
-            >{y}年</button>
-          ))}
-        </nav>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <nav aria-label="年度選択" className="flex gap-2 items-center flex-wrap" role="tablist">
+            {years.map(y => (
+              <button key={y} onClick={() => setViewYear(y)}
+                role="tab"
+                aria-selected={viewYear === y}
+                aria-label={`${y}年の統計を表示`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                  viewYear === y ? 'border-[#14252A] bg-[#14252A] text-white' : 'border-gray-200 text-gray-500 bg-white'
+                }`}
+              >{y}年</button>
+            ))}
+          </nav>
+        </div>
 
         {loading ? (
           <div className="space-y-4" role="status" aria-label="統計データを読み込み中">
@@ -449,23 +454,35 @@ export default function StatsPage() {
 
             {/* Revenue bar chart */}
             <div className="bg-white rounded-xl shadow-sm p-4" role="img" aria-label="月別売上推移グラフ">
-              <h3 className="font-bold text-gray-800 text-sm mb-3">月別売上推移</h3>
-              <div className="space-y-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-gray-800 text-sm">月別売上推移</h3>
+                <button
+                  onClick={() => setChartScaleAdjusted(!chartScaleAdjusted)}
+                  className={`px-2 py-1 rounded text-[10px] font-medium border transition-all ${
+                    chartScaleAdjusted
+                      ? 'border-blue-400 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-400 hover:bg-gray-50'
+                  }`}
+                >
+                  {chartScaleAdjusted ? 'スケール調整ON' : 'スケール調整'}
+                </button>
+              </div>
+              <div className="space-y-3" style={{ minHeight: '400px' }}>
                 {currentYearData.map(d => {
                   const prev = getPrev(d.month)
-                  const pct = (d.revenue / maxRevenue) * 100
-                  const prevPct = prev ? (prev.revenue / maxRevenue) * 100 : 0
+                  const pct = Math.min((d.revenue / maxRevenue) * 100, 100)
+                  const prevPct = prev ? Math.min((prev.revenue / maxRevenue) * 100, 100) : 0
                   return (
                     <div key={d.month} className="flex items-center gap-2">
                       <span className="text-xs text-gray-500 w-8 text-right">{d.month}月</span>
                       <div className="flex-1">
                         {prev && (
-                          <div className="w-full bg-gray-100 rounded-full h-3 mb-1">
-                            <div className="h-3 rounded-full bg-gray-300 transition-all" style={{ width: `${prevPct}%` }} />
+                          <div className="w-full bg-gray-100 rounded-full h-4 mb-1">
+                            <div className="h-4 rounded-full bg-gray-300 transition-all" style={{ width: `${prevPct}%` }} />
                           </div>
                         )}
-                        <div className="w-full bg-gray-100 rounded-full h-4">
-                          <div className="h-4 rounded-full transition-all" style={{ width: `${pct}%`, background: '#14252A' }} />
+                        <div className="w-full bg-gray-100 rounded-full h-5">
+                          <div className="h-5 rounded-full transition-all" style={{ width: `${pct}%`, background: '#14252A' }} />
                         </div>
                       </div>
                       <span className="text-xs font-medium text-gray-700 w-24 text-right">{fmt(d.revenue)}</span>

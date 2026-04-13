@@ -11,6 +11,7 @@ import { saleTabs } from '@/lib/saleTabs'
 export default function RevenuePage() {
   const supabase = createClient()
   const [slips, setSlips] = useState<Slip[]>([])
+  const [prevSlips, setPrevSlips] = useState<Slip[]>([])
   const [period, setPeriod] = useState('month')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
@@ -37,7 +38,6 @@ export default function RevenuePage() {
         queryStart = selectedYear + '-01-01'
         queryEnd = selectedYear + '-12-31'
       } else {
-        // カスタム期間
         queryStart = startDate
         queryEnd = endDate
       }
@@ -46,8 +46,24 @@ export default function RevenuePage() {
         gte: ['visit_date', queryStart],
         lte: ['visit_date', queryEnd],
       })
-
       setSlips(data || [])
+
+      // 前期間のデータ取得（比較用）
+      if (period === 'month') {
+        const prevD = new Date(queryStart)
+        prevD.setMonth(prevD.getMonth() - 1)
+        const prevStart = prevD.toISOString().split('T')[0]
+        const prevEndD = new Date(prevD.getFullYear(), prevD.getMonth() + 1, 0)
+        const prevEnd = prevEndD.toISOString().split('T')[0]
+        const prevData = await fetchAllSlips<Slip>(supabase, '*', {
+          gte: ['visit_date', prevStart],
+          lte: ['visit_date', prevEnd],
+        })
+        setPrevSlips(prevData || [])
+      } else {
+        setPrevSlips([])
+      }
+
       setLoading(false)
     }
     load()
@@ -55,6 +71,9 @@ export default function RevenuePage() {
 
   const totalRevenue = slips.reduce((sum, s) => sum + (s.total_price || 0), 0)
   const visitCount = slips.length
+  const karteCount = slips.length // カルテ枚数 = 来院回数（伝票数）
+  const prevKarteCount = prevSlips.length
+  const karteDiff = period === 'month' ? karteCount - prevKarteCount : null
 
   // 通常施術（0円超・50,000円未満）の平均単価
   const normalTreatments = slips.filter(s => (s.total_price || 0) > 0 && (s.total_price || 0) < 50000)
@@ -131,8 +150,8 @@ export default function RevenuePage() {
         {loading ? (
           <div className="space-y-3">
             {/* Skeleton: metric cards */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center animate-pulse">
                   <div className="h-6 sm:h-8 w-24 bg-gray-200 rounded mx-auto mb-1" />
                   <div className="h-3 w-16 bg-gray-200 rounded mx-auto" />
@@ -178,7 +197,7 @@ export default function RevenuePage() {
         ) : (
           <>
             {/* メイン指標 */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3">
               <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
                 <p className="text-lg sm:text-2xl font-bold" style={{ color: '#14252A' }}>{totalRevenue.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>
                 <p className="text-[10px] sm:text-xs text-gray-500">売上合計</p>
@@ -186,6 +205,15 @@ export default function RevenuePage() {
               <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
                 <p className="text-lg sm:text-2xl font-bold text-blue-600">{visitCount}<span className="text-xs sm:text-sm">件</span></p>
                 <p className="text-[10px] sm:text-xs text-gray-500">来院数</p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
+                <p className="text-lg sm:text-2xl font-bold text-orange-600">{karteCount}<span className="text-xs sm:text-sm">枚</span></p>
+                <p className="text-[10px] sm:text-xs text-gray-500">カルテ枚数</p>
+                {karteDiff !== null && karteDiff !== 0 && (
+                  <p className={`text-[10px] mt-0.5 font-medium ${karteDiff > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    先月比 {karteDiff > 0 ? '+' : ''}{karteDiff}枚
+                  </p>
+                )}
               </div>
               <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
                 <p className="text-lg sm:text-2xl font-bold text-green-600">{avgTreatmentPrice.toLocaleString()}<span className="text-xs sm:text-sm">円</span></p>

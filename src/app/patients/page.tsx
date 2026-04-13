@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
@@ -9,12 +10,14 @@ import { getClinicId } from '@/lib/clinic'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import { useLoadingTimeout } from '@/lib/useLoadingTimeout'
 import type { Patient } from '@/lib/types'
+import { PREFECTURES } from '@/lib/types'
 
 interface PatientWithStats extends Patient {
   calcVisitCount: number
   calcLtv: number
   calcLastVisit: string | null
   calcDaysSince: number | null
+  calcAge: number | null
 }
 
 type SortKey = 'name' | 'gender' | 'chief_complaint' | 'referral_source' | 'line_count' | 'ltv' | 'last_visit' | 'days_since'
@@ -176,9 +179,28 @@ export default function PatientsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortAsc, setSortAsc] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>({})
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [prefFilter, setPrefFilter] = useState('')
+  const [lapsedOnly, setLapsedOnly] = useState(false)
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false)
+  const router = useRouter()
+
+  // 列の表示判定（DB未設定の場合はデフォルト表示）
+  const isColVisible = useCallback((key: string, defaultVisible = true) => {
+    return visibleCols[key] !== undefined ? visibleCols[key] : defaultVisible
+  }, [visibleCols])
 
   useEffect(() => {
     const load = async () => {
+      // 表示列設定を取得
+      const { data: colData } = await supabase.from('cm_display_columns').select('column_key, is_visible').eq('clinic_id', clinicId)
+      if (colData) {
+        const colMap: Record<string, boolean> = {}
+        colData.forEach(c => { colMap[c.column_key] = c.is_visible })
+        setVisibleCols(colMap)
+      }
+
       // 患者データ取得
       let query = supabase.from('cm_patients').select('*').eq('clinic_id', clinicId).order('updated_at', { ascending: false })
       if (statusFilter) query = query.eq('status', statusFilter)
@@ -212,12 +234,16 @@ export default function PatientsPage() {
         // cm_patients.ltv（CSSインポート値）とスリップ計算値の大きい方を使用
         const ltv = Math.max(p.ltv || 0, slipRevenue)
         const visitCount = (p.ltv || 0) > slipRevenue ? (p.visit_count || st?.count || 0) : (st?.count || p.visit_count || 0)
+        const calcAge = p.birth_date
+          ? Math.floor((now - new Date(p.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+          : null
         return {
           ...p,
           calcVisitCount: visitCount,
           calcLtv: ltv,
           calcLastVisit: lastVisit,
           calcDaysSince: daysSince,
+          calcAge,
         }
       })
 
@@ -230,7 +256,7 @@ export default function PatientsPage() {
   // フィルタ・検索変更時にページを1にリセット
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, statusFilter, genderFilter, referralFilter, sortKey, sortAsc])
+  }, [search, statusFilter, genderFilter, referralFilter, sortKey, sortAsc, prefFilter, lapsedOnly, showSelectedOnly])
 
   // ソートの切り替え
   const handleSort = useCallback((key: SortKey) => {
@@ -261,16 +287,12 @@ export default function PatientsPage() {
   const filtered = useMemo(() => {
     let list = patients
     if (search) {
-      // 患者番号での検索に対応（P0001, 0001, 1 など）
       const numMatch = search.replace(/^[Pp]/, '').match(/^\d+$/)
       const searchNum = numMatch ? parseInt(numMatch[0], 10) : null
 
       list = list.filter(p => {
-        // 患者番号での検索
         if (searchNum !== null && p.patient_number === searchNum) return true
-        // 患者番号のP付きフォーマットでの部分一致
         if (p.patient_number && `P${String(p.patient_number).padStart(4, '0')}`.toLowerCase().includes(search.toLowerCase())) return true
-        // 既存の検索（名前・ふりがな・電話・主訴・住所）
         return (
           p.name.includes(search) ||
           p.furigana?.includes(search) ||
@@ -279,6 +301,21 @@ export default function PatientsPage() {
           p.address?.includes(search)
         )
       })
+    }
+
+    // エリアフィルター
+    if (prefFilter) {
+      list = list.filter(p => p.prefecture === prefFilter)
+    }
+
+    // 離反患者フィルター（180日以上）
+    if (lapsedOnly) {
+      list = list.filter(p => p.calcDaysSince !== null && p.calcDaysSince >= 180)
+    }
+
+    // 選択中のみ表示
+    if (showSelectedOnly) {
+      list = list.filter(p => selectedIds.has(p.id))
     }
 
     // ソート
@@ -314,7 +351,7 @@ export default function PatientsPage() {
     })
 
     return list
-  }, [patients, search, sortKey, sortAsc])
+  }, [patients, search, sortKey, sortAsc, prefFilter, lapsedOnly, showSelectedOnly, selectedIds])
 
   // Paginated subset
   const paginatedList = useMemo(() => {
@@ -368,6 +405,43 @@ export default function PatientsPage() {
     [...new Set(patients.map(p => p.referral_source).filter(Boolean))],
     [patients]
   )
+
+  const uniquePrefs = useMemo(() =>
+    [...new Set(patients.map(p => p.prefecture).filter(Boolean))].sort(),
+    [patients]
+  )
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const selectAllFiltered = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      filtered.forEach(p => {
+        if (p.is_direct_mail !== false && (p.prefecture || p.city || p.address)) {
+          next.add(p.id)
+        }
+      })
+      return next
+    })
+  }, [filtered])
+
+  const deselectAll = useCallback(() => {
+    setSelectedIds(new Set())
+    setShowSelectedOnly(false)
+  }, [])
+
+  const goToPrint = useCallback(() => {
+    const ids = Array.from(selectedIds)
+    sessionStorage.setItem('printAddressIds', JSON.stringify(ids))
+    router.push('/patients/print-address')
+  }, [selectedIds, router])
 
   return (
     <AppShell>
@@ -454,13 +528,57 @@ export default function PatientsPage() {
                 {uniqueReferrals.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
-            <div className="col-span-2 flex items-end">
-              <button onClick={() => { setGenderFilter(''); setReferralFilter(''); setStatusFilter(''); setSearch('') }}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">都道府県</label>
+              <select value={prefFilter} onChange={e => setPrefFilter(e.target.value)}
+                aria-label="都道府県でフィルタ"
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+                <option value="">全て</option>
+                {uniquePrefs.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2 justify-end">
+              <button onClick={() => setLapsedOnly(!lapsedOnly)}
+                className={`px-3 py-1.5 text-xs rounded font-medium transition-all ${
+                  lapsedOnly ? 'bg-red-500 text-white' : 'border border-red-200 text-red-500 hover:bg-red-50'
+                }`}>
+                {lapsedOnly ? '離反フィルタ ON' : '離反患者（180日〜）'}
+              </button>
+              <button onClick={() => { setGenderFilter(''); setReferralFilter(''); setStatusFilter(''); setSearch(''); setPrefFilter(''); setLapsedOnly(false); setShowSelectedOnly(false) }}
                 aria-label="すべてのフィルタをリセット"
-                className="px-4 py-1.5 text-xs text-red-500 border border-red-200 rounded hover:bg-red-50">
+                className="px-3 py-1.5 text-xs text-red-500 border border-red-200 rounded hover:bg-red-50">
                 フィルタをリセット
               </button>
             </div>
+          </div>
+        )}
+
+        {/* 選択コントロール */}
+        {!loading && filtered.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-3 mb-3 flex flex-wrap gap-2 items-center">
+            <button onClick={selectAllFiltered}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+              表示中を全選択
+            </button>
+            <button onClick={deselectAll}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+              全解除
+            </button>
+            <button onClick={() => setShowSelectedOnly(!showSelectedOnly)}
+              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                showSelectedOnly ? 'bg-[#14252A] text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}>
+              選択中のみ表示
+            </button>
+            {selectedIds.size > 0 && (
+              <>
+                <span className="text-xs text-gray-500 ml-auto">{selectedIds.size}名選択中</span>
+                <button onClick={goToPrint}
+                  className="px-4 py-2 rounded-lg text-white text-xs font-bold shadow-sm hover:opacity-90 bg-orange-500">
+                  はがき宛名印刷
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -530,22 +648,40 @@ export default function PatientsPage() {
               <table className="w-full text-sm sticky-header">
                 <thead>
                   <tr className="bg-gray-50 border-b">
+                    <th className="px-2 py-2.5 w-10 text-center">
+                      <input type="checkbox" checked={paginatedList.length > 0 && paginatedList.every(p => selectedIds.has(p.id))}
+                        onChange={e => {
+                          setSelectedIds(prev => {
+                            const next = new Set(prev)
+                            paginatedList.forEach(p => e.target.checked ? next.add(p.id) : next.delete(p.id))
+                            return next
+                          })
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 accent-[#14252A]" />
+                    </th>
                     <th className="px-3 py-2.5 text-xs text-gray-500 text-center w-16">ID</th>
                     <SortHeader label="氏名" sortId="name" className="text-left" />
-                    <SortHeader label="性別" sortId="gender" className="text-left" />
-                    <SortHeader label="症状" sortId="chief_complaint" className="text-left" />
-                    <SortHeader label="来院経路" sortId="referral_source" className="text-left" />
-                    <th className="px-3 py-2.5 text-xs text-gray-500 text-right cursor-pointer hover:bg-gray-100 select-none" onClick={() => handleSort('line_count')} aria-label="LINE回数で並べ替え">
-                      LINE{sortKey === 'line_count' && <span className="ml-1" aria-hidden="true">{sortAsc ? '▲' : '▼'}</span>}
-                    </th>
-                    <SortHeader label="LTV" sortId="ltv" className="text-right" />
-                    <SortHeader label="最終来院" sortId="last_visit" className="text-left" />
-                    <SortHeader label="経過" sortId="days_since" className="text-right" />
+                    <th className="px-3 py-2.5 text-xs text-gray-500 text-center">年齢</th>
+                    {isColVisible('gender') && <SortHeader label="性別" sortId="gender" className="text-left" />}
+                    {isColVisible('chief_complaint') && <SortHeader label="症状" sortId="chief_complaint" className="text-left" />}
+                    {isColVisible('referral_source') && <SortHeader label="来院経路" sortId="referral_source" className="text-left" />}
+                    {isColVisible('line_count', false) && (
+                      <th className="px-3 py-2.5 text-xs text-gray-500 text-right cursor-pointer hover:bg-gray-100 select-none" onClick={() => handleSort('line_count')} aria-label="LINE回数で並べ替え">
+                        LINE{sortKey === 'line_count' && <span className="ml-1" aria-hidden="true">{sortAsc ? '▲' : '▼'}</span>}
+                      </th>
+                    )}
+                    {isColVisible('ltv') && <SortHeader label="LTV" sortId="ltv" className="text-right" />}
+                    {isColVisible('last_visit') && <SortHeader label="最終来院" sortId="last_visit" className="text-left" />}
+                    {isColVisible('days_since') && <SortHeader label="経過" sortId="days_since" className="text-right" />}
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedList.map((p, idx) => (
-                    <tr key={p.id} className={`border-b hover:bg-blue-50/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                    <tr key={p.id} className={`border-b hover:bg-blue-50/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''} ${selectedIds.has(p.id) ? 'bg-orange-50/50' : ''}`}>
+                      <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)}
+                          className="w-4 h-4 rounded border-gray-300 accent-[#14252A]" />
+                      </td>
                       <td className="px-3 py-3 text-center text-xs text-gray-400 font-mono">
                         {p.patient_number ? `P${String(p.patient_number).padStart(4, '0')}` : '-'}
                       </td>
@@ -553,24 +689,29 @@ export default function PatientsPage() {
                         <Link href={`/patients/${p.id}`} className="text-blue-600 hover:underline font-medium">
                           {p.name}
                         </Link>
-                        {p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
+                        {isColVisible('furigana') && p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
                       </td>
-                      <td className="px-3 py-3 text-xs">{p.gender}</td>
-                      <td className="px-3 py-3 text-xs text-gray-600 truncate max-w-[120px]" title={p.chief_complaint || ''}>{p.chief_complaint || '-'}</td>
-                      <td className="px-3 py-3 text-xs">{p.referral_source || '-'}</td>
-                      <td className="px-3 py-3 text-right text-xs">{p.line_count > 0 ? `${p.line_count}回` : '-'}</td>
-                      <td className="px-3 py-3 text-right text-xs font-medium text-blue-600">
-                        {p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}
-                      </td>
-                      <td className="px-3 py-3 text-xs">{p.calcLastVisit || '-'}</td>
-                      <td className="px-3 py-3 text-right text-xs">
-                        {p.calcDaysSince !== null ? (
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${p.calcDaysSince >= 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince >= 60 ? 'bg-orange-50 text-orange-600' : p.calcDaysSince >= 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600'}`}>
-                            {p.calcDaysSince}日
-                            {p.calcDaysSince >= 90 ? ' 離反' : p.calcDaysSince >= 60 ? ' 離反リスク' : p.calcDaysSince >= 30 ? ' 要フォロー' : ''}
-                          </span>
-                        ) : '-'}
-                      </td>
+                      <td className="px-3 py-3 text-xs text-center text-gray-600">{p.calcAge !== null ? `${p.calcAge}歳` : '-'}</td>
+                      {isColVisible('gender') && <td className="px-3 py-3 text-xs">{p.gender}</td>}
+                      {isColVisible('chief_complaint') && <td className="px-3 py-3 text-xs text-gray-600 truncate max-w-[120px]" title={p.chief_complaint || ''}>{p.chief_complaint || '-'}</td>}
+                      {isColVisible('referral_source') && <td className="px-3 py-3 text-xs">{p.referral_source || '-'}</td>}
+                      {isColVisible('line_count', false) && <td className="px-3 py-3 text-right text-xs">{p.line_count > 0 ? `${p.line_count}回` : '-'}</td>}
+                      {isColVisible('ltv') && (
+                        <td className="px-3 py-3 text-right text-xs font-medium text-blue-600">
+                          {p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}
+                        </td>
+                      )}
+                      {isColVisible('last_visit') && <td className="px-3 py-3 text-xs">{p.calcLastVisit || '-'}</td>}
+                      {isColVisible('days_since') && (
+                        <td className="px-3 py-3 text-right text-xs">
+                          {p.calcDaysSince !== null ? (
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${p.calcDaysSince >= 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince >= 60 ? 'bg-orange-50 text-orange-600' : p.calcDaysSince >= 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600'}`}>
+                              {p.calcDaysSince}日
+                              {p.calcDaysSince >= 90 ? ' 離反' : p.calcDaysSince >= 60 ? ' 離反リスク' : p.calcDaysSince >= 30 ? ' 要フォロー' : ''}
+                            </span>
+                          ) : '-'}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -581,46 +722,52 @@ export default function PatientsPage() {
             {/* モバイル: カード */}
             <div className="md:hidden space-y-2">
               {paginatedList.map(p => (
-                <Link key={p.id} href={`/patients/${p.id}`} aria-label={`${p.name}の詳細を表示`} className={`block bg-white rounded-xl shadow-sm p-3.5 hover:shadow-md transition-shadow border-l-4 ${
+                <div key={p.id} className={`bg-white rounded-xl shadow-sm p-3.5 hover:shadow-md transition-shadow border-l-4 ${
                   p.status === 'active' ? 'border-l-green-500' :
                   p.status === 'completed' ? 'border-l-blue-500' :
                   'border-l-gray-300'
-                }`}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {p.patient_number && <span className="text-[10px] font-mono text-gray-400">P{String(p.patient_number).padStart(4, '0')}</span>}
-                        <p className="font-bold text-gray-800">{p.name}</p>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                          p.status === 'active' ? 'bg-green-50 text-green-700' :
-                          p.status === 'completed' ? 'bg-blue-50 text-blue-700' :
-                          'bg-gray-50 text-gray-500'
-                        }`}>
-                          {p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'}
-                        </span>
+                } ${selectedIds.has(p.id) ? 'ring-2 ring-orange-300' : ''}`}>
+                  <div className="flex items-start gap-2">
+                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)}
+                      className="w-4 h-4 mt-1 shrink-0 rounded border-gray-300 accent-[#14252A]" />
+                    <Link href={`/patients/${p.id}`} className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {p.patient_number && <span className="text-[10px] font-mono text-gray-400">P{String(p.patient_number).padStart(4, '0')}</span>}
+                            <p className="font-bold text-gray-800">{p.name}</p>
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                              p.status === 'active' ? 'bg-green-50 text-green-700' :
+                              p.status === 'completed' ? 'bg-blue-50 text-blue-700' :
+                              'bg-gray-50 text-gray-500'
+                            }`}>
+                              {p.status === 'active' ? '通院中' : p.status === 'completed' ? '卒業' : '休止'}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                            {p.calcAge !== null && <span>{p.calcAge}歳</span>}
+                            {isColVisible('gender') && <span>{p.gender}</span>}
+                            {isColVisible('chief_complaint') && p.chief_complaint && <span className="truncate" title={p.chief_complaint}>{p.chief_complaint}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right ml-2 shrink-0">
+                          {isColVisible('ltv') && <p className="text-xs font-bold text-blue-600">{p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}</p>}
+                          <p className="text-xs text-gray-400">{p.calcVisitCount}回</p>
+                          {isColVisible('days_since') && p.calcDaysSince !== null && (
+                            <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${p.calcDaysSince >= 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince >= 60 ? 'bg-orange-50 text-orange-600' : p.calcDaysSince >= 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600'}`}>
+                              {p.calcDaysSince}日前
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex gap-3 mt-1 text-xs text-gray-500">
-                        <span>{p.gender}</span>
-                        {p.chief_complaint && <span className="truncate" title={p.chief_complaint}>{p.chief_complaint}</span>}
+                      <div className="flex gap-3 mt-2 text-xs text-gray-400">
+                        {isColVisible('referral_source') && p.referral_source && <span>{p.referral_source}</span>}
+                        {isColVisible('line_count', false) && p.line_count > 0 && <span>LINE:{p.line_count}回</span>}
+                        {isColVisible('phone') && p.phone && <span className="text-blue-500">TEL:{p.phone}</span>}
                       </div>
-                    </div>
-                    <div className="text-right ml-2 shrink-0">
-                      <p className="text-xs font-bold text-blue-600">{p.calcLtv > 0 ? `${p.calcLtv.toLocaleString()}円` : '-'}</p>
-                      <p className="text-xs text-gray-400">{p.calcVisitCount}回</p>
-                      {p.calcDaysSince !== null && (
-                        <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 ${p.calcDaysSince >= 90 ? 'bg-red-50 text-red-600' : p.calcDaysSince >= 60 ? 'bg-orange-50 text-orange-600' : p.calcDaysSince >= 30 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600'}`}>
-                          {p.calcDaysSince}日前
-                          {p.calcDaysSince >= 90 ? ' 離反' : p.calcDaysSince >= 60 ? ' 離反リスク' : p.calcDaysSince >= 30 ? ' 要フォロー' : ''}
-                        </span>
-                      )}
-                    </div>
+                    </Link>
                   </div>
-                  <div className="flex gap-3 mt-2 text-xs text-gray-400">
-                    {p.referral_source && <span>{p.referral_source}</span>}
-                    {p.line_count > 0 && <span>LINE:{p.line_count}回</span>}
-                    {p.phone && <span className="text-blue-500">TEL:{p.phone}</span>}
-                  </div>
-                </Link>
+                </div>
               ))}
             </div>
 

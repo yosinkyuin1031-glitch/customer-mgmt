@@ -16,8 +16,9 @@ export default function ResetPasswordPage() {
     setLoading(true)
     setError('')
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://customer-mgmt.vercel.app'
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
+      redirectTo: `${siteUrl}/auth/callback?next=/update-password`,
     })
 
     if (error) {

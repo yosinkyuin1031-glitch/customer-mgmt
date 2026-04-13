@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
@@ -29,11 +28,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #14252A 0%, #1a3a42 100%)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white">顧客管理シート</h1>
+          <h1 className="text-2xl font-bold text-white">Clinic Core</h1>
           <p className="text-gray-300 text-sm mt-1">治療院向け顧客管理システム</p>
         </div>
 
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
+        <form onSubmit={handleLogin} autoComplete="off" className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
           {error && (
             <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">{error}</div>
           )}
@@ -44,6 +43,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="off"
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
               placeholder="example@email.com"
               required
@@ -56,6 +56,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="off"
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
               placeholder="パスワードを入力"
               required
@@ -71,25 +72,16 @@ export default function LoginPage() {
             {loading ? 'ログイン中...' : 'サインイン'}
           </button>
 
-          <div className="flex items-center justify-between text-sm mt-2">
-            <Link href="/reset-password" className="text-gray-500 hover:underline">
-              パスワードを忘れた方
-            </Link>
-            <Link href="/signup" className="text-blue-600 font-medium hover:underline">
-              アカウントを作成
-            </Link>
-          </div>
-
         </form>
 
         <div className="flex justify-center gap-4 mt-4 text-xs text-gray-400">
-          <Link href="/terms" className="hover:text-gray-200 transition-colors">
+          <a href="https://kensa-sheet-app.vercel.app/terms/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 transition-colors">
             利用規約
-          </Link>
+          </a>
           <span>|</span>
-          <Link href="/privacy" className="hover:text-gray-200 transition-colors">
+          <a href="https://kensa-sheet-app.vercel.app/privacy/" target="_blank" rel="noopener noreferrer" className="hover:text-gray-200 transition-colors">
             プライバシーポリシー
-          </Link>
+          </a>
         </div>
       </div>
     </div>

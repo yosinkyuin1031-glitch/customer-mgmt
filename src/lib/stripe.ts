@@ -11,11 +11,6 @@ export const PLAN_PRICES = {
     price: 4980,
     description: '患者数無制限・全機能利用可能',
   },
-  pro: {
-    name: 'プロ',
-    price: 9800,
-    description: '複数スタッフ・API連携等（準備中）',
-  },
 } as const
 
-export type PlanType = 'free' | 'basic' | 'pro'
+export type PlanType = 'free' | 'basic'

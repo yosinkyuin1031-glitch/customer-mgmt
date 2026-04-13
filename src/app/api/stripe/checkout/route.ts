@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'clinicIdとplanは必須です' }, { status: 400 })
     }
 
-    if (plan !== 'basic' && plan !== 'pro') {
+    if (plan !== 'basic') {
       return NextResponse.json({ error: '無効なプランです' }, { status: 400 })
     }
 

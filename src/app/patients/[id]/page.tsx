@@ -233,6 +233,9 @@ export default function PatientDetailPage() {
   const [slipErrors, setSlipErrors] = useState<Record<string, string>>({})
   const [couponBooks, setCouponBooks] = useState<CouponBook[]>([])
   const [couponLoaded, setCouponLoaded] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [submissions, setSubmissions] = useState<any[]>([])
+  const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null)
   const [showCouponForm, setShowCouponForm] = useState(false)
   const [couponForm, setCouponForm] = useState({
     coupon_type: '15回券',
@@ -281,6 +284,19 @@ export default function PatientDetailPage() {
         if (!cbErr) {
           setCouponBooks(cb || [])
           setCouponLoaded(true)
+        }
+      } catch {
+        // テーブルが存在しない場合はスキップ
+      }
+      // 問診履歴を読み込み
+      try {
+        const { data: ms, error: msErr } = await supabase
+          .from('ms_submissions')
+          .select('*')
+          .eq('patient_id', id)
+          .order('created_at', { ascending: false })
+        if (!msErr) {
+          setSubmissions(ms || [])
         }
       } catch {
         // テーブルが存在しない場合はスキップ
@@ -1078,6 +1094,100 @@ export default function PatientDetailPage() {
         {slips.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4">
             <p className="text-gray-400 text-sm text-center py-2">来院履歴がありません</p>
+          </div>
+        )}
+
+        {/* 問診履歴セクション */}
+        {submissions.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <h3 className="font-bold text-gray-800 mb-3">問診履歴 <span className="text-xs text-gray-400 font-normal">（全{submissions.length}件）</span></h3>
+            <div className="space-y-2">
+              {submissions.map((sub) => {
+                const isExpanded = expandedSubmission === sub.id
+                const statusLabel = sub.status === 'reviewed' ? '確認済' : sub.status === 'submitted' ? '提出済' : '下書き'
+                const statusColor = sub.status === 'reviewed' ? 'bg-green-100 text-green-700' : sub.status === 'submitted' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+                const chiefComplaints = sub.chief_complaints
+                  ? (Array.isArray(sub.chief_complaints) ? sub.chief_complaints.join('、') : String(sub.chief_complaints))
+                  : '-'
+                return (
+                  <div key={sub.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedSubmission(isExpanded ? null : sub.id)}
+                      className="w-full flex items-center justify-between px-3 py-3 text-left hover:bg-gray-50 transition-colors"
+                      aria-label={`${sub.created_at ? new Date(sub.created_at).toLocaleDateString('ja-JP') : '日付不明'}の問診を${isExpanded ? '閉じる' : '開く'}`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-xs text-gray-600 whitespace-nowrap">
+                          {sub.created_at ? new Date(sub.created_at).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${statusColor}`}>
+                          {statusLabel}
+                        </span>
+                        <span className="text-xs text-gray-500 truncate">{chiefComplaints}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        {sub.pain_severity != null && (
+                          <span className="text-[10px] text-gray-400">痛み {sub.pain_severity}/10</span>
+                        )}
+                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="px-3 pb-3 border-t border-gray-100 bg-gray-50/50">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3 text-xs">
+                          <div>
+                            <p className="text-gray-400 text-[10px]">主訴</p>
+                            <p className="text-gray-700">{chiefComplaints}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-[10px]">痛みの強さ</p>
+                            <p className="text-gray-700">{sub.pain_severity != null ? `${sub.pain_severity} / 10` : '-'}</p>
+                          </div>
+                          {sub.pain_aggravators && (
+                            <div className="col-span-2">
+                              <p className="text-gray-400 text-[10px]">増悪因子</p>
+                              <p className="text-gray-700">{Array.isArray(sub.pain_aggravators) ? sub.pain_aggravators.join('、') : String(sub.pain_aggravators)}</p>
+                            </div>
+                          )}
+                          {sub.medical_history && (
+                            <div className="col-span-2">
+                              <p className="text-gray-400 text-[10px]">既往歴</p>
+                              <p className="text-gray-700">{Array.isArray(sub.medical_history) ? sub.medical_history.join('、') : String(sub.medical_history)}</p>
+                            </div>
+                          )}
+                          {sub.medications && (
+                            <div>
+                              <p className="text-gray-400 text-[10px]">服薬</p>
+                              <p className="text-gray-700">{Array.isArray(sub.medications) ? sub.medications.join('、') : String(sub.medications)}</p>
+                            </div>
+                          )}
+                          {sub.allergies && (
+                            <div>
+                              <p className="text-gray-400 text-[10px]">アレルギー</p>
+                              <p className="text-gray-700">{Array.isArray(sub.allergies) ? sub.allergies.join('、') : String(sub.allergies)}</p>
+                            </div>
+                          )}
+                          {sub.summary_text && (
+                            <div className="col-span-2">
+                              <p className="text-gray-400 text-[10px]">概要</p>
+                              <p className="text-gray-700 whitespace-pre-wrap">{sub.summary_text}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {submissions.length === 0 && !loading && (
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <p className="text-gray-400 text-sm text-center py-2">問診履歴がありません</p>
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: '利用規約 | 顧客管理シート',
+  title: '利用規約 | Clinic Core',
 }
 
 export default function TermsPage() {
@@ -13,7 +13,7 @@ export default function TermsPage() {
           <Link href="/login" className="text-sm text-gray-300 hover:text-white transition-colors">
             &larr; ログインに戻る
           </Link>
-          <span className="text-sm font-bold">顧客管理シート</span>
+          <span className="text-sm font-bold">Clinic Core</span>
         </div>
       </header>
 
@@ -28,7 +28,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-base font-bold text-[#14252A] mb-2">第1条（本サービスの概要）</h2>
               <p>
-                本規約は、大口神経整体院（以下「当院」といいます）が提供するクラウド型顧客管理サービス「顧客管理シート」（以下「本サービス」といいます）の利用条件を定めるものです。本サービスは、治療院・整骨院・鍼灸院等の施術者向けに、患者情報の管理、来院履歴の記録、売上集計等の機能を提供するSaaSです。
+                本規約は、大口神経整体院（以下「当院」といいます）が提供するクラウド型顧客管理サービス「Clinic Core」（以下「本サービス」といいます）の利用条件を定めるものです。本サービスは、治療院・整骨院・鍼灸院等の施術者向けに、患者情報の管理、来院履歴の記録、売上集計等の機能を提供するSaaSです。
               </p>
               <p className="mt-2">
                 利用者は、本規約に同意のうえ本サービスを利用するものとし、アカウントを作成した時点で本規約に同意したものとみなします。
@@ -138,9 +138,9 @@ export default function TermsPage() {
 
           {/* フッターリンク */}
           <div className="mt-10 pt-6 border-t flex flex-wrap gap-4 text-sm">
-            <Link href="/privacy" className="text-blue-600 hover:underline">
+            <a href="https://kensa-sheet-app.vercel.app/privacy/" className="text-blue-600 hover:underline">
               プライバシーポリシー
-            </Link>
+            </a>
             <Link href="/login" className="text-blue-600 hover:underline">
               ログイン
             </Link>

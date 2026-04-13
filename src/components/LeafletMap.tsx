@@ -21,6 +21,10 @@ interface LeafletMapProps {
   height?: string
 }
 
+// 日本全体のデフォルト表示
+const JAPAN_CENTER: [number, number] = [36.2, 138.2]
+const JAPAN_ZOOM = 5
+
 const getLtvColor = (avgLtv: number) => {
   if (avgLtv >= 500000) return '#dc2626' // red - very high
   if (avgLtv >= 200000) return '#ea580c' // orange - high
@@ -29,12 +33,12 @@ const getLtvColor = (avgLtv: number) => {
   return '#6b7280' // gray - low
 }
 
-export default function LeafletMap({ markers, center, zoom = 11, height = '500px' }: LeafletMapProps) {
+export default function LeafletMap({ markers, center, zoom, height = '500px' }: LeafletMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
-    if (!mapRef.current || markers.length === 0) return
+    if (!mapRef.current) return
 
     // Clean up existing map
     if (mapInstanceRef.current) {
@@ -42,14 +46,17 @@ export default function LeafletMap({ markers, center, zoom = 11, height = '500px
       mapInstanceRef.current = null
     }
 
-    // Calculate center from markers if not provided
+    // Calculate center: explicit > markers average > Japan default
     const mapCenter = center || (() => {
+      if (markers.length === 0) return JAPAN_CENTER
       const avgLat = markers.reduce((s, m) => s + m.lat, 0) / markers.length
       const avgLng = markers.reduce((s, m) => s + m.lng, 0) / markers.length
       return [avgLat, avgLng] as [number, number]
     })()
 
-    const map = L.map(mapRef.current).setView(mapCenter, zoom)
+    const initialZoom = zoom ?? (markers.length === 0 ? JAPAN_ZOOM : 11)
+
+    const map = L.map(mapRef.current).setView(mapCenter, initialZoom)
     mapInstanceRef.current = map
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -57,11 +64,13 @@ export default function LeafletMap({ markers, center, zoom = 11, height = '500px
       maxZoom: 18,
     }).addTo(map)
 
+    if (markers.length === 0) return
+
     // Add circle markers
     const maxCount = Math.max(...markers.map(m => m.count), 1)
 
     markers.forEach(m => {
-      const radius = Math.max(Math.sqrt(m.count / maxCount) * 40, 8)
+      const radius = Math.max(Math.sqrt(m.count / maxCount) * 40, 10)
       const color = getLtvColor(m.avgLtv)
 
       const circle = L.circleMarker([m.lat, m.lng], {
@@ -97,10 +106,13 @@ export default function LeafletMap({ markers, center, zoom = 11, height = '500px
       `, { maxWidth: 280 })
     })
 
-    // Fit bounds
+    // Fit bounds for multiple markers
     if (markers.length > 1) {
       const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lng] as [number, number]))
       map.fitBounds(bounds, { padding: [30, 30] })
+    } else if (markers.length === 1) {
+      // Single marker: zoom to city level
+      map.setView([markers[0].lat, markers[0].lng], 13)
     }
 
     return () => {
@@ -114,23 +126,24 @@ export default function LeafletMap({ markers, center, zoom = 11, height = '500px
   return (
     <div>
       <div ref={mapRef} style={{ height, borderRadius: '12px', zIndex: 1 }} />
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-2 px-1">
-        <span className="text-[10px] text-gray-400">平均LTV:</span>
-        {[
-          { color: '#dc2626', label: '50万円〜' },
-          { color: '#ea580c', label: '20万〜' },
-          { color: '#2563eb', label: '10万〜' },
-          { color: '#0891b2', label: '5万〜' },
-          { color: '#6b7280', label: '〜5万円' },
-        ].map(l => (
-          <div key={l.label} className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color, opacity: 0.7 }} />
-            <span className="text-[10px] text-gray-500">{l.label}</span>
-          </div>
-        ))}
-        <span className="text-[10px] text-gray-400 ml-2">※ 円の大きさ = 患者数</span>
-      </div>
+      {markers.length > 0 && (
+        <div className="flex flex-wrap gap-3 mt-2 px-1">
+          <span className="text-[10px] text-gray-400">平均LTV:</span>
+          {[
+            { color: '#dc2626', label: '50万円〜' },
+            { color: '#ea580c', label: '20万〜' },
+            { color: '#2563eb', label: '10万〜' },
+            { color: '#0891b2', label: '5万〜' },
+            { color: '#6b7280', label: '〜5万円' },
+          ].map(l => (
+            <div key={l.label} className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color, opacity: 0.7 }} />
+              <span className="text-[10px] text-gray-500">{l.label}</span>
+            </div>
+          ))}
+          <span className="text-[10px] text-gray-400 ml-2">円の大きさ = 患者数</span>
+        </div>
+      )}
     </div>
   )
 }

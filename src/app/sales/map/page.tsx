@@ -43,6 +43,7 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true)
   const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([])
   const [geocoding, setGeocoding] = useState(false)
+  const [geocodeDone, setGeocodeDone] = useState(false)
   const [geocodeProgress, setGeocodeProgress] = useState('')
   const [expandedPref, setExpandedPref] = useState<string | null>(null)
 
@@ -106,7 +107,10 @@ export default function MapPage() {
 
   const geocodeCities = useCallback(async (cities: CityData[]) => {
     const toGeocode = cities.filter(c => c.prefecture !== '不明' && c.city !== '不明')
-    if (toGeocode.length === 0) return
+    if (toGeocode.length === 0) {
+      setGeocodeDone(true)
+      return
+    }
     setGeocoding(true)
     setGeocodeProgress(`地図を読み込み中... (0/${toGeocode.length})`)
 
@@ -156,14 +160,16 @@ export default function MapPage() {
     })
     setMapMarkers(markers)
     setGeocoding(false)
+    setGeocodeDone(true)
     setGeocodeProgress('')
   }, [])
 
+  // geocodeDone prevents infinite re-trigger when markers stay empty
   useEffect(() => {
-    if (!loading && allCities.length > 0 && mapMarkers.length === 0) {
+    if (!loading && allCities.length > 0 && !geocodeDone) {
       geocodeCities(allCities)
     }
-  }, [loading, allCities, mapMarkers.length, geocodeCities])
+  }, [loading, allCities, geocodeDone, geocodeCities])
 
   const totalPatients = prefData.reduce((s, p) => s + p.totalCount, 0)
 

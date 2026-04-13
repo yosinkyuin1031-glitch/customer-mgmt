@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import { saleTabs } from '@/lib/saleTabs'
 import { getClinicId } from '@/lib/clinic'
+import PatientFilter, { usePatientFilter, filterPatientIds, type PatientForFilter } from '@/components/PatientFilter'
 
 interface PatientLTV {
   id: string
@@ -33,6 +34,11 @@ interface PatientRow {
   visit_count: number | null
   first_visit_date: string | null
   last_visit_date: string | null
+  gender: string | null
+  birth_date: string | null
+  visit_motive: string | null
+  occupation: string | null
+  chief_complaint: string | null
 }
 
 type PeriodKey = 'all' | '1m' | '3m' | '6m' | '1y' | 'custom'
@@ -61,6 +67,7 @@ export default function LtvPage() {
   const [period, setPeriod] = useState<PeriodKey>('all')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const { filters, setFilters } = usePatientFilter()
 
   useEffect(() => {
     const load = async () => {
@@ -69,7 +76,7 @@ export default function LtvPage() {
         fetchAllSlips(supabase, 'patient_id, patient_name, visit_date, total_price') as Promise<SlipRow[]>,
         supabase
           .from('cm_patients')
-          .select('id, name, ltv, visit_count, first_visit_date, last_visit_date')
+          .select('id, name, ltv, visit_count, first_visit_date, last_visit_date, gender, birth_date, visit_motive, occupation, chief_complaint')
           .eq('clinic_id', clinicId)
       ])
       setPatientData(patients || [])
@@ -78,6 +85,19 @@ export default function LtvPage() {
     }
     load()
   }, [])
+
+  // フィルタ適用: 対象患者IDセット
+  const filteredPatientIds = useMemo(() => {
+    const patientsForFilter: PatientForFilter[] = patientData.map(p => ({
+      id: p.id,
+      gender: p.gender || undefined,
+      birth_date: p.birth_date,
+      visit_motive: p.visit_motive || undefined,
+      occupation: p.occupation || undefined,
+      chief_complaint: p.chief_complaint || undefined,
+    }))
+    return filterPatientIds(patientsForFilter, filters)
+  }, [patientData, filters])
 
   const patients = useMemo(() => {
     const isAllPeriod = period === 'all'
@@ -101,7 +121,7 @@ export default function LtvPage() {
 
       const now = Date.now()
       return patientData
-        .filter(p => (p.ltv && p.ltv > 0) || (slipMap[p.id]?.revenue > 0))
+        .filter(p => filteredPatientIds.has(p.id) && ((p.ltv && p.ltv > 0) || (slipMap[p.id]?.revenue > 0)))
         .map((p): PatientLTV => {
           const slip = slipMap[p.id]
           // cm_patients.ltvが高い場合はそちらを使用（CSSデータが正確）
@@ -158,7 +178,7 @@ export default function LtvPage() {
 
     const now = Date.now()
     return Object.entries(patMap)
-      .filter(([, d]) => d.revenue > 0)
+      .filter(([id, d]) => d.revenue > 0 && filteredPatientIds.has(id))
       .map(([id, d]): PatientLTV => ({
         id,
         name: d.name,
@@ -170,7 +190,7 @@ export default function LtvPage() {
         daysSince: Math.floor((now - new Date(d.last).getTime()) / (24 * 60 * 60 * 1000)),
       }))
       .sort((a, b) => b.ltv - a.ltv)
-  }, [allSlips, patientData, period, customFrom, customTo])
+  }, [allSlips, patientData, period, customFrom, customTo, filteredPatientIds])
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 50
@@ -244,6 +264,14 @@ export default function LtvPage() {
             <p className="text-xs text-gray-400 mt-1.5">{periodLabel}</p>
           )}
         </div>
+
+        {/* 絞り込みフィルタ */}
+        <PatientFilter
+          filters={filters}
+          onChange={setFilters}
+          filteredCount={patients.length}
+          totalCount={patientData.length}
+        />
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">

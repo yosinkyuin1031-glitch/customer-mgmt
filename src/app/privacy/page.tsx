@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'プライバシーポリシー | 顧客管理シート',
+  title: 'プライバシーポリシー | Clinic Core',
 }
 
 export default function PrivacyPage() {
@@ -13,7 +13,7 @@ export default function PrivacyPage() {
           <Link href="/login" className="text-sm text-gray-300 hover:text-white transition-colors">
             &larr; ログインに戻る
           </Link>
-          <span className="text-sm font-bold">顧客管理シート</span>
+          <span className="text-sm font-bold">Clinic Core</span>
         </div>
       </header>
 
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
 
           <div className="space-y-8 text-sm leading-relaxed text-gray-700">
             <p>
-              大口神経整体院（以下「当院」といいます）は、クラウド型顧客管理サービス「顧客管理シート」（以下「本サービス」といいます）における個人情報の取扱いについて、以下のとおりプライバシーポリシーを定めます。
+              大口神経整体院（以下「当院」といいます）は、クラウド型顧客管理サービス「Clinic Core」（以下「本サービス」といいます）における個人情報の取扱いについて、以下のとおりプライバシーポリシーを定めます。
             </p>
 
             {/* 第1条 */}
@@ -154,9 +154,9 @@ export default function PrivacyPage() {
 
           {/* フッターリンク */}
           <div className="mt-10 pt-6 border-t flex flex-wrap gap-4 text-sm">
-            <Link href="/terms" className="text-blue-600 hover:underline">
+            <a href="https://kensa-sheet-app.vercel.app/terms/" className="text-blue-600 hover:underline">
               利用規約
-            </Link>
+            </a>
             <Link href="/login" className="text-blue-600 hover:underline">
               ログイン
             </Link>

@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 
-export async function GET() {
-  // 認証チェック
-  try {
-    const authClient = await createServerClient()
-    const { data: { user } } = await authClient.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
-    }
-  } catch {
-    return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
+export async function GET(req: Request) {
+  // Vercel Cron標準: Authorizationヘッダーで認証
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 })
   }
 
   const supabase = createClient(

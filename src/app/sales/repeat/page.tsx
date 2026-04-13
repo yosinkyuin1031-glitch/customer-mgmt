@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
 import { fetchAllSlips } from '@/lib/fetchAll'
 import { getClinicId } from '@/lib/clinic'
+import PatientFilter, { usePatientFilter, filterPatientIds, type PatientForFilter } from '@/components/PatientFilter'
 
 interface RepeatData {
   month: string
@@ -34,6 +35,8 @@ export default function RepeatPage() {
   const [patientRepeats, setPatientRepeats] = useState<PatientRepeat[]>([])
   const [viewMode, setViewMode] = useState<'monthly' | 'patient'>('monthly')
   const [period, setPeriod] = useState('month')
+  const { filters, setFilters } = usePatientFilter()
+  const [patientRawData, setPatientRawData] = useState<PatientForFilter[]>([])
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()))
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
@@ -71,10 +74,20 @@ export default function RepeatPage() {
 
       const { data: patients } = await supabase
         .from('cm_patients')
-        .select('id, name')
+        .select('id, name, gender, birth_date, visit_motive, occupation, chief_complaint')
         .eq('clinic_id', clinicId)
 
       if (!allVisits || allVisits.length === 0 || !patients) { setData([]); setPatientRepeats([]); setLoading(false); return }
+
+      // フィルタ用データを保存
+      setPatientRawData(patients.map(p => ({
+        id: p.id,
+        gender: p.gender || undefined,
+        birth_date: p.birth_date,
+        visit_motive: p.visit_motive || undefined,
+        occupation: p.occupation || undefined,
+        chief_complaint: p.chief_complaint || undefined,
+      })))
 
       const patientNameMap: Record<string, string> = {}
       patients.forEach(p => { patientNameMap[p.id] = p.name })
@@ -153,6 +166,16 @@ export default function RepeatPage() {
     load()
   }, [period, selectedMonth, selectedYear, startDate, endDate])
 
+  // フィルタ適用
+  const allowedIds = useMemo(() => {
+    return filterPatientIds(patientRawData, filters)
+  }, [patientRawData, filters])
+
+  // フィルタ適用後のデータ
+  const filteredPatientRepeats = useMemo(() => {
+    return patientRepeats.filter(p => allowedIds.has(p.id))
+  }, [patientRepeats, allowedIds])
+
   const avgRepeatRate = data.length > 0
     ? Math.round(data.reduce((sum, d) => sum + d.repeatRate, 0) / data.length)
     : 0
@@ -169,7 +192,7 @@ export default function RepeatPage() {
   ]
 
   const countDist: Record<number, number> = {}
-  patientRepeats.forEach(p => {
+  filteredPatientRepeats.forEach(p => {
     let bucket: number
     if (p.visitCount <= 5) {
       bucket = p.visitCount
@@ -233,6 +256,14 @@ export default function RepeatPage() {
           )}
         </div>
 
+        {/* 絞り込みフィルタ */}
+        <PatientFilter
+          filters={filters}
+          onChange={setFilters}
+          filteredCount={filteredPatientRepeats.length}
+          totalCount={patientRepeats.length}
+        />
+
         <div className="flex items-center justify-end mb-4">
           <div className="flex gap-1">
             <button onClick={() => setViewMode('monthly')}
@@ -253,16 +284,16 @@ export default function RepeatPage() {
             <p className="text-[10px] sm:text-xs text-gray-500">平均リピート率</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-xl sm:text-3xl font-bold text-blue-600">{patientRepeats.length}<span className="text-xs sm:text-sm">人</span></p>
+            <p className="text-xl sm:text-3xl font-bold text-blue-600">{filteredPatientRepeats.length}<span className="text-xs sm:text-sm">人</span></p>
             <p className="text-[10px] sm:text-xs text-gray-500">総患者数</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
-            <p className="text-xl sm:text-3xl font-bold text-green-600">{patientRepeats.filter(p => p.visitCount >= 2).length}<span className="text-xs sm:text-sm">人</span></p>
+            <p className="text-xl sm:text-3xl font-bold text-green-600">{filteredPatientRepeats.filter(p => p.visitCount >= 2).length}<span className="text-xs sm:text-sm">人</span></p>
             <p className="text-[10px] sm:text-xs text-gray-500">リピーター(2回+)</p>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-2 sm:p-4 text-center">
             <p className="text-xl sm:text-3xl font-bold text-orange-600">
-              {patientRepeats.length > 0 ? (patientRepeats.reduce((s, p) => s + p.visitCount, 0) / patientRepeats.length).toFixed(1) : 0}
+              {filteredPatientRepeats.length > 0 ? (filteredPatientRepeats.reduce((s, p) => s + p.visitCount, 0) / filteredPatientRepeats.length).toFixed(1) : 0}
               <span className="text-xs sm:text-sm">回</span>
             </p>
             <p className="text-[10px] sm:text-xs text-gray-500">平均来院回数</p>
@@ -270,7 +301,7 @@ export default function RepeatPage() {
         </div>
 
         {/* 来院回数分布 */}
-        {viewMode === 'patient' && patientRepeats.length > 0 && (
+        {viewMode === 'patient' && filteredPatientRepeats.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
             <h3 className="font-bold text-gray-800 text-sm mb-3">来院回数分布</h3>
             <div className="space-y-2">
@@ -347,7 +378,7 @@ export default function RepeatPage() {
           <>
           {/* 患者別リピート一覧 */}
           <div className="sm:hidden space-y-2">
-            {patientRepeats.map((p, i) => (
+            {filteredPatientRepeats.map((p, i) => (
               <Link key={p.id} href={`/patients/${p.id}`} className="block bg-white rounded-xl shadow-sm p-3">
                 <div className="flex justify-between items-center">
                   <div>
@@ -377,7 +408,7 @@ export default function RepeatPage() {
                 </tr>
               </thead>
               <tbody>
-                {patientRepeats.map((p, i) => (
+                {filteredPatientRepeats.map((p, i) => (
                   <tr key={p.id} className="border-b hover:bg-gray-50">
                     <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2">

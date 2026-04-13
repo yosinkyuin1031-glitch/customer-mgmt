@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
+import { getClinicId } from '@/lib/clinic'
 import { saleTabs } from '@/lib/saleTabs'
 import { fetchAllSlips } from '@/lib/fetchAll'
 
@@ -29,13 +30,27 @@ export default function NewExistingPage() {
 
       if (!slips || slips.length === 0) { setLoading(false); return }
 
-      // 各患者の初回来院月を特定
-      const firstVisitMonth: Record<string, string> = {}
+      // cm_patients.first_visit_dateを取得（正確な初回来院日）
+      const { data: patients } = await supabase
+        .from('cm_patients')
+        .select('id, first_visit_date')
+        .eq('clinic_id', getClinicId())
+      const patientFirstVisit: Record<string, string> = {}
+      if (patients) {
+        patients.forEach(p => {
+          if (p.first_visit_date) {
+            patientFirstVisit[p.id] = p.first_visit_date.slice(0, 7)
+          }
+        })
+      }
+
+      // first_visit_dateがない患者はcm_slipsから最初の来院月をフォールバック
       slips.forEach(s => {
         if (!s.patient_id) return
+        if (patientFirstVisit[s.patient_id]) return // 既にfirst_visit_dateがある
         const month = s.visit_date.slice(0, 7)
-        if (!firstVisitMonth[s.patient_id] || month < firstVisitMonth[s.patient_id]) {
-          firstVisitMonth[s.patient_id] = month
+        if (!patientFirstVisit[s.patient_id] || month < patientFirstVisit[s.patient_id]) {
+          patientFirstVisit[s.patient_id] = month
         }
       })
 
@@ -46,7 +61,8 @@ export default function NewExistingPage() {
         if (!monthMap[month]) monthMap[month] = { newRev: 0, existRev: 0, newCount: 0, existCount: 0 }
         const amount = s.total_price || 0
 
-        if (s.patient_id && firstVisitMonth[s.patient_id] === month) {
+        // 患者のfirst_visit_dateの月 === この伝票の月 → 新規
+        if (s.patient_id && patientFirstVisit[s.patient_id] === month) {
           monthMap[month].newRev += amount
           monthMap[month].newCount++
         } else {

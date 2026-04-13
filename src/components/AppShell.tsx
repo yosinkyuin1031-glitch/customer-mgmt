@@ -7,6 +7,7 @@ import { useState } from 'react'
 const mainTabs = [
   { key: 'home', href: '/', label: 'ホーム', icon: '🏠' },
   { key: 'patients', href: '/patients', label: '顧客管理', icon: '👥' },
+  { key: 'reservation', href: '/reservation', label: '予約管理', icon: '📅' },
   { key: 'sales', href: '/sales', label: '営業データ', icon: '📊' },
   { key: 'stats', href: '/stats', label: '月間統計', icon: '📈' },
   { key: 'master', href: '/master', label: 'マスター', icon: '⚙️' },
@@ -18,6 +19,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const activeTab = pathname.startsWith('/master') ? 'master'
     : pathname.startsWith('/patients') ? 'patients'
+    : pathname.startsWith('/reservation') ? 'reservation'
     : pathname.startsWith('/coupon-books') ? 'coupon-books'
     : pathname.startsWith('/sms') ? 'sms'
     : pathname.startsWith('/stats') ? 'stats'
@@ -32,7 +34,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between h-12">
             <Link href="/" className="font-bold text-sm flex items-center gap-1.5">
-                顧客管理シート
+                Clinic Core
               </Link>
             <div className="flex items-center gap-3">
               <Link
