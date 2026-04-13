@@ -9,16 +9,21 @@ export default function SimulatorPage() {
   const [patients, setPatients] = useState(80)
   const [frequency, setFrequency] = useState(1.5)
   const [price, setPrice] = useState(6000)
+  const [utilization, setUtilization] = useState(70)
+  const [showExisting, setShowExisting] = useState(true)
   const [existingRate, setExistingRate] = useState(60)
 
-  const monthlyRevenue = patients * frequency * price
-  const existingRevenue = monthlyRevenue * (existingRate / 100)
-  const newRevenue = monthlyRevenue - existingRevenue
+  // 稼働率を加味: 月間可能枠 = patients * frequency、実際 = それ × 稼働率
+  const totalVisits = patients * frequency
+  const actualVisits = totalVisits * (utilization / 100)
+  const monthlyRevenue = actualVisits * price
+  const existingRevenue = showExisting ? monthlyRevenue * (existingRate / 100) : 0
+  const newRevenue = showExisting ? monthlyRevenue - existingRevenue : 0
   const annualLTV = price * frequency * 12
 
   const goalRevenue = 1500000
   const goalAchieved = monthlyRevenue >= goalRevenue
-  const existingRateOk = existingRate >= 60
+  const existingRateOk = showExisting && existingRate >= 60
 
   const fmt = (n: number) => {
     if (n >= 10000) {
@@ -32,7 +37,7 @@ export default function SimulatorPage() {
       <div className="max-w-5xl mx-auto px-4 py-4">
         {/* タブ */}
         <div className="flex gap-1.5 mb-5 overflow-x-auto pb-2 border-b border-gray-200">
-          {[...saleTabs, { href: '/sales/simulator', label: 'シミュレーター' }].map(tab => (
+          {saleTabs.map(tab => (
             <Link
               key={tab.href}
               href={tab.href}
@@ -80,14 +85,38 @@ export default function SimulatorPage() {
               unit="円"
             />
             <SliderInput
-              label="既存患者比率"
-              value={existingRate}
-              onChange={setExistingRate}
-              min={0}
+              label="稼働率"
+              value={utilization}
+              onChange={setUtilization}
+              min={10}
               max={100}
               step={1}
               unit="%"
             />
+
+            {/* 既存患者比率 トグル */}
+            <div>
+              <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showExisting}
+                  onChange={(e) => setShowExisting(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-[#14252A] focus:ring-[#14252A]"
+                />
+                <span className="text-sm text-gray-700 font-medium">既存患者比率を使用</span>
+              </label>
+              {showExisting && (
+                <SliderInput
+                  label="既存患者比率"
+                  value={existingRate}
+                  onChange={setExistingRate}
+                  min={0}
+                  max={100}
+                  step={1}
+                  unit="%"
+                />
+              )}
+            </div>
           </div>
 
           {/* 右: 結果 */}
@@ -96,19 +125,22 @@ export default function SimulatorPage() {
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 text-center">
               <p className="text-sm text-gray-500 mb-1">月間売上（推計）</p>
               <p className="text-4xl font-bold text-gray-800">{fmt(monthlyRevenue)}円</p>
+              <p className="text-xs text-gray-400 mt-1">月間来院数 {actualVisits.toFixed(0)}回（稼働率{utilization}%）</p>
             </div>
 
             {/* 既存/新規 */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 text-center">
-                <p className="text-xs text-gray-500 mb-1">既存患者売上</p>
-                <p className="text-2xl font-bold text-teal-600">{fmt(existingRevenue)}円</p>
+            {showExisting && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 text-center">
+                  <p className="text-xs text-gray-500 mb-1">既存患者売上</p>
+                  <p className="text-2xl font-bold text-teal-600">{fmt(existingRevenue)}円</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 text-center">
+                  <p className="text-xs text-gray-500 mb-1">新規患者売上</p>
+                  <p className="text-2xl font-bold text-orange-500">{fmt(newRevenue)}円</p>
+                </div>
               </div>
-              <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 text-center">
-                <p className="text-xs text-gray-500 mb-1">新規患者売上</p>
-                <p className="text-2xl font-bold text-orange-500">{fmt(newRevenue)}円</p>
-              </div>
-            </div>
+            )}
 
             {/* 年間LTV */}
             <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 text-center">
@@ -124,12 +156,14 @@ export default function SimulatorPage() {
                   月商150万円目標 {goalAchieved ? '達成' : '未達成'}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`w-3 h-3 rounded-full ${existingRateOk ? 'bg-green-500' : 'bg-gray-300'}`} />
-                <span className={`text-sm ${existingRateOk ? 'text-green-600 font-bold' : 'text-gray-400'}`}>
-                  既存患者比率60%以上 {existingRateOk ? '達成' : '未達成'}
-                </span>
-              </div>
+              {showExisting && (
+                <div className="flex items-center gap-2">
+                  <span className={`w-3 h-3 rounded-full ${existingRateOk ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <span className={`text-sm ${existingRateOk ? 'text-green-600 font-bold' : 'text-gray-400'}`}>
+                    既存患者比率60%以上 {existingRateOk ? '達成' : '未達成'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* 月商目標までの差分 */}
@@ -138,9 +172,9 @@ export default function SimulatorPage() {
                 <p className="text-sm font-bold text-amber-700 mb-2">目標達成に必要な改善</p>
                 <div className="text-xs text-amber-600 space-y-1">
                   <p>あと <b>{fmt(goalRevenue - monthlyRevenue)}円</b> で月商150万円達成</p>
-                  <p>患者数を <b>{Math.ceil(goalRevenue / (frequency * price))}名</b> にする、または</p>
-                  <p>単価を <b>{Math.ceil(goalRevenue / (patients * frequency)).toLocaleString()}円</b> にする、または</p>
-                  <p>来院頻度を <b>{(goalRevenue / (patients * price)).toFixed(1)}回/月</b> にする</p>
+                  <p>患者数を <b>{Math.ceil(goalRevenue / (frequency * price * (utilization / 100)))}名</b> にする、または</p>
+                  <p>単価を <b>{Math.ceil(goalRevenue / actualVisits).toLocaleString()}円</b> にする、または</p>
+                  <p>稼働率を <b>{Math.min(100, Math.ceil(goalRevenue / (totalVisits * price) * 100))}%</b> にする</p>
                 </div>
               </div>
             )}
