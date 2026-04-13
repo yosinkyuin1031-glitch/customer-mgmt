@@ -65,14 +65,19 @@ function getAge(birthDate: string | null): string {
   return '80代以上'
 }
 
-function getCriteriaValue(p: PatientFullRow, criteria: CriteriaKey): string {
+function getCriteriaValues(p: PatientFullRow, criteria: CriteriaKey): string[] {
   switch (criteria) {
-    case 'referral_source': return p.referral_source || p.visit_motive || '未設定'
-    case 'occupation': return p.occupation || '未設定'
-    case 'chief_complaint': return p.chief_complaint || '未設定'
-    case 'gender': return p.gender || '未設定'
-    case 'age': return getAge(p.birth_date)
-    case 'prefecture': return p.prefecture || '未設定'
+    case 'referral_source': return [p.referral_source || p.visit_motive || '未設定']
+    case 'occupation': return [p.occupation || '未設定']
+    case 'chief_complaint': {
+      const raw = p.chief_complaint || ''
+      if (!raw) return ['未設定']
+      const parts = raw.split(/[,、\s]+/).map(s => s.trim()).filter(Boolean)
+      return parts.length > 0 ? parts : ['未設定']
+    }
+    case 'gender': return [p.gender || '未設定']
+    case 'age': return [getAge(p.birth_date)]
+    case 'prefecture': return [p.prefecture || '未設定']
   }
 }
 
@@ -229,15 +234,17 @@ export default function RepeatPage() {
     const fullMap: Record<string, PatientFullRow> = {}
     patientFullData.forEach(p => { fullMap[p.id] = p })
 
-    // グルーピング
+    // グルーピング（症状は分割して各症状にカウント）
     const groups: Record<string, { patientIds: string[]; totalVisits: number }> = {}
     for (const p of filteredPatientRepeats) {
       const raw = fullMap[p.id]
       if (!raw) continue
-      const key = getCriteriaValue(raw, criteria)
-      if (!groups[key]) groups[key] = { patientIds: [], totalVisits: 0 }
-      groups[key].patientIds.push(p.id)
-      groups[key].totalVisits += p.visitCount
+      const keys = getCriteriaValues(raw, criteria)
+      for (const key of keys) {
+        if (!groups[key]) groups[key] = { patientIds: [], totalVisits: 0 }
+        groups[key].patientIds.push(p.id)
+        groups[key].totalVisits += p.visitCount
+      }
     }
 
     return Object.entries(groups)

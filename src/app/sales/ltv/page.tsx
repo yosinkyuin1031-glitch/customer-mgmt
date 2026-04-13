@@ -69,14 +69,19 @@ function getAge(birthDate: string | null): string {
   return '80代以上'
 }
 
-function getCriteriaValue(p: PatientRow, criteria: CriteriaKey): string {
+function getCriteriaValues(p: PatientRow, criteria: CriteriaKey): string[] {
   switch (criteria) {
-    case 'referral_source': return p.referral_source || p.visit_motive || '未設定'
-    case 'occupation': return p.occupation || '未設定'
-    case 'chief_complaint': return p.chief_complaint || '未設定'
-    case 'gender': return p.gender || '未設定'
-    case 'age': return getAge(p.birth_date)
-    case 'prefecture': return p.prefecture || '未設定'
+    case 'referral_source': return [p.referral_source || p.visit_motive || '未設定']
+    case 'occupation': return [p.occupation || '未設定']
+    case 'chief_complaint': {
+      const raw = p.chief_complaint || ''
+      if (!raw) return ['未設定']
+      const parts = raw.split(/[,、\s]+/).map(s => s.trim()).filter(Boolean)
+      return parts.length > 0 ? parts : ['未設定']
+    }
+    case 'gender': return [p.gender || '未設定']
+    case 'age': return [getAge(p.birth_date)]
+    case 'prefecture': return [p.prefecture || '未設定']
   }
 }
 
@@ -231,10 +236,12 @@ export default function LtvPage() {
   const summaryData = useMemo(() => {
     const groups: Record<string, { patients: number; revenue: number }> = {}
     for (const p of patients) {
-      const key = getCriteriaValue(p._raw, criteria)
-      if (!groups[key]) groups[key] = { patients: 0, revenue: 0 }
-      groups[key].patients++
-      groups[key].revenue += p.ltv
+      const keys = getCriteriaValues(p._raw, criteria)
+      for (const key of keys) {
+        if (!groups[key]) groups[key] = { patients: 0, revenue: 0 }
+        groups[key].patients++
+        groups[key].revenue += p.ltv
+      }
     }
     return Object.entries(groups)
       .map(([label, data]) => ({
