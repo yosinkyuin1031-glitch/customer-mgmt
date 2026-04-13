@@ -18,10 +18,22 @@ interface MonthlyData {
   newRatio: number
 }
 
+interface YearlyData {
+  year: string
+  newRevenue: number
+  existingRevenue: number
+  totalRevenue: number
+  newCount: number
+  existingCount: number
+  newRatio: number
+}
+
 export default function NewExistingPage() {
   const supabase = createClient()
   const [data, setData] = useState<MonthlyData[]>([])
+  const [yearlyData, setYearlyData] = useState<YearlyData[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly')
 
   useEffect(() => {
     const load = async () => {
@@ -86,13 +98,39 @@ export default function NewExistingPage() {
         }))
 
       setData(result)
+
+      // 年別集計
+      const yearMap: Record<string, { newRev: number, existRev: number, newCount: number, existCount: number }> = {}
+      result.forEach(d => {
+        const year = d.month.slice(0, 4)
+        if (!yearMap[year]) yearMap[year] = { newRev: 0, existRev: 0, newCount: 0, existCount: 0 }
+        yearMap[year].newRev += d.newRevenue
+        yearMap[year].existRev += d.existingRevenue
+        yearMap[year].newCount += d.newCount
+        yearMap[year].existCount += d.existingCount
+      })
+      const yearResult: YearlyData[] = Object.entries(yearMap)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([year, d]) => ({
+          year,
+          newRevenue: d.newRev,
+          existingRevenue: d.existRev,
+          totalRevenue: d.newRev + d.existRev,
+          newCount: d.newCount,
+          existingCount: d.existCount,
+          newRatio: (d.newRev + d.existRev) > 0
+            ? Math.round((d.newRev / (d.newRev + d.existRev)) * 100)
+            : 0,
+        }))
+      setYearlyData(yearResult)
       setLoading(false)
     }
     load()
   }, [])
 
-  const totalNew = data.reduce((s, d) => s + d.newRevenue, 0)
-  const totalExisting = data.reduce((s, d) => s + d.existingRevenue, 0)
+  const displayData = viewMode === 'yearly' ? yearlyData : data
+  const totalNew = displayData.reduce((s, d) => s + d.newRevenue, 0)
+  const totalExisting = displayData.reduce((s, d) => s + d.existingRevenue, 0)
   const totalAll = totalNew + totalExisting
   const newRatioTotal = totalAll > 0 ? Math.round((totalNew / totalAll) * 100) : 0
 
@@ -109,7 +147,19 @@ export default function NewExistingPage() {
           ))}
         </div>
 
-        <h2 className="font-bold text-gray-800 text-lg mb-4">新規売上 / 既存売上</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-800 text-lg">新規売上 / 既存売上</h2>
+          <div className="flex bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('monthly')}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'monthly' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
+            >月別</button>
+            <button
+              onClick={() => setViewMode('yearly')}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'yearly' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
+            >年別</button>
+          </div>
+        </div>
 
         {/* サマリー */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
@@ -203,24 +253,28 @@ export default function NewExistingPage() {
           <>
           {/* モバイル: カード表示 */}
           <div className="sm:hidden space-y-2">
-            {data.length === 0 ? (
+            {displayData.length === 0 ? (
               <p className="text-center py-8 text-gray-400">データがありません</p>
-            ) : data.map(d => (
-              <div key={d.month} className="bg-white rounded-xl shadow-sm p-3">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-sm">{d.month}</span>
-                  <span className="font-bold text-sm">{d.totalRevenue.toLocaleString()}円</span>
+            ) : displayData.map(d => {
+              const label = 'month' in d ? (d as MonthlyData).month : (d as YearlyData).year + '年'
+              const key = 'month' in d ? (d as MonthlyData).month : (d as YearlyData).year
+              return (
+                <div key={key} className="bg-white rounded-xl shadow-sm p-3">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium text-sm">{label}</span>
+                    <span className="font-bold text-sm">{d.totalRevenue.toLocaleString()}円</span>
+                  </div>
+                  <div className="flex h-4 rounded overflow-hidden mb-1">
+                    <div className="bg-blue-500" style={{ width: `${d.newRatio}%` }} />
+                    <div className="bg-green-500" style={{ width: `${100 - d.newRatio}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span className="text-blue-600">新規 {d.newRevenue.toLocaleString()}円 ({d.newCount}件)</span>
+                    <span className="text-green-600">既存 {d.existingRevenue.toLocaleString()}円 ({d.existingCount}件)</span>
+                  </div>
                 </div>
-                <div className="flex h-4 rounded overflow-hidden mb-1">
-                  <div className="bg-blue-500" style={{ width: `${d.newRatio}%` }} />
-                  <div className="bg-green-500" style={{ width: `${100 - d.newRatio}%` }} />
-                </div>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span className="text-blue-600">新規 {d.newRevenue.toLocaleString()}円 ({d.newCount}件)</span>
-                  <span className="text-green-600">既存 {d.existingRevenue.toLocaleString()}円 ({d.existingCount}件)</span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* PC: テーブル表示 */}
@@ -229,7 +283,7 @@ export default function NewExistingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-3 py-2 text-xs text-gray-500">月</th>
+                  <th className="text-left px-3 py-2 text-xs text-gray-500">{viewMode === 'yearly' ? '年' : '月'}</th>
                   <th className="text-right px-3 py-2 text-xs text-gray-500">新規売上</th>
                   <th className="text-right px-3 py-2 text-xs text-gray-500">新規件数</th>
                   <th className="text-right px-3 py-2 text-xs text-gray-500">既存売上</th>
@@ -240,25 +294,29 @@ export default function NewExistingPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.length === 0 ? (
+                {displayData.length === 0 ? (
                   <tr><td colSpan={8} className="text-center py-8 text-gray-400">データがありません</td></tr>
-                ) : data.map(d => (
-                  <tr key={d.month} className="border-b hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium">{d.month}</td>
-                    <td className="px-3 py-2 text-right text-blue-600">{d.newRevenue.toLocaleString()}円</td>
-                    <td className="px-3 py-2 text-right text-blue-600">{d.newCount}件</td>
-                    <td className="px-3 py-2 text-right text-green-600">{d.existingRevenue.toLocaleString()}円</td>
-                    <td className="px-3 py-2 text-right text-green-600">{d.existingCount}件</td>
-                    <td className="px-3 py-2 text-right font-medium">{d.totalRevenue.toLocaleString()}円</td>
-                    <td className="px-3 py-2 text-right">{d.newRatio}%</td>
-                    <td className="px-3 py-2">
-                      <div className="flex h-3 rounded overflow-hidden">
-                        <div className="bg-blue-500" style={{ width: `${d.newRatio}%` }} />
-                        <div className="bg-green-500" style={{ width: `${100 - d.newRatio}%` }} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                ) : displayData.map(d => {
+                  const label = 'month' in d ? (d as MonthlyData).month : (d as YearlyData).year + '年'
+                  const key = 'month' in d ? (d as MonthlyData).month : (d as YearlyData).year
+                  return (
+                    <tr key={key} className="border-b hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium">{label}</td>
+                      <td className="px-3 py-2 text-right text-blue-600">{d.newRevenue.toLocaleString()}円</td>
+                      <td className="px-3 py-2 text-right text-blue-600">{d.newCount}件</td>
+                      <td className="px-3 py-2 text-right text-green-600">{d.existingRevenue.toLocaleString()}円</td>
+                      <td className="px-3 py-2 text-right text-green-600">{d.existingCount}件</td>
+                      <td className="px-3 py-2 text-right font-medium">{d.totalRevenue.toLocaleString()}円</td>
+                      <td className="px-3 py-2 text-right">{d.newRatio}%</td>
+                      <td className="px-3 py-2">
+                        <div className="flex h-3 rounded overflow-hidden">
+                          <div className="bg-blue-500" style={{ width: `${d.newRatio}%` }} />
+                          <div className="bg-green-500" style={{ width: `${100 - d.newRatio}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
             </div>
