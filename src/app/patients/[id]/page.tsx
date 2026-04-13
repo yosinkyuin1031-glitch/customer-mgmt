@@ -402,11 +402,29 @@ export default function PatientDetailPage() {
       is_enabled: form.is_enabled,
     }
 
-    const { error } = await supabase.from('cm_patients').update(updatePayload).eq('id', id)
+    const { data: updated, error } = await supabase.from('cm_patients').update(updatePayload).eq('id', id).select()
     if (error) {
       console.error('患者更新エラー:', error)
       alert('保存に失敗しました: ' + error.message)
       return
+    }
+    if (!updated || updated.length === 0) {
+      // RLSで更新がブロックされた場合、API経由で更新
+      try {
+        const res = await fetch('/api/patients/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, ...updatePayload }),
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          alert('保存に失敗しました: ' + (err.error || '不明なエラー'))
+          return
+        }
+      } catch {
+        alert('保存に失敗しました')
+        return
+      }
     }
     setPatient({ ...patient!, ...updatePayload } as Patient)
     setEditing(false)
