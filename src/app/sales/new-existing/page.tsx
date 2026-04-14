@@ -34,6 +34,7 @@ export default function NewExistingPage() {
   const [yearlyData, setYearlyData] = useState<YearlyData[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'monthly' | 'yearly'>('monthly')
+  const [selectedYear, setSelectedYear] = useState<string>('all')
 
   useEffect(() => {
     const load = async () => {
@@ -128,7 +129,11 @@ export default function NewExistingPage() {
     load()
   }, [])
 
-  const displayData = viewMode === 'yearly' ? yearlyData : data
+  // 利用可能な年リスト
+  const availableYears = [...new Set(data.map(d => d.month.slice(0, 4)))].sort((a, b) => b.localeCompare(a))
+
+  const filteredMonthly = selectedYear === 'all' ? data : data.filter(d => d.month.startsWith(selectedYear))
+  const displayData = viewMode === 'yearly' ? yearlyData : filteredMonthly
   const totalNew = displayData.reduce((s, d) => s + d.newRevenue, 0)
   const totalExisting = displayData.reduce((s, d) => s + d.existingRevenue, 0)
   const totalAll = totalNew + totalExisting
@@ -149,15 +154,29 @@ export default function NewExistingPage() {
 
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-gray-800 text-lg">新規売上 / 既存売上</h2>
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode('monthly')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'monthly' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
-            >月別</button>
-            <button
-              onClick={() => setViewMode('yearly')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'yearly' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
-            >年別</button>
+          <div className="flex items-center gap-2">
+            {viewMode === 'monthly' && (
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="px-2 py-1 border border-gray-300 rounded-md text-xs"
+              >
+                <option value="all">全期間</option>
+                {availableYears.map(y => (
+                  <option key={y} value={y}>{y}年</option>
+                ))}
+              </select>
+            )}
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('monthly')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'monthly' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
+              >月別</button>
+              <button
+                onClick={() => setViewMode('yearly')}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'yearly' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
+              >年別</button>
+            </div>
           </div>
         </div>
 
