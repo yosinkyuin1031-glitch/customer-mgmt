@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import AppShell from '@/components/AppShell'
 import { createClient } from '@/lib/supabase/client'
 import { saleTabs } from '@/lib/saleTabs'
 import { getClinicId } from '@/lib/clinic'
+import type { MapMarker } from '@/components/LeafletMap'
+
+const LeafletMap = dynamic(() => import('@/components/LeafletMap'), { ssr: false })
 
 interface AreaData {
   area: string
@@ -15,10 +19,11 @@ interface AreaData {
   avgLTV: number
   totalVisits: number
   avgVisits: number
-  topPatients: { name: string; ltv: number }[]
+  topPatients: { id?: string; name: string; ltv: number }[]
 }
 
 type SortKey = 'totalLTV' | 'patientCount' | 'avgLTV' | 'avgVisits'
+type ViewMode = 'list' | 'map'
 
 export default function AreaLtvPage() {
   const supabase = createClient()
@@ -27,12 +32,20 @@ export default function AreaLtvPage() {
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('totalLTV')
   const [expandedArea, setExpandedArea] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('list')
+
+  // Map state
+  const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([])
+  const [geocoding, setGeocoding] = useState(false)
+  const [geocodeDone, setGeocodeDone] = useState(false)
+  const [geocodeProgress, setGeocodeProgress] = useState('')
+
+  // Raw patient data for geocoding
+  const [rawPatients, setRawPatients] = useState<{ id: string; name: string; prefecture: string; city: string; ltv: number; visit_count: number }[]>([])
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-
-      // Fetch patients with LTV data directly
       const PAGE_SIZE = 1000
       let allPatients: { id: string; name: string; city: string; prefecture: string; ltv: number; visit_count: number }[] = []
       let offset = 0
@@ -52,6 +65,8 @@ export default function AreaLtvPage() {
         offset += PAGE_SIZE
       }
 
+      setRawPatients(allPatients)
+
       if (allPatients.length === 0) {
         setLoading(false)
         return
@@ -60,7 +75,7 @@ export default function AreaLtvPage() {
       // Aggregate by city
       const areaMap: Record<string, {
         prefecture: string
-        patients: { name: string; ltv: number }[]
+        patients: { id: string; name: string; ltv: number }[]
         totalLTV: number
         totalVisits: number
       }> = {}
@@ -72,7 +87,7 @@ export default function AreaLtvPage() {
         }
         const ltv = p.ltv || 0
         const visits = p.visit_count || 0
-        areaMap[area].patients.push({ name: p.name, ltv })
+        areaMap[area].patients.push({ id: p.id, name: p.name, ltv })
         areaMap[area].totalLTV += ltv
         areaMap[area].totalVisits += visits
       })
@@ -95,6 +110,79 @@ export default function AreaLtvPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Geocoding for map view
+  const geocodeCities = useCallback(async () => {
+    const cityMap: Record<string, { prefecture: string; city: string; patients: { id: string; name: string; ltv: number }[] }> = {}
+    rawPatients.forEach(p => {
+      const pref = p.prefecture || '不明'
+      const city = p.city || '不明'
+      if (pref === '不明' || city === '不明') return
+      const key = `${pref}|${city}`
+      if (!cityMap[key]) cityMap[key] = { prefecture: pref, city, patients: [] }
+      cityMap[key].patients.push({ id: p.id, name: p.name, ltv: p.ltv || 0 })
+    })
+
+    const toGeocode = Object.values(cityMap)
+    if (toGeocode.length === 0) {
+      setGeocodeDone(true)
+      return
+    }
+
+    setGeocoding(true)
+    setGeocodeProgress(`地図を読み込み中... (0/${toGeocode.length})`)
+
+    const BATCH_SIZE = 20
+    const allResults: Record<string, { lat: number; lng: number } | null> = {}
+
+    for (let i = 0; i < toGeocode.length; i += BATCH_SIZE) {
+      const batch = toGeocode.slice(i, i + BATCH_SIZE)
+      const uniqueCities = batch.map(c => ({ prefecture: c.prefecture, city: c.city }))
+      try {
+        const res = await fetch('/api/geocode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cities: uniqueCities }),
+        })
+        if (res.ok) {
+          const { results } = await res.json()
+          Object.assign(allResults, results)
+        }
+      } catch (err) {
+        console.error('Geocode error:', err)
+      }
+      setGeocodeProgress(`地図を読み込み中... (${Math.min(i + BATCH_SIZE, toGeocode.length)}/${toGeocode.length})`)
+    }
+
+    const markers: MapMarker[] = []
+    toGeocode.forEach(city => {
+      const key = `${city.prefecture}${city.city}`
+      const coords = allResults[key]
+      if (!coords) return
+      const uniquePatients = Array.from(new Map(city.patients.map(p => [p.id, p])).values())
+      const totalLtv = uniquePatients.reduce((s, p) => s + p.ltv, 0)
+      markers.push({
+        lat: coords.lat, lng: coords.lng,
+        label: `${city.prefecture} ${city.city}`,
+        count: uniquePatients.length,
+        avgLtv: uniquePatients.length > 0 ? Math.round(totalLtv / uniquePatients.length) : 0,
+        totalLtv,
+        patients: uniquePatients.map(p => ({ name: p.name, ltv: p.ltv })),
+      })
+    })
+
+    setMapMarkers(markers)
+    setGeocoding(false)
+    setGeocodeDone(true)
+    setGeocodeProgress('')
+  }, [rawPatients])
+
+  // Trigger geocoding when switching to map view
+  useEffect(() => {
+    if (viewMode === 'map' && !geocodeDone && !loading && rawPatients.length > 0) {
+      geocodeCities()
+    }
+  }, [viewMode, geocodeDone, loading, rawPatients, geocodeCities])
+
   const sorted = [...areas].sort((a, b) => {
     if (sortKey === 'totalLTV') return b.totalLTV - a.totalLTV
     if (sortKey === 'patientCount') return b.patientCount - a.patientCount
@@ -106,8 +194,6 @@ export default function AreaLtvPage() {
   const totalPatients = areas.reduce((s, a) => s + a.patientCount, 0)
   const totalLTV = areas.reduce((s, a) => s + a.totalLTV, 0)
   const overallAvgLTV = totalPatients > 0 ? Math.round(totalLTV / totalPatients) : 0
-
-  // Best performing area
   const bestAvgArea = [...areas].sort((a, b) => b.avgLTV - a.avgLTV).find(a => a.patientCount >= 3)
 
   return (
@@ -124,10 +210,22 @@ export default function AreaLtvPage() {
         </div>
 
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-bold text-gray-800 text-lg">エリア別LTV分析</h2>
-          <Link href="/sales/map" className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-            📍 マップで見る →
-          </Link>
+          <h2 className="font-bold text-gray-800 text-lg">エリア分析</h2>
+          {/* View mode toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                viewMode === 'list' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+              }`}
+            >一覧</button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                viewMode === 'map' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+              }`}
+            >マップ</button>
+          </div>
         </div>
 
         {/* Summary cards */}
@@ -150,24 +248,8 @@ export default function AreaLtvPage() {
           </div>
         </div>
 
-        {/* Sort buttons */}
-        <div className="flex gap-2 mb-3 flex-wrap">
-          <span className="text-xs text-gray-500 pt-1">並び替え:</span>
-          {([
-            { key: 'totalLTV' as const, label: '総LTV' },
-            { key: 'patientCount' as const, label: '患者数' },
-            { key: 'avgLTV' as const, label: '平均LTV' },
-            { key: 'avgVisits' as const, label: '来院頻度' },
-          ]).map(s => (
-            <button key={s.key} onClick={() => setSortKey(s.key)}
-              className={`px-3 py-1 rounded text-xs ${sortKey === s.key ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}
-            >{s.label}</button>
-          ))}
-        </div>
-
         {loading ? (
           <div className="space-y-3">
-            {/* Skeleton: bar chart */}
             <div className="bg-white rounded-xl shadow-sm p-4 animate-pulse">
               <div className="h-4 w-40 bg-gray-200 rounded mb-3" />
               <div className="space-y-2">
@@ -183,59 +265,43 @@ export default function AreaLtvPage() {
                 ))}
               </div>
             </div>
-            {/* Skeleton: mobile cards */}
-            <div className="sm:hidden space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm p-3 animate-pulse">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-1">
-                      <div className="h-3 w-5 bg-gray-200 rounded" />
-                      <div className="h-4 w-20 bg-gray-200 rounded" />
-                    </div>
-                    <div className="h-4 w-24 bg-gray-200 rounded" />
-                  </div>
-                  <div className="flex gap-3 mt-2">
-                    <div className="h-3 w-12 bg-gray-200 rounded" />
-                    <div className="h-3 w-20 bg-gray-200 rounded" />
-                    <div className="h-3 w-16 bg-gray-200 rounded" />
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Skeleton: desktop table */}
-            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">#</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">エリア</th>
-                    <th className="text-left px-3 py-2 text-xs text-gray-500">都道府県</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">患者数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">総LTV</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">平均LTV</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">総来院数</th>
-                    <th className="text-right px-3 py-2 text-xs text-gray-500">平均来院</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={i} className="border-b animate-pulse">
-                      <td className="px-3 py-2"><div className="h-4 w-6 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-16 bg-gray-200 rounded" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-20 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                      <td className="px-3 py-2"><div className="h-4 w-10 bg-gray-200 rounded ml-auto" /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          </div>
+        ) : viewMode === 'map' ? (
+          /* ===== マップビュー ===== */
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <p className="text-xs text-gray-400 mb-3">丸の大きさ＝患者数、色＝平均LTV。タップで詳細表示</p>
+            {geocoding ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-[#14252A] rounded-full animate-spin mb-3" />
+                <p className="text-sm text-gray-500">{geocodeProgress}</p>
+              </div>
+            ) : mapMarkers.length > 0 ? (
+              <LeafletMap markers={mapMarkers} height="500px" />
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-400 mb-2">住所データが不足しています</p>
+                <p className="text-xs text-gray-400">患者の都道府県・市区町村を登録すると地図に表示されます</p>
+              </div>
+            )}
           </div>
         ) : (
+          /* ===== 一覧ビュー ===== */
           <>
+            {/* Sort buttons */}
+            <div className="flex gap-2 mb-3 flex-wrap">
+              <span className="text-xs text-gray-500 pt-1">並び替え:</span>
+              {([
+                { key: 'totalLTV' as const, label: '総LTV' },
+                { key: 'patientCount' as const, label: '患者数' },
+                { key: 'avgLTV' as const, label: '平均LTV' },
+                { key: 'avgVisits' as const, label: '来院頻度' },
+              ]).map(s => (
+                <button key={s.key} onClick={() => setSortKey(s.key)}
+                  className={`px-3 py-1 rounded text-xs ${sortKey === s.key ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-600'}`}
+                >{s.label}</button>
+              ))}
+            </div>
+
             {/* Bar Chart */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
               <h3 className="text-sm font-bold text-gray-700 mb-3">

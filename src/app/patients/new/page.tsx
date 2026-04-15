@@ -468,7 +468,7 @@ export default function NewPatientPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1">生年月日</label>
-              <input type="date" value={form.birth_date} onChange={(e) => update('birth_date', e.target.value)} className={inputClass} />
+              <WarekiDateInput value={form.birth_date} onChange={(v) => update('birth_date', v)} inputClass={inputClass} />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">性別</label>
@@ -645,5 +645,89 @@ export default function NewPatientPage() {
         </button>
       </div>
     </AppShell>
+  )
+}
+
+// 和暦⇔西暦変換テーブル
+const ERAS = [
+  { name: '令和', start: 2019 },
+  { name: '平成', start: 1989 },
+  { name: '昭和', start: 1926 },
+  { name: '大正', start: 1912 },
+  { name: '明治', start: 1868 },
+] as const
+
+function warekiToSeireki(era: string, year: number): number {
+  const e = ERAS.find(e => e.name === era)
+  return e ? e.start + year - 1 : year
+}
+
+function seirekiToWareki(seireki: number): { era: string; year: number } {
+  for (const e of ERAS) {
+    if (seireki >= e.start) return { era: e.name, year: seireki - e.start + 1 }
+  }
+  return { era: '西暦', year: seireki }
+}
+
+function WarekiDateInput({ value, onChange, inputClass }: { value: string; onChange: (v: string) => void; inputClass: string }) {
+  const [mode, setMode] = useState<'wareki' | 'seireki'>('wareki')
+  const [era, setEra] = useState('昭和')
+  const [warekiYear, setWarekiYear] = useState('')
+  const [month, setMonth] = useState('')
+  const [day, setDay] = useState('')
+
+  // 外部からvalueが変わった時（AI解析等）に同期
+  useEffect(() => {
+    if (!value) return
+    const [y, m, d] = value.split('-').map(Number)
+    if (!y) return
+    const w = seirekiToWareki(y)
+    setEra(w.era === '西暦' ? '昭和' : w.era)
+    setWarekiYear(w.era === '西暦' ? String(y) : String(w.year))
+    setMonth(m ? String(m) : '')
+    setDay(d ? String(d) : '')
+  }, [value])
+
+  const buildDate = (newEra: string, newYear: string, newMonth: string, newDay: string) => {
+    const y = parseInt(newYear)
+    const m = parseInt(newMonth)
+    const d = parseInt(newDay)
+    if (!y || !m || !d) { onChange(''); return }
+    const seireki = mode === 'wareki' ? warekiToSeireki(newEra, y) : y
+    const dateStr = `${seireki}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    onChange(dateStr)
+  }
+
+  const selectClass = inputClass.replace('w-full ', '')
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1 mb-1">
+        <button type="button" onClick={() => setMode('wareki')}
+          className={`px-2 py-0.5 text-[10px] rounded ${mode === 'wareki' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-500'}`}>和暦</button>
+        <button type="button" onClick={() => setMode('seireki')}
+          className={`px-2 py-0.5 text-[10px] rounded ${mode === 'seireki' ? 'bg-[#14252A] text-white' : 'bg-gray-100 text-gray-500'}`}>西暦</button>
+      </div>
+      <div className="flex items-center gap-1">
+        {mode === 'wareki' && (
+          <select value={era} onChange={(e) => { setEra(e.target.value); buildDate(e.target.value, warekiYear, month, day) }}
+            className={`${selectClass} w-[72px] px-1.5 text-xs`}>
+            {ERAS.map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+          </select>
+        )}
+        <input type="number" inputMode="numeric" value={warekiYear} placeholder={mode === 'wareki' ? '年' : '西暦'}
+          onChange={(e) => { setWarekiYear(e.target.value); buildDate(era, e.target.value, month, day) }}
+          className={`${selectClass} w-[52px] px-1.5 text-xs text-center`} />
+        <span className="text-xs text-gray-400">年</span>
+        <input type="number" inputMode="numeric" value={month} placeholder="月"
+          onChange={(e) => { setMonth(e.target.value); buildDate(era, warekiYear, e.target.value, day) }}
+          className={`${selectClass} w-[42px] px-1.5 text-xs text-center`} min={1} max={12} />
+        <span className="text-xs text-gray-400">月</span>
+        <input type="number" inputMode="numeric" value={day} placeholder="日"
+          onChange={(e) => { setDay(e.target.value); buildDate(era, warekiYear, month, e.target.value) }}
+          className={`${selectClass} w-[42px] px-1.5 text-xs text-center`} min={1} max={31} />
+        <span className="text-xs text-gray-400">日</span>
+      </div>
+    </div>
   )
 }

@@ -11,6 +11,5 @@ export const saleTabs = [
   { href: '/sales/utilization', label: '稼働率' },
   { href: '/sales/cross', label: 'クロス集計' },
   { href: '/sales/area-ltv', label: 'エリア分析' },
-  { href: '/sales/map', label: '地域分布' },
   { href: '/sales/simulator', label: 'シミュレーター' },
 ]

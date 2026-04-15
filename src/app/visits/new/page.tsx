@@ -8,7 +8,7 @@ import VoiceInput from '@/components/VoiceInput'
 import { createClient } from '@/lib/supabase/client'
 import { PAYMENT_METHODS } from '@/lib/types'
 import type { Patient } from '@/lib/types'
-import { normalizeName } from '@/lib/nameMatch'
+import { findAllMatches } from '@/lib/nameMatch'
 import { getClinicId } from '@/lib/clinic'
 import { syncPatientStats } from '@/lib/patientSync'
 
@@ -89,12 +89,7 @@ function VisitForm() {
   const update = (key: string, value: string | number | string[]) => setForm(prev => ({ ...prev, [key]: value }))
 
   const filteredPatients = search.length > 0
-    ? patients.filter(p => {
-        const q = normalizeName(search)
-        const name = normalizeName(p.name)
-        const furigana = normalizeName(p.furigana || '')
-        return name.includes(q) || q.includes(name) || furigana.includes(q) || q.includes(furigana)
-      })
+    ? findAllMatches(search, patients, 20).map(m => m.patient)
     : []
 
   const selectedPatient = patients.find(p => p.id === form.patient_id)

@@ -10,7 +10,7 @@ import { getClinicId } from '@/lib/clinic'
 
 // ====== 集計軸の定義 ======
 type AxisKey = 'gender' | 'age_group' | 'referral_source' | 'visit_motive' | 'occupation'
-  | 'chief_complaint' | 'customer_category' | 'prefecture' | 'status'
+  | 'chief_complaint' | 'customer_category' | 'prefecture' | 'city' | 'status'
   | 'staff_name' | 'menu_name'
 
 interface AxisOption {
@@ -27,6 +27,7 @@ const axisOptions: AxisOption[] = [
   { key: 'chief_complaint', label: '主訴・症状', source: 'patient' },
   { key: 'occupation', label: '職業', source: 'patient' },
   { key: 'customer_category', label: '顧客カテゴリ', source: 'patient' },
+  { key: 'city', label: '市区町村', source: 'patient' },
   { key: 'prefecture', label: '都道府県', source: 'patient' },
   { key: 'status', label: 'ステータス', source: 'patient' },
   { key: 'staff_name', label: '担当者', source: 'slip' },
@@ -89,7 +90,7 @@ export default function CrossPage() {
   const [slips, setSlips] = useState<{ patient_id: string; total_price: number; staff_name: string; menu_name: string }[]>([])
   const [patients, setPatients] = useState<Record<string, {
     gender: string; birth_date: string | null; referral_source: string; visit_motive: string
-    occupation: string; chief_complaint: string; customer_category: string; prefecture: string; status: string
+    occupation: string; chief_complaint: string; customer_category: string; prefecture: string; city: string; status: string
   }>>({})
 
   const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i))
@@ -129,14 +130,14 @@ export default function CrossPage() {
       ) as { patient_id: string; total_price: number; staff_name: string; menu_name: string }[]
 
       const PAGE_SIZE = 1000
-      let allPatients: { id: string; gender: string; birth_date: string | null; referral_source: string; visit_motive: string; occupation: string; chief_complaint: string; customer_category: string; prefecture: string; status: string }[] = []
+      let allPatients: { id: string; gender: string; birth_date: string | null; referral_source: string; visit_motive: string; occupation: string; chief_complaint: string; customer_category: string; prefecture: string; city: string; status: string }[] = []
       let offset = 0
       let hasMore = true
 
       while (hasMore) {
         const { data } = await supabase
           .from('cm_patients')
-          .select('id, gender, birth_date, referral_source, visit_motive, occupation, chief_complaint, customer_category, prefecture, status')
+          .select('id, gender, birth_date, referral_source, visit_motive, occupation, chief_complaint, customer_category, prefecture, city, status')
           .eq('clinic_id', clinicId)
           .order('id', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1)
@@ -168,6 +169,7 @@ export default function CrossPage() {
     if (axis === 'age_group') return getAgeGroup(patient.birth_date)
     if (axis === 'status') return getStatusLabel(patient.status)
     if (axis === 'chief_complaint') return normalizeComplaint(patient.chief_complaint)
+    if (axis === 'city') return patient.city || '不明'
     return (patient[axis as keyof typeof patient] as string) || '不明'
   }
 

@@ -38,8 +38,17 @@ export default function VoiceInput({ onResult, className = '', size = 'md' }: Vo
       setListening(false)
     }
 
-    recognition.onerror = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onerror = (e: any) => {
       setListening(false)
+      const error = e?.error || ''
+      if (error === 'not-allowed') {
+        showToast('マイクの使用が許可されていません。設定からマイクを許可してください。', 'warning')
+      } else if (error === 'no-speech') {
+        showToast('音声が検出されませんでした。もう一度お試しください。', 'warning')
+      } else {
+        showToast('音声入力でエラーが発生しました。もう一度お試しください。', 'warning')
+      }
     }
 
     recognition.onend = () => {
@@ -47,8 +56,13 @@ export default function VoiceInput({ onResult, className = '', size = 'md' }: Vo
     }
 
     recognitionRef.current = recognition
-    recognition.start()
-    setListening(true)
+    try {
+      recognition.start()
+      setListening(true)
+    } catch {
+      setListening(false)
+      showToast('音声入力を開始できませんでした。ブラウザの設定をご確認ください。', 'warning')
+    }
   }, [listening, onResult])
 
   const sizeClass = size === 'sm' ? 'w-9 h-9 text-base' : 'w-11 h-11 text-lg'
