@@ -292,7 +292,7 @@ function VisitForm() {
                   <button
                     key={p.id}
                     onClick={() => { update('patient_id', p.id); setSearch('') }}
-                    className="block w-full text-left px-3 py-2.5 hover:bg-gray-50 text-sm border-b border-gray-100"
+                    className="block w-full text-left px-3 py-3 hover:bg-gray-50 active:bg-gray-100 text-sm border-b border-gray-100 min-h-[44px]"
                   >
                     <span className="font-medium">{p.name}</span>
                     <span className="text-xs text-gray-400 ml-2">{p.furigana}</span>
@@ -437,6 +437,7 @@ function VisitForm() {
           <label className="block text-xs text-gray-600 mb-1">金額を直接入力</label>
           <input
             type="number"
+            inputMode="numeric"
             value={form.total_price || ''}
             onChange={(e) => update('total_price', Math.max(0, parseInt(e.target.value) || 0))}
             placeholder="8000"

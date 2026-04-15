@@ -65,7 +65,7 @@ export default function VoiceInput({ onResult, className = '', size = 'md' }: Vo
     }
   }, [listening, onResult])
 
-  const sizeClass = size === 'sm' ? 'w-9 h-9 text-base' : 'w-11 h-11 text-lg'
+  const sizeClass = size === 'sm' ? 'w-11 h-11 text-base' : 'w-12 h-12 text-lg'
 
   return (
     <button

@@ -127,7 +127,7 @@ function Pagination({
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
           aria-label="前のページ"
-          className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-3 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed min-h-[40px]"
         >
           前へ
         </button>
@@ -140,10 +140,10 @@ function Pagination({
               onClick={() => onPageChange(p)}
               aria-label={`${p}ページ目`}
               aria-current={currentPage === p ? 'page' : undefined}
-              className={`min-w-[32px] px-2 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+              className={`min-w-[36px] px-2.5 py-2 text-xs rounded-lg font-medium transition-colors min-h-[40px] ${
                 currentPage === p
                   ? 'bg-[#14252A] text-white shadow-sm'
-                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50 active:bg-gray-100'
               }`}
             >
               {p}
@@ -154,7 +154,7 @@ function Pagination({
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           aria-label="次のページ"
-          className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-3 py-2 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed min-h-[40px]"
         >
           次へ
         </button>
@@ -678,7 +678,7 @@ export default function PatientsPage() {
                 </thead>
                 <tbody>
                   {paginatedList.map((p, idx) => (
-                    <tr key={p.id} className={`border-b hover:bg-blue-50/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''} ${selectedIds.has(p.id) ? 'bg-orange-50/50' : ''}`}>
+                    <tr key={p.id} className={`border-b hover:bg-blue-50/40 active:bg-blue-100/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''} ${selectedIds.has(p.id) ? 'bg-orange-50/50' : ''}`}>
                       <td className="px-2 py-3 text-center" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)}
                           className="w-4 h-4 rounded border-gray-300 accent-[#14252A]" />

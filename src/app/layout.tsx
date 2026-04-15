@@ -7,6 +7,7 @@ import ToastContainer from '@/components/Toast'
 export const metadata: Metadata = {
   title: 'Clinic Core',
   description: '患者情報・施術記録・来院履歴を一元管理',
+  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

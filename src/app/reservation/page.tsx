@@ -333,7 +333,7 @@ export default function ReservationPage() {
                     <tr
                       key={r.id}
                       onClick={() => openEditReservation(r)}
-                      className="border-b hover:bg-gray-50 cursor-pointer"
+                      className="border-b hover:bg-gray-50 active:bg-gray-100 cursor-pointer"
                     >
                       <td className="px-4 py-2">
                         {new Date(r.reservation_date + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}

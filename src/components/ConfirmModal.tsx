@@ -86,7 +86,7 @@ export default function ConfirmModal({
         onClick={onCancel}
       />
       {/* モーダル本体 */}
-      <div className="relative bg-white rounded-xl shadow-lg max-w-sm w-full mx-4 p-6">
+      <div className="relative bg-white rounded-xl shadow-lg max-w-xs sm:max-w-sm w-full mx-4 p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start gap-3">
           {/* アイコン */}
           <div className="shrink-0 mt-0.5">{config.icon}</div>
@@ -99,14 +99,14 @@ export default function ConfirmModal({
         <div className="flex justify-end gap-2 mt-6">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-lg transition-colors min-h-[44px]"
           >
             {cancelLabel}
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${config.buttonClass}`}
+            className={`px-4 py-2.5 text-sm font-medium rounded-lg transition-colors min-h-[44px] ${config.buttonClass}`}
           >
             {confirmLabel}
           </button>

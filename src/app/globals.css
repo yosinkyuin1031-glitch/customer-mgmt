@@ -21,6 +21,13 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
 }
 
+/* iOS Safari: input focus時の自動ズームを防止（font-size 16px以上で発生しない） */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Smooth transitions for interactive elements */
 a, button, input, select, textarea {
   transition: all 0.15s ease;

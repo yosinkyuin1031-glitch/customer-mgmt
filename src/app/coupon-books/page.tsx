@@ -262,7 +262,7 @@ export default function CouponBooksPage() {
                       const badge = getStatusBadge(c)
                       const progressPercent = c.total_count > 0 ? ((c.total_count - c.remaining_count) / c.total_count) * 100 : 0
                       return (
-                        <tr key={c.id} className={`border-b hover:bg-blue-50/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                        <tr key={c.id} className={`border-b hover:bg-blue-50/40 active:bg-blue-100/40 cursor-pointer ${idx % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
                           <td className="px-3 py-3">
                             <Link href={`/coupon-books/${c.id}`} className="text-blue-600 hover:underline font-medium">
                               {c.patient_name}

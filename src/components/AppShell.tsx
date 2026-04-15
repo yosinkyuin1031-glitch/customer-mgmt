@@ -42,7 +42,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 className={`text-sm flex items-center gap-1 transition-colors px-2 py-1 rounded-lg ${
                   activeTab === 'help'
                     ? 'text-white font-bold bg-white/20'
-                    : 'text-gray-200 hover:text-white hover:bg-white/10'
+                    : 'text-gray-200 hover:text-white hover:bg-white/10 active:bg-white/20'
                 }`}
               >
                 <span>📘</span>
@@ -53,7 +53,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 className={`text-sm flex items-center gap-1 transition-colors px-2 py-1 rounded-lg ${
                   pathname.startsWith('/settings')
                     ? 'text-white font-bold bg-white/20'
-                    : 'text-gray-200 hover:text-white hover:bg-white/10'
+                    : 'text-gray-200 hover:text-white hover:bg-white/10 active:bg-white/20'
                 }`}
               >
                 <span className="text-lg">⚙️</span>
@@ -118,20 +118,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* モバイル下部タブ */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex justify-around items-center h-16">
           {mainTabs.map(tab => (
             <Link
               key={tab.key}
               href={tab.href}
-              className={`flex flex-col items-center justify-center w-full h-full py-3 text-xs relative ${
+              className={`flex flex-col items-center justify-center w-full h-full min-h-[48px] py-2 text-xs relative active:bg-gray-100 transition-colors ${
                 activeTab === tab.key ? 'text-[#14252A] font-bold' : 'text-gray-400'
               }`}
             >
-              <span className="text-xl mb-1">{tab.icon}</span>
-              <span className="text-[10px]">{tab.label}</span>
+              <span className="text-xl mb-0.5">{tab.icon}</span>
+              <span className="text-[11px]">{tab.label}</span>
               {activeTab === tab.key && (
-                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full" style={{ background: '#14252A' }} />
+                <span className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full" style={{ background: '#14252A' }} />
               )}
             </Link>
           ))}
@@ -139,7 +139,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* メインコンテンツ */}
-      <main className="pb-24 md:pb-4">
+      <main className="md:pb-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
         {children}
       </main>
     </div>
