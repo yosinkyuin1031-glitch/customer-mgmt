@@ -388,18 +388,19 @@ export default function PatientsPage() {
   }, [filtered, downloadFile, buildCsv])
 
   const downloadDmCsv = useCallback(() => {
-    const dmPatients = filtered.filter(p =>
-      p.is_direct_mail !== false && (p.prefecture || p.city || p.address)
-    )
+    // チェックした人がいればその人だけ、いなければDM可+住所ありの全員
+    const base = selectedIds.size > 0
+      ? filtered.filter(p => selectedIds.has(p.id))
+      : filtered.filter(p => p.is_direct_mail !== false && (p.prefecture || p.city || p.address))
     const headers = ['氏名', 'フリガナ', '敬称', '郵便番号', '都道府県', '市区町村', '番地', '建物名', '電話番号']
-    const rows = dmPatients.map(p => [
+    const rows = base.map(p => [
       p.name, p.furigana || '', '様',
       (p.zipcode || '').replace(/[^\d-]/g, ''),
       p.prefecture || '', p.city || '', p.address || '', p.building || '', p.phone || '',
     ])
     downloadFile(buildCsv(headers, rows), `DM宛名_${new Date().toISOString().split('T')[0]}.csv`)
     setShowCsvModal(false)
-  }, [filtered, downloadFile, buildCsv])
+  }, [filtered, selectedIds, downloadFile, buildCsv])
 
   const uniqueReferrals = useMemo(() =>
     [...new Set(patients.map(p => p.referral_source).filter(Boolean))],
@@ -797,7 +798,10 @@ export default function PatientsPage() {
                 <p className="font-bold text-sm text-gray-800 mb-1">はがき・DM印刷用CSV</p>
                 <p className="text-xs text-gray-500 mb-1">宛名印刷に必要な項目のみ</p>
                 <p className="text-xs text-gray-400 mb-3">
-                  DM送付可＋住所ありの患者（{filtered.filter(p => p.is_direct_mail !== false && (p.prefecture || p.city || p.address)).length}件）
+                  {selectedIds.size > 0
+                    ? `チェック済みの患者（${selectedIds.size}件）`
+                    : `DM送付可＋住所ありの患者（${filtered.filter(p => p.is_direct_mail !== false && (p.prefecture || p.city || p.address)).length}件）`
+                  }
                 </p>
                 <button onClick={downloadDmCsv} aria-label="はがき用CSVをダウンロード" className="w-full py-2 rounded-lg text-sm font-bold text-white bg-orange-500 hover:bg-orange-600">
                   はがき用CSVをダウンロード
