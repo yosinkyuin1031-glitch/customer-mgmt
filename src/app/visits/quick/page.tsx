@@ -37,6 +37,8 @@ export default function QuickInputPage() {
   const [listening, setListening] = useState(false)
   const [allPatients, setAllPatients] = useState<PatientCandidate[]>([])
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  // スマホ連打による二重送信を同期的にブロック
+  const savingRef = useRef(false)
 
   // 音声入力
   const toggleVoice = useCallback(() => {
@@ -154,6 +156,8 @@ export default function QuickInputPage() {
   // 一括保存
   const handleSave = async () => {
     if (records.length === 0) return
+    if (savingRef.current) return
+    savingRef.current = true
     setSaving(true)
 
     // patient_idがnullのレコードを保存前に再マッチング
@@ -209,6 +213,7 @@ export default function QuickInputPage() {
       setSaved(true)
     }
     setSaving(false)
+    savingRef.current = false
   }
 
   if (saved) {

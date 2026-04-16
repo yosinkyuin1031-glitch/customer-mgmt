@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense, useCallback } from 'react'
+import { useEffect, useState, Suspense, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Header from '@/components/Header'
 import AppShell from '@/components/AppShell'
@@ -55,6 +55,8 @@ function VisitForm() {
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  // スマホ連打による二重送信を同期的にブロック（setStateは再レンダー待ちで間に合わないため）
+  const savingRef = useRef(false)
   const [patientCoupons, setPatientCoupons] = useState<CouponBook[]>([])
   const [selectedCouponId, setSelectedCouponId] = useState<string>('')
 
@@ -197,6 +199,8 @@ function VisitForm() {
   const handleSave = async () => {
     if (!form.patient_id || !form.visit_date) return
     if (form.total_price < 0) return
+    if (savingRef.current) return
+    savingRef.current = true
     setSaving(true)
 
     const patientName = selectedPatient?.name || ''
@@ -241,6 +245,7 @@ function VisitForm() {
       }, 800)
     }
     setSaving(false)
+    savingRef.current = false
   }
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14252A] focus:border-transparent"
