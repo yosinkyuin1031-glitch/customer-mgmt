@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-// クリニックコア 新規院セットアップスクリプト
-// 使い方: node scripts/add-clinic.mjs "院名" "メールアドレス" ["パスワード(省略可)"]
-// 例:    node scripts/add-clinic.mjs "○○整体院" "example@gmail.com"
+// クリニックコア 新規院セットアップスクリプト（決済優先フロー）
+// 使い方: node scripts/add-clinic.mjs "院名" "メールアドレス" [アプリID...]
+// 例:    node scripts/add-clinic.mjs "○○整体院" "example@gmail.com" customer
+//        node scripts/add-clinic.mjs "山田はり灸院" "yamada@example.com" kensa customer
+//
+// アプリID: kensa, customer, meo, reservation, monshin, sleep, point
+// 省略時は customer（顧客管理）のみ
 //
 // 実行内容:
-//   1. auth.users にユーザー作成（email_confirmed_at = NOW()）
-//   2. clinics テーブルに院情報INSERT（plan='basic' 固定）
-//   3. clinic_members に owner ロールで紐付け
-//   4. ログイン情報を表示
+//   1. clinic_accounts に pending_payment で登録
+//   2. Stripe Payment Linkを表示
+//   ※ 決済完了後、Webhookが自動でアカウント発行・メール送信を行います
 
 import pg from 'pg'
 import crypto from 'crypto'
@@ -15,111 +18,158 @@ import crypto from 'crypto'
 const { Client } = pg
 const DB_URL = 'postgresql://postgres:fJZj8SDawfJze7H9@db.vzkfkazjylrkspqrnhnx.supabase.co:5432/postgres'
 
-const [clinicName, email, passwordArg] = process.argv.slice(2)
+// アプリ設定
+const APP_CONFIG = {
+  kensa:       { label: 'カラダマップ',     monthlyPrice: 3980 },
+  customer:    { label: '顧客管理（Clinic Core）', monthlyPrice: 5500 },
+  meo:         { label: 'MEO勝ち上げくん',  monthlyPrice: 3980 },
+  reservation: { label: '予約管理',          monthlyPrice: 3980 },
+  monshin:     { label: 'WEB問診',          monthlyPrice: 2980 },
+  sleep:       { label: '睡眠チェック',      monthlyPrice: 2200 },
+  point:       { label: 'サブスク管理',      monthlyPrice: 4980 },
+}
+
+// Stripe Payment Links（モニター版=月額のみ）
+const PAYMENT_LINKS = {
+  kensa:       'https://buy.stripe.com/bJecN4108blm8jOdhf08g04',
+  customer:    'https://buy.stripe.com/5kQbJ0dMUexydE8a5308g07',
+  meo:         'https://buy.stripe.com/cNidR81082OQdE83GF08g05',
+  reservation: 'https://buy.stripe.com/fZuaEW7owahicA4dhf08g09',
+  monshin:     'https://buy.stripe.com/fZu3cu38g7561Vqb9708g0b',
+}
+
+// ログインURL
+const LOGIN_URLS = {
+  kensa:       'https://kensa-sheet-app.vercel.app',
+  customer:    'https://customer-mgmt.vercel.app/login',
+  meo:         'https://meo-v2-app.vercel.app',
+  reservation: 'https://reservation-app.vercel.app',
+  monshin:     'https://monshin-app.vercel.app',
+  sleep:       'https://sleep-check-app.vercel.app',
+}
+
+const args = process.argv.slice(2)
+const clinicName = args[0]
+const email = args[1]
+const selectedApps = args.slice(2).length > 0 ? args.slice(2) : ['customer']
+
 if (!clinicName || !email) {
-  console.error('使い方: node scripts/add-clinic.mjs "院名" "メール" ["パスワード"]')
+  console.error('使い方: node scripts/add-clinic.mjs "院名" "メール" [アプリID...]')
+  console.error('アプリID: kensa, customer, meo, reservation, monshin, sleep, point')
+  console.error('例: node scripts/add-clinic.mjs "○○整体院" "example@gmail.com" customer kensa')
   process.exit(1)
 }
 
-// パスワードが省略されたらランダム生成（12文字英数字）
-function genPassword() {
-  return 'Cc' + crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10)
+// 無効なアプリIDチェック
+for (const app of selectedApps) {
+  if (!APP_CONFIG[app]) {
+    console.error(`❌ 無効なアプリID: ${app}`)
+    console.error(`有効なID: ${Object.keys(APP_CONFIG).join(', ')}`)
+    process.exit(1)
+  }
 }
-const password = passwordArg || genPassword()
 
-// 院コード（英数字・半角スペース区切り）を院名から生成
-function genCode(name) {
-  return 'clinic-' + crypto.randomBytes(4).toString('hex')
+function generateClinicId() {
+  return 'CLN-' + crypto.randomBytes(4).toString('hex').toUpperCase()
 }
-const code = genCode(clinicName)
-
-// Supabase auth.users のパスワードハッシュ形式: crypt(password, gen_salt('bf'))
-// PostgreSQL の pgcrypto 拡張を使う
 
 async function main() {
   const c = new Client({ connectionString: DB_URL, ssl: { rejectUnauthorized: false } })
   await c.connect()
 
-  console.log(`\n=== クリニックコア 新規院セットアップ ===`)
-  console.log(`院名     : ${clinicName}`)
-  console.log(`メール   : ${email}`)
-  console.log(`パスワード: ${password}`)
-  console.log(`コード   : ${code}\n`)
+  const appLabels = selectedApps.map(id => APP_CONFIG[id].label).join('、')
+  const monthlyTotal = selectedApps.reduce((sum, id) => sum + APP_CONFIG[id].monthlyPrice, 0)
 
-  // 全院件数スナップショット（他院の影響検証用）
-  const before = await c.query(`SELECT COUNT(*)::int AS n FROM clinics`)
-  const beforeCount = before.rows[0].n
+  console.log(`\n=== 新規院セットアップ（決済優先フロー） ===`)
+  console.log(`院名       : ${clinicName}`)
+  console.log(`メール     : ${email}`)
+  console.log(`選択アプリ : ${appLabels}`)
+  console.log(`月額合計   : ¥${monthlyTotal.toLocaleString()}\n`)
 
-  // 重複チェック
-  const existingEmail = await c.query(`SELECT id FROM auth.users WHERE email = $1`, [email])
-  if (existingEmail.rows.length > 0) {
-    console.error(`❌ このメールアドレスは既に登録されています: ${email}`)
+  // 重複チェック（clinic_accounts）
+  const existing = await c.query(
+    `SELECT id, status FROM clinic_accounts WHERE email = $1`,
+    [email]
+  )
+  if (existing.rows.length > 0) {
+    const row = existing.rows[0]
+    if (row.status === 'cancelled') {
+      console.error(`❌ このメールアドレスは過去に解約済みです。再登録はできません。`)
+    } else {
+      console.error(`❌ このメールアドレスは既に登録されています（ステータス: ${row.status}）`)
+    }
     await c.end()
     process.exit(1)
   }
 
-  await c.query('BEGIN')
-  try {
-    // 1. auth.users にユーザー作成（pgcryptoでハッシュ化）
-    const userResult = await c.query(`
-      INSERT INTO auth.users (
-        instance_id, id, aud, role, email, encrypted_password,
-        email_confirmed_at, created_at, updated_at,
-        raw_app_meta_data, raw_user_meta_data, is_super_admin
-      ) VALUES (
-        '00000000-0000-0000-0000-000000000000',
-        gen_random_uuid(),
-        'authenticated', 'authenticated',
-        $1,
-        crypt($2, gen_salt('bf')),
-        NOW(), NOW(), NOW(),
-        '{"provider":"email","providers":["email"]}'::jsonb,
-        '{}'::jsonb,
-        false
-      )
-      RETURNING id
-    `, [email, password])
-    const userId = userResult.rows[0].id
-
-    // 2. clinics テーブルにINSERT
-    const clinicResult = await c.query(`
-      INSERT INTO clinics (id, name, code, plan, is_active, email, created_at, updated_at)
-      VALUES (gen_random_uuid(), $1, $2, 'basic', true, $3, NOW(), NOW())
-      RETURNING id
-    `, [clinicName, code, email])
-    const clinicId = clinicResult.rows[0].id
-
-    // 3. clinic_members に紐付け
-    await c.query(`
-      INSERT INTO clinic_members (id, clinic_id, user_id, role, created_at)
-      VALUES (gen_random_uuid(), $1, $2, 'owner', NOW())
-    `, [clinicId, userId])
-
-    // 他院件数が増えた分（+1）だけかチェック
-    const after = await c.query(`SELECT COUNT(*)::int AS n FROM clinics`)
-    if (after.rows[0].n !== beforeCount + 1) {
-      console.error(`❌ 予期せぬclinics件数変化: ${beforeCount} → ${after.rows[0].n}`)
-      await c.query('ROLLBACK')
-      process.exit(1)
-    }
-
-    await c.query('COMMIT')
-
-    console.log(`✅ 作成完了`)
-    console.log(`  clinic_id: ${clinicId}`)
-    console.log(`  user_id  : ${userId}\n`)
-    console.log(`--- 納品文面 ---`)
-    console.log(`【クリニックコア ログイン情報】`)
-    console.log(`URL      : https://customer-mgmt.vercel.app/login`)
-    console.log(`メール    : ${email}`)
-    console.log(`パスワード : ${password}`)
-    console.log(``)
-    console.log(`※ログイン後、設定画面からメール・パスワードの変更が可能です。`)
-  } catch (e) {
-    await c.query('ROLLBACK')
-    console.error('❌ エラーでROLLBACK:', e.message)
-    throw e
+  // clinic_id生成（衝突回避）
+  let clinicId = generateClinicId()
+  let retries = 0
+  while (retries < 5) {
+    const dup = await c.query(`SELECT id FROM clinic_accounts WHERE clinic_id = $1`, [clinicId])
+    if (dup.rows.length === 0) break
+    clinicId = generateClinicId()
+    retries++
   }
+
+  // clinic_accountsにpending_paymentで登録
+  await c.query(`
+    INSERT INTO clinic_accounts (
+      clinic_id, clinic_name, email, plan_type, selected_apps, status, metadata, created_at
+    ) VALUES (
+      $1, $2, $3, 'monthly', $4::jsonb, 'pending_payment',
+      $5::jsonb, NOW()
+    )
+  `, [
+    clinicId,
+    clinicName,
+    email,
+    JSON.stringify(selectedApps),
+    JSON.stringify({
+      created_by: 'add-clinic-script',
+      monthly_total: monthlyTotal,
+    })
+  ])
+
+  console.log(`✅ clinic_accounts に登録完了（pending_payment）`)
+  console.log(`   clinic_id: ${clinicId}\n`)
+
+  // Payment Link表示
+  console.log(`--- 決済リンク ---`)
+  if (selectedApps.length === 1 && PAYMENT_LINKS[selectedApps[0]]) {
+    const link = PAYMENT_LINKS[selectedApps[0]]
+    console.log(`\n${link}`)
+    console.log(`\n↑ このリンクをお客さんに送ってください。`)
+  } else {
+    console.log(`\n複数アプリの場合、管理画面から決済リンクを発行してください:`)
+    console.log(`https://clinic-saas-lp.vercel.app/admin`)
+    console.log(`\n個別リンク:`)
+    for (const app of selectedApps) {
+      if (PAYMENT_LINKS[app]) {
+        console.log(`  ${APP_CONFIG[app].label}: ${PAYMENT_LINKS[app]}`)
+      }
+    }
+  }
+
+  console.log(`\n--- 決済完了後に自動実行される処理 ---`)
+  console.log(`  1. Supabase Authにユーザー作成`)
+  console.log(`  2. clinics / clinic_members テーブルに登録`)
+  console.log(`  3. clinic_accounts のステータスを active に更新`)
+  console.log(`  4. お客さんにログイン情報メール自動送信`)
+  console.log(`  5. 大口さんに決済通知メール自動送信`)
+
+  console.log(`\n--- お客さんに送るメッセージ例 ---`)
+  console.log(`---`)
+  console.log(`${clinicName}様\n`)
+  console.log(`アプリのご利用ありがとうございます。`)
+  console.log(`以下のリンクから月額のお支払い手続きをお願いいたします。\n`)
+  if (selectedApps.length === 1 && PAYMENT_LINKS[selectedApps[0]]) {
+    console.log(`${PAYMENT_LINKS[selectedApps[0]]}\n`)
+  }
+  console.log(`お支払い完了後、ログイン情報をメールでお送りします。`)
+  console.log(`ご不明な点がございましたらお気軽にご連絡ください。`)
+  console.log(`---`)
+
   await c.end()
 }
 
