@@ -50,9 +50,9 @@ export function findAllMatches(
     else if (normalizedQuery.includes(normalizedName)) score = 75
     // ふりがな部分一致
     else if (normalizedFurigana && normalizedFurigana.includes(normalizedQuery)) score = 70
-    // 姓一致（クエリが短い場合）
-    else if (normalizedQuery.length <= 4 && normalizedName.startsWith(normalizedQuery)) score = 60
-    else if (normalizedQuery.length <= 4 && normalizedFurigana && normalizedFurigana.startsWith(normalizedQuery)) score = 55
+    // 姓一致（前方一致・短いクエリ＝姓だけのケースを想定）
+    else if (normalizedQuery.length <= 6 && normalizedName.startsWith(normalizedQuery)) score = 60
+    else if (normalizedQuery.length <= 6 && normalizedFurigana && normalizedFurigana.startsWith(normalizedQuery)) score = 55
     else {
       // レーベンシュタイン距離
       const dist = levenshtein(normalizedQuery, normalizedName)

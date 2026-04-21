@@ -11,6 +11,18 @@ import { getClinicId } from '@/lib/clinic'
 import { syncPatientStats } from '@/lib/patientSync'
 import { useToast } from '@/lib/toast'
 
+// 候補から自動確定できる患者を返す（1人だけ・または圧倒的トップ）
+function resolveAutoMatch(
+  matches: { patient: PatientCandidate; score: number }[]
+): PatientCandidate | null {
+  if (matches.length === 0) return null
+  const top = matches[0]
+  const second = matches[1]
+  const isUnique = matches.length === 1 && top.score >= 60
+  const isDominant = top.score >= 80 && (!second || top.score - second.score >= 20)
+  return (isUnique || isDominant) ? top.patient : null
+}
+
 interface ParsedRecord {
   patient_id: string | null
   patient_name: string
@@ -102,15 +114,28 @@ export default function QuickInputPage() {
       if (!res.ok) {
         setError(data.error || '解析に失敗しました')
       } else {
-        // 各レコードに候補リストを付与
+        // 各レコードに候補リストを付与＋自動確定
         const enriched = (data.records || []).map((r: ParsedRecord) => {
           const matches = findAllMatches(r.patient_name, candidates)
-          // 候補が2人以上いる場合、または未マッチの場合は候補を表示
-          const needSelection = !r.patient_id || matches.length > 1
+          let patientId = r.patient_id
+          let patientName = r.patient_name
+
+          // 自動確定: 候補が1人だけ、または圧倒的トップなら確定する
+          if (!patientId) {
+            const auto = resolveAutoMatch(matches)
+            if (auto) {
+              patientId = auto.id
+              patientName = auto.name
+            }
+          }
+
           return {
             ...r,
+            patient_id: patientId,
+            patient_name: patientName,
             _candidates: matches,
-            _showCandidates: needSelection && matches.length > 1,
+            // 未確定で候補があれば自動展開（スペース不要）
+            _showCandidates: !patientId && matches.length > 0,
           }
         })
         setRecords(enriched)
@@ -131,15 +156,17 @@ export default function QuickInputPage() {
     } : r))
   }
 
-  // 患者名を変更したとき候補を再検索
+  // 患者名を変更したとき候補を再検索＋自動確定
   const updatePatientName = (idx: number, name: string) => {
     const matches = findAllMatches(name, allPatients)
+    const auto = resolveAutoMatch(matches)
     setRecords(prev => prev.map((r, i) => i === idx ? {
       ...r,
       patient_name: name,
-      patient_id: null,
+      patient_id: auto ? auto.id : null,
       _candidates: matches,
-      _showCandidates: matches.length > 0,
+      // 未確定なら候補を自動展開
+      _showCandidates: !auto && matches.length > 0,
     } : r))
   }
 
