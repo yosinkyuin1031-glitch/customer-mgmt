@@ -182,20 +182,13 @@ export default function SettingsPage() {
         <div className="bg-white rounded-xl shadow-sm p-4">
           <h3 className="font-bold text-gray-800 text-sm mb-3">ご契約情報</h3>
 
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                スタンダードプラン
-              </span>
-            </div>
-            <p className="text-xs text-gray-500">月額¥4,980 / 全機能利用可能</p>
-
-            {planExpiresAt && (
-              <p className="text-xs text-gray-400 mt-1">
+          {planExpiresAt && (
+            <div className="mb-4">
+              <p className="text-xs text-gray-400">
                 次回更新日: {formatDate(planExpiresAt)}
               </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {stripeCustomerId && (
             <button
