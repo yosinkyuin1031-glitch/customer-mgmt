@@ -20,7 +20,7 @@ interface PatientWithStats extends Patient {
   calcAge: number | null
 }
 
-type SortKey = 'name' | 'gender' | 'chief_complaint' | 'referral_source' | 'line_count' | 'ltv' | 'last_visit' | 'days_since'
+type SortKey = 'name' | 'gender' | 'birth_month' | 'chief_complaint' | 'referral_source' | 'line_count' | 'ltv' | 'last_visit' | 'days_since'
 
 const ITEMS_PER_PAGE = 50
 
@@ -231,9 +231,9 @@ export default function PatientsPage() {
         const slipRevenue = st?.revenue || 0
         const lastVisit = st?.lastVisit || p.last_visit_date || null
         const daysSince = lastVisit ? Math.floor((now - new Date(lastVisit).getTime()) / (24 * 60 * 60 * 1000)) : null
-        // cm_patients.ltv（CSSインポート値）とスリップ計算値の大きい方を使用
-        const ltv = Math.max(p.ltv || 0, slipRevenue)
-        const visitCount = (p.ltv || 0) > slipRevenue ? (p.visit_count || st?.count || 0) : (st?.count || p.visit_count || 0)
+        // CSV値優先: cm_patients.ltv があればそれを使用、なければ伝票合計
+        const ltv = (p.ltv || 0) > 0 ? (p.ltv || 0) : slipRevenue
+        const visitCount = (p.visit_count || 0) > 0 ? (p.visit_count || 0) : (st?.count || 0)
         const calcAge = p.birth_date
           ? Math.floor((now - new Date(p.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
           : null
@@ -328,6 +328,12 @@ export default function PatientsPage() {
         case 'gender':
           cmp = (a.gender || '').localeCompare(b.gender || '')
           break
+        case 'birth_month': {
+          const am = a.birth_date ? new Date(a.birth_date).getMonth() * 100 + new Date(a.birth_date).getDate() : 9999
+          const bm = b.birth_date ? new Date(b.birth_date).getMonth() * 100 + new Date(b.birth_date).getDate() : 9999
+          cmp = am - bm
+          break
+        }
         case 'chief_complaint':
           cmp = (a.chief_complaint || '').localeCompare(b.chief_complaint || '', 'ja')
           break
@@ -589,6 +595,7 @@ export default function PatientsPage() {
           {([
             { key: 'name' as SortKey, label: '氏名' },
             { key: 'ltv' as SortKey, label: 'LTV' },
+            { key: 'birth_month' as SortKey, label: '誕生月' },
             { key: 'days_since' as SortKey, label: '経過' },
             { key: 'last_visit' as SortKey, label: '最終来院' },
             { key: 'referral_source' as SortKey, label: '経路' },
@@ -663,6 +670,7 @@ export default function PatientsPage() {
                     <th className="px-3 py-2.5 text-xs text-gray-500 text-center w-16">ID</th>
                     <SortHeader label="氏名" sortId="name" className="text-left" />
                     <th className="px-3 py-2.5 text-xs text-gray-500 text-center">年齢</th>
+                    {isColVisible('birth_date', false) && <SortHeader label="生年月日(月順)" sortId="birth_month" className="text-left" />}
                     {isColVisible('gender') && <SortHeader label="性別" sortId="gender" className="text-left" />}
                     {isColVisible('chief_complaint') && <SortHeader label="症状" sortId="chief_complaint" className="text-left" />}
                     {isColVisible('referral_source') && <SortHeader label="来院経路" sortId="referral_source" className="text-left" />}
@@ -693,6 +701,7 @@ export default function PatientsPage() {
                         {isColVisible('furigana') && p.furigana && <p className="text-xs text-gray-400">{p.furigana}</p>}
                       </td>
                       <td className="px-3 py-3 text-xs text-center text-gray-600">{p.calcAge !== null ? `${p.calcAge}歳` : '-'}</td>
+                      {isColVisible('birth_date', false) && <td className="px-3 py-3 text-xs">{p.birth_date || '-'}</td>}
                       {isColVisible('gender') && <td className="px-3 py-3 text-xs">{p.gender}</td>}
                       {isColVisible('chief_complaint') && <td className="px-3 py-3 text-xs text-gray-600 truncate max-w-[120px]" title={p.chief_complaint || ''}>{p.chief_complaint || '-'}</td>}
                       {isColVisible('referral_source') && <td className="px-3 py-3 text-xs">{p.referral_source || '-'}</td>}
@@ -747,6 +756,7 @@ export default function PatientsPage() {
                           </div>
                           <div className="flex gap-3 mt-1 text-xs text-gray-500">
                             {p.calcAge !== null && <span>{p.calcAge}歳</span>}
+                            {isColVisible('birth_date', false) && p.birth_date && <span>{p.birth_date}</span>}
                             {isColVisible('gender') && <span>{p.gender}</span>}
                             {isColVisible('chief_complaint') && p.chief_complaint && <span className="truncate" title={p.chief_complaint}>{p.chief_complaint}</span>}
                           </div>
