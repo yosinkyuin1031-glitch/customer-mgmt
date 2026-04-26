@@ -109,12 +109,10 @@ export default function NewPatientPage() {
 
   const [customComplaint, setCustomComplaint] = useState('')
 
-  // selectedSymptoms + customComplaint → form.chief_complaint に同期
+  // 主訴は selectedSymptoms（マスター値）のみを保存。customComplaint はメモへ
   useEffect(() => {
-    const parts = [...selectedSymptoms]
-    if (customComplaint.trim()) parts.push(customComplaint.trim())
-    setForm(prev => ({ ...prev, chief_complaint: parts.join(', ') }))
-  }, [selectedSymptoms, customComplaint])
+    setForm(prev => ({ ...prev, chief_complaint: selectedSymptoms.join(', ') }))
+  }, [selectedSymptoms])
 
   const toggleSymptom = (name: string) => {
     setSelectedSymptoms(prev =>
@@ -320,8 +318,16 @@ export default function NewPatientPage() {
       .limit(1)
     const nextNumber = (maxRes?.[0]?.patient_number || 0) + 1
 
+    // customComplaint を主訴詳細としてメモにマーカー付きで埋め込む
+    let finalNotes = form.notes || ''
+    if (customComplaint.trim()) {
+      const detail = `【主訴詳細】\n${customComplaint.trim()}\n【主訴詳細終】`
+      finalNotes = finalNotes ? `${detail}\n\n${finalNotes}` : detail
+    }
+
     const { error } = await supabase.from('cm_patients').insert({
       ...form,
+      notes: finalNotes,
       status: 'active',
       clinic_id: clinicId,
       patient_number: nextNumber,

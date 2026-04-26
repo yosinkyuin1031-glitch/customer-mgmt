@@ -330,13 +330,11 @@ export default function PatientDetailPage() {
     load()
   }, [id])
 
-  // selectedSymptoms + customComplaint → form.chief_complaint に同期
+  // 主訴は selectedSymptoms（マスター値）のみを保存。customComplaint はメモへ
   useEffect(() => {
     if (!editing) return
-    const parts = [...selectedSymptoms]
-    if (customComplaint.trim()) parts.push(customComplaint.trim())
-    setForm(prev => ({ ...prev, chief_complaint: parts.join(', ') }))
-  }, [selectedSymptoms, customComplaint, editing])
+    setForm(prev => ({ ...prev, chief_complaint: selectedSymptoms.join(', ') }))
+  }, [selectedSymptoms, editing])
 
   const toggleSymptom = (name: string) => {
     setSelectedSymptoms(prev =>
@@ -344,11 +342,21 @@ export default function PatientDetailPage() {
     )
   }
 
-  // 編集モード開始時に chief_complaint をマスターの症状名に分解
+  // 編集モード開始時：chief_complaint をマスター症状に分解、notes から主訴詳細を抽出
   const startEditing = () => {
     setForm(patient!)
     setEditing(true)
     const complaint = patient?.chief_complaint || ''
+
+    // notesから【主訴詳細】...【主訴詳細終】ブロックを抽出
+    const notes = patient?.notes || ''
+    const detailMatch = notes.match(/【主訴詳細】\n([\s\S]*?)\n【主訴詳細終】\n?\n?/)
+    const extractedDetail = detailMatch ? detailMatch[1] : ''
+    const cleanedNotes = detailMatch ? notes.replace(detailMatch[0], '').trim() : notes
+    if (detailMatch) {
+      setForm(prev => ({ ...prev, notes: cleanedNotes }))
+    }
+
     if (complaint && symptomMaster.length > 0) {
       const masterNames = symptomMaster.map(s => s.name)
       const matched: string[] = []
@@ -360,10 +368,12 @@ export default function PatientDetailPage() {
         }
       }
       setSelectedSymptoms(matched)
-      setCustomComplaint(remaining.replace(/^[、,\s]+|[、,\s]+$/g, ''))
+      // 旧データ互換: chief_complaint に残っている長文があれば customComplaint に。両方あれば notes 由来を優先
+      const legacyComplaint = remaining.replace(/^[、,\s]+|[、,\s]+$/g, '')
+      setCustomComplaint(extractedDetail || legacyComplaint)
     } else {
       setSelectedSymptoms([])
-      setCustomComplaint(complaint)
+      setCustomComplaint(extractedDetail || complaint)
     }
   }
 
@@ -382,10 +392,13 @@ export default function PatientDetailPage() {
     setEditErrors(newErrors)
     if (Object.keys(newErrors).length > 0) return
 
-    // 症状マスター使用時は selectedSymptoms + customComplaint から確定値を直接生成
-    const parts = [...selectedSymptoms]
-    if (customComplaint.trim()) parts.push(customComplaint.trim())
-    const chiefComplaint = parts.length > 0 ? parts.join(', ') : (form.chief_complaint || '')
+    // 主訴はマスター値のみ。customComplaint は notes に主訴詳細マーカー付きで埋め込む
+    const chiefComplaint = selectedSymptoms.length > 0 ? selectedSymptoms.join(', ') : (form.chief_complaint || '')
+    let finalNotes = form.notes || ''
+    if (customComplaint.trim()) {
+      const detail = `【主訴詳細】\n${customComplaint.trim()}\n【主訴詳細終】`
+      finalNotes = finalNotes ? `${detail}\n\n${finalNotes}` : detail
+    }
 
     // 更新対象フィールドだけ送る（id, clinic_id, created_at等を除外）
     const updatePayload = {
@@ -406,7 +419,7 @@ export default function PatientDetailPage() {
       customer_category: form.customer_category,
       chief_complaint: chiefComplaint,
       medical_history: form.medical_history,
-      notes: form.notes,
+      notes: finalNotes,
       status: form.status,
       is_direct_mail: form.is_direct_mail,
       is_enabled: form.is_enabled,
@@ -727,6 +740,15 @@ export default function PatientDetailPage() {
                   <p className="text-sm text-gray-700">{patient.chief_complaint}</p>
                 </div>
               )}
+              {(() => {
+                const m = (patient.notes || '').match(/【主訴詳細】\n([\s\S]*?)\n【主訴詳細終】/)
+                return m ? (
+                  <div className="mt-2 bg-yellow-50/50 rounded-lg p-3">
+                    <p className="text-xs font-bold text-yellow-600 mb-1">主訴詳細</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{m[1]}</p>
+                  </div>
+                ) : null
+              })()}
               {patient.medical_history && (
                 <div className="mt-2 bg-red-50 rounded-lg p-3">
                   <p className="text-xs font-bold text-red-700 mb-1">既往歴</p>
@@ -745,12 +767,15 @@ export default function PatientDetailPage() {
                 </div>
               )}
 
-              {patient.notes && (
-                <div className="mt-2 bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs font-bold text-gray-500 mb-1">メモ</p>
-                  <p className="text-xs text-gray-600 whitespace-pre-wrap">{patient.notes}</p>
-                </div>
-              )}
+              {(() => {
+                const cleanedNotes = (patient.notes || '').replace(/【主訴詳細】\n[\s\S]*?\n【主訴詳細終】\n?\n?/, '').trim()
+                return cleanedNotes ? (
+                  <div className="mt-2 bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs font-bold text-gray-500 mb-1">メモ</p>
+                    <p className="text-xs text-gray-600 whitespace-pre-wrap">{cleanedNotes}</p>
+                  </div>
+                ) : null
+              })()}
 
               <div className="flex gap-2 mt-3">
                 <button onClick={startEditing} className="flex-1 text-sm py-2 border border-gray-300 rounded-lg text-gray-600" aria-label="患者情報を編集">編集</button>
